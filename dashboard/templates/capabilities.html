@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Capabilities - HA Intelligence Hub{% endblock %}
+{% block nav_capabilities %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Capabilities</h2>
+    <p>Detected capabilities and their entity counts</p>
+</div>
+
+<!-- Summary -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ capability_count }}</div>
+        <div class="stat-label">Capabilities</div>
+    </div>
+</div>
+
+<!-- Capabilities Grid -->
+<div class="capabilities-grid" x-data="{ capabilities: {{ capabilities | tojson }} }" data-cache-category="capabilities">
+    <template x-for="(capability, capName) in capabilities" :key="capName">
+        <div class="capability-card">
+            <div class="capability-header">
+                <h3 x-text="capName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())"></h3>
+                <span class="entity-count" x-text="`${capability.entity_count || 0} entities`"></span>
+            </div>
+
+            <div class="capability-criteria" x-show="capability.criteria">
+                <div class="criteria-label">Detection Criteria:</div>
+                <div class="criteria-list">
+                    <div x-show="capability.criteria.domain">
+                        <strong>Domain:</strong> <span x-text="capability.criteria.domain"></span>
+                    </div>
+                    <div x-show="capability.criteria.device_class">
+                        <strong>Device Class:</strong> <span x-text="capability.criteria.device_class"></span>
+                    </div>
+                    <div x-show="capability.criteria.unit_of_measurement">
+                        <strong>Unit:</strong> <span x-text="capability.criteria.unit_of_measurement"></span>
+                    </div>
+                    <div x-show="capability.criteria.attribute_match">
+                        <strong>Attributes:</strong> <span x-text="JSON.stringify(capability.criteria.attribute_match)"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="capability-entities" x-show="capability.entities && capability.entities.length > 0">
+                <details>
+                    <summary><span x-text="`Show ${capability.entities.length} entities`"></span></summary>
+                    <ul class="entity-list-compact">
+                        <template x-for="entityId in capability.entities" :key="entityId">
+                            <li x-text="entityId"></li>
+                        </template>
+                    </ul>
+                </details>
+            </div>
+        </div>
+    </template>
+
+    <template x-if="Object.keys(capabilities).length === 0">
+        <div class="empty-state-full">
+            <p>No capabilities detected yet</p>
+            <p class="empty-hint">Run discovery to detect capabilities</p>
+        </div>
+    </template>
+</div>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Patterns - HA Intelligence Hub{% endblock %}
+{% block nav_patterns %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Detected Patterns</h2>
+    <p>Behavioral patterns detected by the intelligence engine</p>
+</div>
+
+<!-- Patterns -->
+<div class="patterns-container" x-data="{ patterns: {{ patterns | tojson }} }" data-cache-category="patterns">
+    <template x-if="patterns && Object.keys(patterns).length > 0">
+        <div>
+            <!-- Metadata -->
+            <div class="card" x-show="patterns.metadata">
+                <h3>Pattern Analysis Metadata</h3>
+                <div class="metadata-grid">
+                    <div class="metadata-item" x-show="patterns.metadata.analyzed_at">
+                        <span class="metadata-label">Analyzed:</span>
+                        <span x-text="new Date(patterns.metadata.analyzed_at).toLocaleString()"></span>
+                    </div>
+                    <div class="metadata-item" x-show="patterns.metadata.time_range">
+                        <span class="metadata-label">Time Range:</span>
+                        <span x-text="patterns.metadata.time_range"></span>
+                    </div>
+                    <div class="metadata-item" x-show="patterns.metadata.pattern_count">
+                        <span class="metadata-label">Patterns Found:</span>
+                        <span x-text="patterns.metadata.pattern_count"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Patterns List -->
+            <div class="patterns-list">
+                <template x-for="(pattern, index) in patterns.patterns || []" :key="index">
+                    <div class="pattern-card">
+                        <div class="pattern-header">
+                            <h4 x-text="pattern.name || `Pattern ${index + 1}`"></h4>
+                            <span class="confidence-badge"
+                                  :class="{
+                                      'confidence-high': pattern.confidence >= 0.8,
+                                      'confidence-medium': pattern.confidence >= 0.5 && pattern.confidence < 0.8,
+                                      'confidence-low': pattern.confidence < 0.5
+                                  }"
+                                  x-show="pattern.confidence"
+                                  x-text="`${Math.round(pattern.confidence * 100)}%`"></span>
+                        </div>
+
+                        <!-- LLM Description -->
+                        <div class="pattern-description" x-show="pattern.description">
+                            <p x-text="pattern.description"></p>
+                        </div>
+
+                        <!-- Pattern Details -->
+                        <div class="pattern-details">
+                            <div class="pattern-field" x-show="pattern.type">
+                                <span class="field-label">Type:</span>
+                                <span class="field-value" x-text="pattern.type"></span>
+                            </div>
+
+                            <div class="pattern-field" x-show="pattern.entities && pattern.entities.length > 0">
+                                <span class="field-label">Entities:</span>
+                                <span class="field-value" x-text="pattern.entities.join(', ')"></span>
+                            </div>
+
+                            <div class="pattern-field" x-show="pattern.frequency">
+                                <span class="field-label">Frequency:</span>
+                                <span class="field-value" x-text="pattern.frequency"></span>
+                            </div>
+
+                            <div class="pattern-field" x-show="pattern.time_window">
+                                <span class="field-label">Time Window:</span>
+                                <span class="field-value" x-text="pattern.time_window"></span>
+                            </div>
+
+                            <div class="pattern-field" x-show="pattern.support">
+                                <span class="field-label">Support:</span>
+                                <span class="field-value" x-text="pattern.support"></span>
+                            </div>
+                        </div>
+
+                        <!-- Additional Data -->
+                        <details class="pattern-raw" x-show="pattern.raw_data">
+                            <summary>View Raw Data</summary>
+                            <pre x-text="JSON.stringify(pattern.raw_data, null, 2)"></pre>
+                        </details>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <template x-if="!patterns || Object.keys(patterns).length === 0">
+        <div class="empty-state-full">
+            <p>No patterns detected yet</p>
+            <p class="empty-hint">Patterns will appear here as the system learns from your home's behavior</p>
+        </div>
+    </template>
+</div>
+{% endblock %}

@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Discovery - HA Intelligence Hub{% endblock %}
+{% block nav_discovery %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Discovery</h2>
+    <p>Browse discovered entities, devices, and areas</p>
+</div>
+
+<!-- Summary Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ entity_count }}</div>
+        <div class="stat-label">Entities</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ device_count }}</div>
+        <div class="stat-label">Devices</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ area_count }}</div>
+        <div class="stat-label">Areas</div>
+    </div>
+</div>
+
+<!-- Entities -->
+<div class="card" x-data="{
+    entities: {{ entities | tojson }},
+    searchTerm: '',
+    domainFilter: '',
+    get filteredEntities() {
+        let filtered = Object.entries(this.entities);
+
+        if (this.searchTerm) {
+            const term = this.searchTerm.toLowerCase();
+            filtered = filtered.filter(([id, entity]) =>
+                id.toLowerCase().includes(term) ||
+                (entity.friendly_name && entity.friendly_name.toLowerCase().includes(term))
+            );
+        }
+
+        if (this.domainFilter) {
+            filtered = filtered.filter(([id, entity]) =>
+                id.startsWith(this.domainFilter + '.')
+            );
+        }
+
+        return filtered;
+    },
+    get domains() {
+        const domainSet = new Set();
+        Object.keys(this.entities).forEach(id => {
+            const domain = id.split('.')[0];
+            domainSet.add(domain);
+        });
+        return Array.from(domainSet).sort();
+    }
+}" data-cache-category="entities">
+    <h3>Entities</h3>
+
+    <!-- Filters -->
+    <div class="filters">
+        <input
+            type="text"
+            x-model="searchTerm"
+            placeholder="Search entities..."
+            class="search-input"
+        >
+        <select x-model="domainFilter" class="domain-filter">
+            <option value="">All domains</option>
+            <template x-for="domain in domains" :key="domain">
+                <option :value="domain" x-text="domain"></option>
+            </template>
+        </select>
+    </div>
+
+    <!-- Entity List -->
+    <div class="entity-list">
+        <template x-for="[entityId, entity] in filteredEntities" :key="entityId">
+            <div class="entity-item">
+                <div class="entity-header">
+                    <span class="entity-id" x-text="entityId"></span>
+                    <span class="entity-state"
+                          :class="{
+                              'state-on': entity.state === 'on',
+                              'state-off': entity.state === 'off',
+                              'state-unavailable': entity.state === 'unavailable'
+                          }"
+                          x-text="entity.state"></span>
+                </div>
+                <div class="entity-name" x-text="entity.friendly_name || 'No name'"></div>
+                <div class="entity-meta">
+                    <span x-show="entity.device_id" class="entity-device">
+                        Device: <span x-text="entity.device_id"></span>
+                    </span>
+                </div>
+            </div>
+        </template>
+        <template x-if="filteredEntities.length === 0">
+            <p class="empty-state">No entities found</p>
+        </template>
+    </div>
+</div>
+
+<!-- Areas -->
+<div class="card" x-data="{ areas: {{ areas | tojson }} }">
+    <h3>Areas</h3>
+    <div class="area-list">
+        <template x-for="(area, areaId) in areas" :key="areaId">
+            <div class="area-item">
+                <div class="area-name" x-text="area.name || areaId"></div>
+                <div class="area-meta" x-show="area.aliases && area.aliases.length > 0">
+                    Aliases: <span x-text="area.aliases.join(', ')"></span>
+                </div>
+            </div>
+        </template>
+        <template x-if="Object.keys(areas).length === 0">
+            <p class="empty-state">No areas found</p>
+        </template>
+    </div>
+</div>
+{% endblock %}

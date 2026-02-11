@@ -1,0 +1,167 @@
+"""Dashboard routes for HA Intelligence Hub web UI."""
+
+import logging
+from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+from hub.core import IntelligenceHub
+
+
+logger = logging.getLogger(__name__)
+
+# Setup templates
+dashboard_dir = Path(__file__).parent
+templates = Jinja2Templates(directory=str(dashboard_dir / "templates"))
+
+
+def create_dashboard_router(hub: IntelligenceHub) -> APIRouter:
+    """Create dashboard router with hub instance.
+
+    Args:
+        hub: IntelligenceHub instance
+
+    Returns:
+        FastAPI router for dashboard
+    """
+    router = APIRouter(prefix="/ui", tags=["dashboard"])
+
+    @router.get("/", response_class=HTMLResponse)
+    async def home(request: Request):
+        """Home page - hub status and module health."""
+        try:
+            health = await hub.health_check()
+            categories = await hub.cache.list_categories()
+            recent_events = await hub.cache.get_events(limit=10)
+
+            return templates.TemplateResponse(
+                "home.html",
+                {
+                    "request": request,
+                    "health": health,
+                    "categories": categories,
+                    "recent_events": recent_events
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error rendering home page: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/discovery", response_class=HTMLResponse)
+    async def discovery(request: Request):
+        """Discovery page - entity and device browser."""
+        try:
+            # Get discovery data from cache
+            entities_cache = await hub.get_cache("entities")
+            devices_cache = await hub.get_cache("devices")
+            areas_cache = await hub.get_cache("areas")
+
+            entities = entities_cache["data"] if entities_cache else {}
+            devices = devices_cache["data"] if devices_cache else {}
+            areas = areas_cache["data"] if areas_cache else {}
+
+            return templates.TemplateResponse(
+                "discovery.html",
+                {
+                    "request": request,
+                    "entities": entities,
+                    "devices": devices,
+                    "areas": areas,
+                    "entity_count": len(entities),
+                    "device_count": len(devices),
+                    "area_count": len(areas)
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error rendering discovery page: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/capabilities", response_class=HTMLResponse)
+    async def capabilities(request: Request):
+        """Capabilities page - capability list with entity counts."""
+        try:
+            # Get capabilities from cache
+            capabilities_cache = await hub.get_cache("capabilities")
+
+            capabilities = capabilities_cache["data"] if capabilities_cache else {}
+
+            return templates.TemplateResponse(
+                "capabilities.html",
+                {
+                    "request": request,
+                    "capabilities": capabilities,
+                    "capability_count": len(capabilities)
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error rendering capabilities page: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/predictions", response_class=HTMLResponse)
+    async def predictions(request: Request):
+        """Predictions page - ML predictions with confidence."""
+        try:
+            # Get predictions from cache
+            predictions_cache = await hub.get_cache("ml_predictions")
+
+            predictions = predictions_cache["data"] if predictions_cache else {}
+
+            return templates.TemplateResponse(
+                "predictions.html",
+                {
+                    "request": request,
+                    "predictions": predictions
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error rendering predictions page: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/patterns", response_class=HTMLResponse)
+    async def patterns(request: Request):
+        """Patterns page - detected patterns with LLM descriptions."""
+        try:
+            # Get patterns from cache
+            patterns_cache = await hub.get_cache("patterns")
+
+            patterns = patterns_cache["data"] if patterns_cache else {}
+
+            return templates.TemplateResponse(
+                "patterns.html",
+                {
+                    "request": request,
+                    "patterns": patterns
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error rendering patterns page: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/automations", response_class=HTMLResponse)
+    async def automations(request: Request):
+        """Automations page - automation suggestions with approve/reject."""
+        try:
+            # Get automation suggestions from cache
+            automations_cache = await hub.get_cache("automation_suggestions")
+
+            automations = automations_cache["data"] if automations_cache else {}
+
+            return templates.TemplateResponse(
+                "automations.html",
+                {
+                    "request": request,
+                    "automations": automations
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error rendering automations page: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    return router
+
+
+# Export for convenience (will be initialized with hub instance)
+router = None

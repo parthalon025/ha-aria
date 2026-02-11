@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Automations - HA Intelligence Hub{% endblock %}
+{% block nav_automations %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Automation Suggestions</h2>
+    <p>AI-generated automation suggestions based on detected patterns</p>
+</div>
+
+<!-- Automations -->
+<div class="automations-container"
+     x-data="{
+         automations: {{ automations | tojson }},
+         async handleAction(automationId, action) {
+             console.log(`${action} automation ${automationId}`);
+
+             try {
+                 const response = await fetch(`/api/automations/${automationId}/${action}`, {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' }
+                 });
+
+                 if (response.ok) {
+                     // Update local state
+                     const automation = this.automations.suggestions.find(a => a.id === automationId);
+                     if (automation) {
+                         automation.status = action === 'approve' ? 'approved' : 'rejected';
+                     }
+                     alert(`Automation ${action}d successfully`);
+                 } else {
+                     alert(`Failed to ${action} automation`);
+                 }
+             } catch (error) {
+                 console.error(`Error ${action}ing automation:`, error);
+                 alert(`Error: ${error.message}`);
+             }
+         }
+     }"
+     data-cache-category="automation_suggestions">
+
+    <template x-if="automations && Object.keys(automations).length > 0">
+        <div>
+            <!-- Metadata -->
+            <div class="card" x-show="automations.metadata">
+                <h3>Suggestions Metadata</h3>
+                <div class="metadata-grid">
+                    <div class="metadata-item" x-show="automations.metadata.generated_at">
+                        <span class="metadata-label">Generated:</span>
+                        <span x-text="new Date(automations.metadata.generated_at).toLocaleString()"></span>
+                    </div>
+                    <div class="metadata-item" x-show="automations.metadata.total_suggestions">
+                        <span class="metadata-label">Total Suggestions:</span>
+                        <span x-text="automations.metadata.total_suggestions"></span>
+                    </div>
+                    <div class="metadata-item" x-show="automations.metadata.model">
+                        <span class="metadata-label">Model:</span>
+                        <span x-text="automations.metadata.model"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Automation Cards -->
+            <div class="automations-grid">
+                <template x-for="automation in automations.suggestions || []" :key="automation.id">
+                    <div class="automation-card" :class="`status-${automation.status || 'pending'}`">
+                        <div class="automation-header">
+                            <h4 x-text="automation.name || 'Unnamed Automation'"></h4>
+                            <span class="status-badge" x-text="automation.status || 'pending'"></span>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="automation-description" x-show="automation.description">
+                            <p x-text="automation.description"></p>
+                        </div>
+
+                        <!-- Confidence -->
+                        <div class="automation-confidence" x-show="automation.confidence">
+                            <span class="field-label">Confidence:</span>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill"
+                                     :style="`width: ${automation.confidence * 100}%`"
+                                     :class="{
+                                         'confidence-high': automation.confidence >= 0.8,
+                                         'confidence-medium': automation.confidence >= 0.5 && automation.confidence < 0.8,
+                                         'confidence-low': automation.confidence < 0.5
+                                     }"></div>
+                            </div>
+                            <span class="confidence-value" x-text="`${Math.round(automation.confidence * 100)}%`"></span>
+                        </div>
+
+                        <!-- Trigger & Actions -->
+                        <div class="automation-logic">
+                            <div class="logic-section" x-show="automation.trigger">
+                                <h5>Trigger</h5>
+                                <div class="logic-content">
+                                    <div x-show="automation.trigger.platform">
+                                        <strong>Platform:</strong> <span x-text="automation.trigger.platform"></span>
+                                    </div>
+                                    <div x-show="automation.trigger.entity_id">
+                                        <strong>Entity:</strong> <span x-text="automation.trigger.entity_id"></span>
+                                    </div>
+                                    <template x-for="(value, key) in automation.trigger" :key="key">
+                                        <div x-show="key !== 'platform' && key !== 'entity_id'">
+                                            <strong x-text="key + ':'"></strong> <span x-text="value"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="logic-section" x-show="automation.actions && automation.actions.length > 0">
+                                <h5>Actions</h5>
+                                <div class="logic-content">
+                                    <template x-for="(action, idx) in automation.actions" :key="idx">
+                                        <div class="action-item">
+                                            <span x-text="`${idx + 1}. ${action.service || action.action || 'Unknown'}`"></span>
+                                            <span x-show="action.target" x-text="`→ ${action.target.entity_id || 'target'}`"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="logic-section" x-show="automation.conditions && automation.conditions.length > 0">
+                                <h5>Conditions</h5>
+                                <div class="logic-content">
+                                    <template x-for="(condition, idx) in automation.conditions" :key="idx">
+                                        <div class="condition-item">
+                                            <span x-text="`${idx + 1}. ${condition.condition || 'Unknown'}`"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Based On -->
+                        <div class="automation-metadata" x-show="automation.based_on">
+                            <span class="field-label">Based on:</span>
+                            <span class="field-value" x-text="automation.based_on"></span>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="automation-actions" x-show="!automation.status || automation.status === 'pending'">
+                            <button class="btn-approve" @click="handleAction(automation.id, 'approve')">
+                                Approve
+                            </button>
+                            <button class="btn-reject" @click="handleAction(automation.id, 'reject')">
+                                Reject
+                            </button>
+                        </div>
+
+                        <!-- Status Message -->
+                        <div class="status-message" x-show="automation.status && automation.status !== 'pending'">
+                            <span x-text="`This automation has been ${automation.status}`"></span>
+                        </div>
+
+                        <!-- YAML Export -->
+                        <details class="automation-yaml" x-show="automation.yaml">
+                            <summary>View YAML</summary>
+                            <pre x-text="automation.yaml"></pre>
+                        </details>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <template x-if="!automations || Object.keys(automations).length === 0">
+        <div class="empty-state-full">
+            <p>No automation suggestions yet</p>
+            <p class="empty-hint">The system will suggest automations as it learns patterns from your home</p>
+        </div>
+    </template>
+</div>
+{% endblock %}

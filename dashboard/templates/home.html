@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Home - HA Intelligence Hub{% endblock %}
+{% block nav_home %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Hub Status</h2>
+    <p>Real-time overview of the Intelligence Hub</p>
+</div>
+
+<!-- Hub Health -->
+<div class="card" x-data="{ health: {{ health | tojson }} }">
+    <h3>Hub Health</h3>
+    <div class="health-grid">
+        <div class="health-item">
+            <div class="health-label">Status</div>
+            <div class="health-value" :class="health.hub.running ? 'status-online' : 'status-offline'">
+                <span x-text="health.hub.running ? 'Running' : 'Stopped'"></span>
+            </div>
+        </div>
+        <div class="health-item">
+            <div class="health-label">Modules</div>
+            <div class="health-value" x-text="health.hub.modules_count"></div>
+        </div>
+        <div class="health-item">
+            <div class="health-label">Tasks</div>
+            <div class="health-value" x-text="health.hub.tasks_count"></div>
+        </div>
+        <div class="health-item">
+            <div class="health-label">Subscribers</div>
+            <div class="health-value" x-text="health.hub.subscribers_count"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Registered Modules -->
+<div class="card" x-data="{ modules: {{ health.modules | tojson }} }">
+    <h3>Registered Modules</h3>
+    <div class="module-list">
+        <template x-for="(module, moduleId) in modules" :key="moduleId">
+            <div class="module-item">
+                <span class="status-indicator status-online"></span>
+                <span x-text="moduleId"></span>
+            </div>
+        </template>
+        <template x-if="Object.keys(modules).length === 0">
+            <p class="empty-state">No modules registered</p>
+        </template>
+    </div>
+</div>
+
+<!-- Cache Categories -->
+<div class="card" x-data="{ categories: {{ categories | tojson }} }">
+    <h3>Cache Categories</h3>
+    <div class="category-list">
+        <template x-for="category in categories" :key="category">
+            <div class="category-item">
+                <a :href="`/api/cache/${category}`" target="_blank" x-text="category"></a>
+            </div>
+        </template>
+        <template x-if="categories.length === 0">
+            <p class="empty-state">No cache data available</p>
+        </template>
+    </div>
+</div>
+
+<!-- Recent Events -->
+<div class="card" x-data="{ events: {{ recent_events | tojson }} }">
+    <h3>Recent Events</h3>
+    <div class="event-list">
+        <template x-for="event in events" :key="event.id">
+            <div class="event-item">
+                <div class="event-time" x-text="new Date(event.timestamp).toLocaleString()"></div>
+                <div class="event-type" x-text="event.event_type"></div>
+                <div class="event-category" x-text="event.category || 'N/A'"></div>
+            </div>
+        </template>
+        <template x-if="events.length === 0">
+            <p class="empty-state">No recent events</p>
+        </template>
+    </div>
+</div>
+{% endblock %}

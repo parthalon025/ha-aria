@@ -1,12 +1,15 @@
 """FastAPI routes for Intelligence Hub REST API."""
 
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from typing import Optional, Dict, Any, List, Set
 import logging
 import json
 
 from hub.core import IntelligenceHub
+from dashboard.routes import create_dashboard_router
 
 
 logger = logging.getLogger(__name__)
@@ -70,6 +73,14 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         })
 
     hub.subscribe("cache_updated", broadcast_cache_update)
+
+    # Mount dashboard static files
+    dashboard_static = Path(__file__).parent.parent / "dashboard" / "static"
+    app.mount("/ui/static", StaticFiles(directory=str(dashboard_static)), name="dashboard_static")
+
+    # Mount dashboard router
+    dashboard_router = create_dashboard_router(hub)
+    app.include_router(dashboard_router)
 
     # Health check
     @app.get("/")

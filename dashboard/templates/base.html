@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}HA Intelligence Hub{% endblock %}</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="/ui/static/style.css">
+
+    <!-- htmx for dynamic content -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <!-- Alpine.js for interactivity -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Dashboard utilities -->
+    <script src="/ui/static/app.js"></script>
+</head>
+<body>
+    <!-- WebSocket connection status -->
+    <div id="ws-status"
+         x-data="{ connected: false, message: 'Connecting...' }"
+         x-init="initWebSocket()"
+         :class="connected ? 'connected' : 'disconnected'">
+        <span x-text="message"></span>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>HA Intelligence Hub</h1>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/ui/" class="{% block nav_home %}{% endblock %}">Home</a></li>
+            <li><a href="/ui/discovery" class="{% block nav_discovery %}{% endblock %}">Discovery</a></li>
+            <li><a href="/ui/capabilities" class="{% block nav_capabilities %}{% endblock %}">Capabilities</a></li>
+            <li><a href="/ui/predictions" class="{% block nav_predictions %}{% endblock %}">Predictions</a></li>
+            <li><a href="/ui/patterns" class="{% block nav_patterns %}{% endblock %}">Patterns</a></li>
+            <li><a href="/ui/automations" class="{% block nav_automations %}{% endblock %}">Automations</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main content -->
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <p>HA Intelligence Hub v0.1.0</p>
+    </footer>
+
+    <!-- WebSocket handling -->
+    <script>
+        let ws = null;
+        let reconnectInterval = null;
+
+        function initWebSocket() {
+            const wsUrl = `ws://${window.location.host}/ws`;
+
+            try {
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = (event) => {
+                    console.log('WebSocket connected');
+                    Alpine.store('ws', { connected: true, message: 'Connected' });
+
+                    // Clear reconnect interval if exists
+                    if (reconnectInterval) {
+                        clearInterval(reconnectInterval);
+                        reconnectInterval = null;
+                    }
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    console.log('WebSocket message:', data);
+
+                    // Handle cache updates
+                    if (data.type === 'cache_updated') {
+                        handleCacheUpdate(data.data);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    Alpine.store('ws', { connected: false, message: 'Error' });
+                };
+
+                ws.onclose = (event) => {
+                    console.log('WebSocket closed');
+                    Alpine.store('ws', { connected: false, message: 'Disconnected' });
+
+                    // Attempt to reconnect every 5 seconds
+                    if (!reconnectInterval) {
+                        reconnectInterval = setInterval(() => {
+                            console.log('Attempting to reconnect...');
+                            initWebSocket();
+                        }, 5000);
+                    }
+                };
+
+                // Send ping every 30 seconds to keep connection alive
+                setInterval(() => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'ping' }));
+                    }
+                }, 30000);
+
+            } catch (error) {
+                console.error('Failed to create WebSocket:', error);
+                Alpine.store('ws', { connected: false, message: 'Failed to connect' });
+            }
+        }
+
+        function handleCacheUpdate(data) {
+            console.log('Cache updated:', data);
+
+            // Trigger htmx reload for relevant sections
+            const category = data.category;
+            const reloadTarget = document.querySelector(`[data-cache-category="${category}"]`);
+
+            if (reloadTarget) {
+                htmx.trigger(reloadTarget, 'cacheUpdated');
+            }
+
+            // Show notification
+            showNotification(`Updated: ${category}`);
+        }
+
+        function showNotification(message) {
+            // Simple notification (can be enhanced with a toast library)
+            console.log('Notification:', message);
+
+            // Create temporary notification element
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

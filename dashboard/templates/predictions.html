@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Predictions - HA Intelligence Hub{% endblock %}
+{% block nav_predictions %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>ML Predictions</h2>
+    <p>Machine learning predictions with confidence scores</p>
+</div>
+
+<!-- Predictions -->
+<div class="predictions-container" x-data="{ predictions: {{ predictions | tojson }} }" data-cache-category="ml_predictions">
+    <template x-if="predictions && Object.keys(predictions).length > 0">
+        <div>
+            <!-- Metadata -->
+            <div class="card" x-show="predictions.metadata">
+                <h3>Prediction Metadata</h3>
+                <div class="metadata-grid">
+                    <div class="metadata-item" x-show="predictions.metadata.generated_at">
+                        <span class="metadata-label">Generated:</span>
+                        <span x-text="new Date(predictions.metadata.generated_at).toLocaleString()"></span>
+                    </div>
+                    <div class="metadata-item" x-show="predictions.metadata.model_version">
+                        <span class="metadata-label">Model Version:</span>
+                        <span x-text="predictions.metadata.model_version"></span>
+                    </div>
+                    <div class="metadata-item" x-show="predictions.metadata.features_used">
+                        <span class="metadata-label">Features Used:</span>
+                        <span x-text="predictions.metadata.features_used"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Predictions List -->
+            <div class="predictions-grid">
+                <template x-for="(prediction, index) in predictions.predictions || []" :key="index">
+                    <div class="prediction-card">
+                        <div class="prediction-header">
+                            <h4 x-text="prediction.entity_id || 'Unknown Entity'"></h4>
+                            <span class="confidence-badge"
+                                  :class="{
+                                      'confidence-high': prediction.confidence >= 0.8,
+                                      'confidence-medium': prediction.confidence >= 0.5 && prediction.confidence < 0.8,
+                                      'confidence-low': prediction.confidence < 0.5
+                                  }"
+                                  x-text="`${Math.round(prediction.confidence * 100)}%`"></span>
+                        </div>
+
+                        <div class="prediction-content">
+                            <div class="prediction-field">
+                                <span class="field-label">Predicted Value:</span>
+                                <span class="field-value" x-text="prediction.predicted_value"></span>
+                            </div>
+
+                            <div class="prediction-field" x-show="prediction.current_value !== undefined">
+                                <span class="field-label">Current Value:</span>
+                                <span class="field-value" x-text="prediction.current_value"></span>
+                            </div>
+
+                            <div class="prediction-field" x-show="prediction.prediction_time">
+                                <span class="field-label">Prediction Time:</span>
+                                <span class="field-value" x-text="new Date(prediction.prediction_time).toLocaleString()"></span>
+                            </div>
+
+                            <div class="prediction-field" x-show="prediction.model">
+                                <span class="field-label">Model:</span>
+                                <span class="field-value" x-text="prediction.model"></span>
+                            </div>
+                        </div>
+
+                        <!-- Additional Info -->
+                        <details class="prediction-details" x-show="prediction.features">
+                            <summary>View Features</summary>
+                            <pre x-text="JSON.stringify(prediction.features, null, 2)"></pre>
+                        </details>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <template x-if="!predictions || Object.keys(predictions).length === 0">
+        <div class="empty-state-full">
+            <p>No predictions available yet</p>
+            <p class="empty-hint">ML predictions will appear here once the ML engine has trained models</p>
+        </div>
+    </template>
+</div>
+{% endblock %}
