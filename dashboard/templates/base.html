@@ -57,7 +57,8 @@
         let reconnectInterval = null;
 
         function initWebSocket() {
-            const wsUrl = `ws://${window.location.host}/ws`;
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
 
             try {
                 ws = new WebSocket(wsUrl);
