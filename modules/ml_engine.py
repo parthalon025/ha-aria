@@ -14,6 +14,7 @@ import os
 import json
 import logging
 import pickle
+import math
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timedelta
@@ -224,6 +225,7 @@ class MLEngine(Module):
         scaler.fit(X)
 
         # Store model data
+        config = self._get_feature_config()
         model_data = {
             "target": target,
             "capability": capability_name,
@@ -232,7 +234,7 @@ class MLEngine(Module):
             "scaler": scaler,
             "trained_at": datetime.now().isoformat(),
             "num_samples": len(X),
-            "feature_names": self._get_feature_names(training_data[0] if training_data else {})
+            "feature_names": self._get_feature_names(config)
         }
 
         # Save to disk
@@ -264,10 +266,30 @@ class MLEngine(Module):
         """
         X_list = []
         y_list = []
+        config = self._get_feature_config()
 
-        for snapshot in snapshots:
+        for i, snapshot in enumerate(snapshots):
+            # Get previous snapshot and rolling stats for lag features
+            prev_snapshot = snapshots[i - 1] if i > 0 else None
+
+            # Compute rolling stats for last 7 snapshots
+            rolling_stats = {}
+            if i >= 7:
+                recent = snapshots[max(0, i - 7):i]
+                rolling_stats["power_mean_7d"] = sum(
+                    s.get("power", {}).get("total_watts", 0) for s in recent
+                ) / len(recent)
+                rolling_stats["lights_mean_7d"] = sum(
+                    s.get("lights", {}).get("on", 0) for s in recent
+                ) / len(recent)
+
             # Extract features
-            features = self._extract_features(snapshot)
+            features = self._extract_features(
+                snapshot,
+                config=config,
+                prev_snapshot=prev_snapshot,
+                rolling_stats=rolling_stats
+            )
             if features is None:
                 continue
 
@@ -284,36 +306,316 @@ class MLEngine(Module):
 
         return np.array(X_list), np.array(y_list)
 
-    def _extract_features(self, snapshot: Dict[str, Any]) -> Optional[Dict[str, float]]:
-        """Extract feature vector from snapshot.
+    def _get_feature_config(self) -> Dict[str, Any]:
+        """Get feature configuration from cache or return default.
+
+        Returns:
+            Feature configuration dictionary
+        """
+        # Default feature config matching ha-intelligence
+        DEFAULT_FEATURE_CONFIG = {
+            "version": 1,
+            "last_modified": "",
+            "modified_by": "ml_engine",
+            "time_features": {
+                "hour_sin_cos": True,
+                "dow_sin_cos": True,
+                "month_sin_cos": True,
+                "day_of_year_sin_cos": True,
+                "is_weekend": True,
+                "is_holiday": True,
+                "is_night": True,
+                "is_work_hours": True,
+                "minutes_since_sunrise": True,
+                "minutes_until_sunset": True,
+                "daylight_remaining_pct": True,
+            },
+            "weather_features": {
+                "temp_f": True,
+                "humidity_pct": True,
+                "wind_mph": True,
+            },
+            "home_features": {
+                "people_home_count": True,
+                "device_count_home": True,
+                "lights_on": True,
+                "total_brightness": True,
+                "motion_active_count": True,
+                "active_media_players": True,
+                "ev_battery_pct": True,
+                "ev_is_charging": True,
+            },
+            "lag_features": {
+                "prev_snapshot_power": True,
+                "prev_snapshot_lights": True,
+                "prev_snapshot_occupancy": True,
+                "rolling_7d_power_mean": True,
+                "rolling_7d_lights_mean": True,
+            },
+            "interaction_features": {
+                "is_weekend_x_temp": False,
+                "people_home_x_hour_sin": False,
+                "daylight_x_lights": False,
+            },
+            "target_metrics": [
+                "power_watts",
+                "lights_on",
+                "devices_home",
+                "unavailable",
+                "useful_events",
+            ],
+        }
+
+        # TODO: Load from hub cache "feature_config" category with versioning
+        # For now, return default
+        return DEFAULT_FEATURE_CONFIG.copy()
+
+    def _get_feature_names(self, config: Optional[Dict[str, Any]] = None) -> List[str]:
+        """Return ordered list of feature names from config.
+
+        Args:
+            config: Feature configuration (uses default if None)
+
+        Returns:
+            List of feature names in order
+        """
+        if config is None:
+            config = self._get_feature_config()
+
+        names = []
+
+        # Time features
+        tc = config.get("time_features", {})
+        if tc.get("hour_sin_cos"):
+            names.extend(["hour_sin", "hour_cos"])
+        if tc.get("dow_sin_cos"):
+            names.extend(["dow_sin", "dow_cos"])
+        if tc.get("month_sin_cos"):
+            names.extend(["month_sin", "month_cos"])
+        if tc.get("day_of_year_sin_cos"):
+            names.extend(["day_of_year_sin", "day_of_year_cos"])
+        for simple in ["is_weekend", "is_holiday", "is_night", "is_work_hours",
+                       "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct"]:
+            if tc.get(simple):
+                names.append(simple)
+
+        # Weather features
+        for key in config.get("weather_features", {}):
+            if config["weather_features"][key]:
+                names.append(f"weather_{key}")
+
+        # Home state features
+        for key in config.get("home_features", {}):
+            if config["home_features"][key]:
+                names.append(key)
+
+        # Lag features
+        for key in config.get("lag_features", {}):
+            if config["lag_features"][key]:
+                names.append(key)
+
+        # Interaction features
+        for key in config.get("interaction_features", {}):
+            if config["interaction_features"][key]:
+                names.append(key)
+
+        return names
+
+    def _compute_time_features(self, snapshot: Dict[str, Any]) -> Dict[str, float]:
+        """Compute time features from snapshot if not present.
+
+        Args:
+            snapshot: Snapshot dictionary (must have 'date' field)
+
+        Returns:
+            Dictionary of time features
+        """
+        # If snapshot already has time_features, return them
+        if "time_features" in snapshot:
+            return snapshot["time_features"]
+
+        # Compute time features from date field
+        date_str = snapshot.get("date")
+        if not date_str:
+            # Return zeros for all features if no date
+            return {
+                "hour_sin": 0, "hour_cos": 0,
+                "dow_sin": 0, "dow_cos": 0,
+                "month_sin": 0, "month_cos": 0,
+                "day_of_year_sin": 0, "day_of_year_cos": 0,
+                "is_weekend": 0, "is_holiday": 0,
+                "is_night": 0, "is_work_hours": 0,
+                "minutes_since_sunrise": 0,
+                "minutes_until_sunset": 0,
+                "daylight_remaining_pct": 0,
+            }
+
+        # Parse date (daily snapshots are at midnight)
+        dt = datetime.fromisoformat(date_str) if "T" in date_str else datetime.strptime(date_str, "%Y-%m-%d")
+
+        # Use noon for daily snapshots (more representative than midnight)
+        if "T" not in date_str:
+            dt = dt.replace(hour=12, minute=0, second=0)
+
+        # Cyclic encoding helper
+        def sin_cos_encode(value, period):
+            angle = 2 * math.pi * value / period
+            return round(math.sin(angle), 6), round(math.cos(angle), 6)
+
+        # Hour features (24-hour cycle)
+        h_sin, h_cos = sin_cos_encode(dt.hour, 24)
+
+        # Day of week features (7-day cycle, 0=Monday)
+        dow = dt.weekday()
+        d_sin, d_cos = sin_cos_encode(dow, 7)
+
+        # Month features (12-month cycle)
+        month = dt.month
+        m_sin, m_cos = sin_cos_encode(month - 1, 12)
+
+        # Day of year features (365-day cycle)
+        day_of_year = dt.timetuple().tm_yday
+        doy_sin, doy_cos = sin_cos_encode(day_of_year - 1, 365)
+
+        # Boolean features
+        is_weekend = 1 if dow >= 5 else 0
+        is_holiday = 1 if snapshot.get("is_holiday") else 0
+        is_night = 1 if dt.hour < 6 or dt.hour >= 22 else 0
+        is_work_hours = 1 if 9 <= dt.hour < 17 and dow < 5 else 0
+
+        # Sun features (approximations - daily snapshots don't have precise sun data)
+        # Assume sunrise ~6:30am (390 min), sunset ~6:30pm (1110 min)
+        minutes_since_midnight = dt.hour * 60 + dt.minute
+        minutes_since_sunrise = max(0, minutes_since_midnight - 390)
+        minutes_until_sunset = max(0, 1110 - minutes_since_midnight)
+        daylight_minutes = 1110 - 390
+        daylight_remaining_pct = min(100, max(0, minutes_until_sunset / daylight_minutes * 100))
+
+        return {
+            "hour": dt.hour,
+            "hour_sin": h_sin,
+            "hour_cos": h_cos,
+            "dow": dow,
+            "dow_sin": d_sin,
+            "dow_cos": d_cos,
+            "month": month,
+            "month_sin": m_sin,
+            "month_cos": m_cos,
+            "day_of_year": day_of_year,
+            "day_of_year_sin": doy_sin,
+            "day_of_year_cos": doy_cos,
+            "is_weekend": is_weekend,
+            "is_holiday": is_holiday,
+            "is_night": is_night,
+            "is_work_hours": is_work_hours,
+            "minutes_since_sunrise": minutes_since_sunrise,
+            "minutes_until_sunset": minutes_until_sunset,
+            "daylight_remaining_pct": daylight_remaining_pct,
+        }
+
+    def _extract_features(
+        self,
+        snapshot: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        prev_snapshot: Optional[Dict[str, Any]] = None,
+        rolling_stats: Optional[Dict[str, float]] = None
+    ) -> Optional[Dict[str, float]]:
+        """Extract feature vector from snapshot using feature config.
 
         Args:
             snapshot: Snapshot dictionary
+            config: Feature configuration (uses default if None)
+            prev_snapshot: Previous snapshot for lag features (optional)
+            rolling_stats: Rolling statistics dict (optional)
 
         Returns:
-            Dictionary of feature_name -> value
+            Dictionary of feature_name -> float value
         """
-        # Simplified feature extraction - in real implementation, this would be
-        # much more comprehensive and use the feature config from ha-intelligence
+        if config is None:
+            config = self._get_feature_config()
+
         features = {}
 
-        # Time features
-        time_features = snapshot.get("time_features", {})
-        features["hour_sin"] = time_features.get("hour_sin", 0)
-        features["hour_cos"] = time_features.get("hour_cos", 0)
-        features["is_weekend"] = 1 if time_features.get("is_weekend") else 0
+        # Compute or retrieve time features
+        tf = self._compute_time_features(snapshot)
+        tc = config.get("time_features", {})
+
+        # Time features - sin/cos pairs for cyclic encoding
+        if tc.get("hour_sin_cos"):
+            features["hour_sin"] = tf.get("hour_sin", 0)
+            features["hour_cos"] = tf.get("hour_cos", 0)
+        if tc.get("dow_sin_cos"):
+            features["dow_sin"] = tf.get("dow_sin", 0)
+            features["dow_cos"] = tf.get("dow_cos", 0)
+        if tc.get("month_sin_cos"):
+            features["month_sin"] = tf.get("month_sin", 0)
+            features["month_cos"] = tf.get("month_cos", 0)
+        if tc.get("day_of_year_sin_cos"):
+            features["day_of_year_sin"] = tf.get("day_of_year_sin", 0)
+            features["day_of_year_cos"] = tf.get("day_of_year_cos", 0)
+
+        # Time features - simple boolean/numeric
+        for simple in ["is_weekend", "is_holiday", "is_night", "is_work_hours",
+                       "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct"]:
+            if tc.get(simple):
+                val = tf.get(simple, 0)
+                features[simple] = 1 if val is True else (0 if val is False else (val or 0))
 
         # Weather features
         weather = snapshot.get("weather", {})
-        features["temp_f"] = weather.get("temp_f", 0) or 0
-        features["humidity_pct"] = weather.get("humidity_pct", 0) or 0
+        for key, enabled in config.get("weather_features", {}).items():
+            if enabled:
+                features[f"weather_{key}"] = weather.get(key) or 0
 
         # Home state features
-        occupancy = snapshot.get("occupancy", {})
-        features["people_home"] = occupancy.get("people_home_count", 0)
+        hc = config.get("home_features", {})
+        if hc.get("people_home_count"):
+            features["people_home_count"] = snapshot.get("occupancy", {}).get(
+                "people_home_count",
+                len(snapshot.get("occupancy", {}).get("people_home", []))
+            )
+        if hc.get("device_count_home"):
+            features["device_count_home"] = snapshot.get("occupancy", {}).get("device_count_home", 0)
+        if hc.get("lights_on"):
+            features["lights_on"] = snapshot.get("lights", {}).get("on", 0)
+        if hc.get("total_brightness"):
+            features["total_brightness"] = snapshot.get("lights", {}).get("total_brightness", 0)
+        if hc.get("motion_active_count"):
+            features["motion_active_count"] = snapshot.get("motion", {}).get("active_count", 0)
+        if hc.get("active_media_players"):
+            features["active_media_players"] = snapshot.get("media", {}).get("total_active", 0)
+        if hc.get("ev_battery_pct"):
+            features["ev_battery_pct"] = snapshot.get("ev", {}).get("TARS", {}).get("battery_pct", 0)
+        if hc.get("ev_is_charging"):
+            features["ev_is_charging"] = 1 if snapshot.get("ev", {}).get("TARS", {}).get("is_charging") else 0
 
-        lights = snapshot.get("lights", {})
-        features["lights_on"] = lights.get("on", 0)
+        # Lag features - previous snapshot and rolling stats
+        lc = config.get("lag_features", {})
+        if lc.get("prev_snapshot_power") and prev_snapshot:
+            features["prev_snapshot_power"] = prev_snapshot.get("power", {}).get("total_watts", 0)
+        elif lc.get("prev_snapshot_power"):
+            features["prev_snapshot_power"] = 0
+        if lc.get("prev_snapshot_lights") and prev_snapshot:
+            features["prev_snapshot_lights"] = prev_snapshot.get("lights", {}).get("on", 0)
+        elif lc.get("prev_snapshot_lights"):
+            features["prev_snapshot_lights"] = 0
+        if lc.get("prev_snapshot_occupancy") and prev_snapshot:
+            features["prev_snapshot_occupancy"] = prev_snapshot.get("occupancy", {}).get("device_count_home", 0)
+        elif lc.get("prev_snapshot_occupancy"):
+            features["prev_snapshot_occupancy"] = 0
+        if lc.get("rolling_7d_power_mean"):
+            features["rolling_7d_power_mean"] = (rolling_stats or {}).get("power_mean_7d", 0)
+        if lc.get("rolling_7d_lights_mean"):
+            features["rolling_7d_lights_mean"] = (rolling_stats or {}).get("lights_mean_7d", 0)
+
+        # Interaction features - derived from other features
+        ic = config.get("interaction_features", {})
+        if ic.get("is_weekend_x_temp"):
+            features["is_weekend_x_temp"] = features.get("is_weekend", 0) * features.get("weather_temp_f", 0)
+        if ic.get("people_home_x_hour_sin"):
+            features["people_home_x_hour_sin"] = features.get("people_home_count", 0) * features.get("hour_sin", 0)
+        if ic.get("daylight_x_lights"):
+            features["daylight_x_lights"] = features.get("daylight_remaining_pct", 0) * features.get("lights_on", 0)
 
         return features
 
@@ -344,18 +646,6 @@ class MLEngine(Module):
         value = snapshot.get(section, {}).get(key)
 
         return float(value) if value is not None else None
-
-    def _get_feature_names(self, snapshot: Dict[str, Any]) -> List[str]:
-        """Get list of feature names used in training.
-
-        Args:
-            snapshot: Sample snapshot
-
-        Returns:
-            List of feature names
-        """
-        features = self._extract_features(snapshot)
-        return list(features.keys()) if features else []
 
     async def generate_predictions(self) -> Dict[str, Any]:
         """Generate predictions for tomorrow using trained models.
