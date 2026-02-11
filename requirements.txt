@@ -2,31 +2,31 @@
 # Python 3.12+
 
 # Web framework
-fastapi==0.109.2
-uvicorn[standard]==0.27.1
-websockets==12.0
-python-multipart==0.0.9
-jinja2==3.1.3
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+websockets>=12.0
+python-multipart>=0.0.9
+jinja2>=3.1.0
 
 # Database
-aiosqlite==0.19.0
+aiosqlite>=0.19.0
 
-# ML dependencies
-scikit-learn==1.4.0
-numpy==1.26.4
-tslearn==0.6.3  # k-Shape clustering, DTW
-mlxtend==0.23.1  # Apriori algorithm
+# ML dependencies (matching ha-intelligence versions)
+scikit-learn==1.8.0
+numpy==2.4.2
+# tslearn>=0.6.0  # k-Shape clustering, DTW - TODO: Add when upgrading to Python 3.11 or when tslearn supports 3.12
+mlxtend>=0.23.0  # Apriori algorithm
 
 # LLM
-ollama==0.3.3
+ollama>=0.3.0
 
 # Time series
-holidays==0.42
+holidays>=0.42
 
 # Utilities
-python-dateutil==2.8.2
-pytz==2024.1
+python-dateutil>=2.8.0
+pytz>=2024.1
 
 # Development
-pytest==8.0.0
-pytest-asyncio==0.23.4
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
