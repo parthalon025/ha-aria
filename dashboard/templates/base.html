@@ -20,10 +20,10 @@
 <body>
     <!-- WebSocket connection status -->
     <div id="ws-status"
-         x-data="{ connected: false, message: 'Connecting...' }"
+         x-data
          x-init="initWebSocket()"
-         :class="connected ? 'connected' : 'disconnected'">
-        <span x-text="message"></span>
+         :class="$store.ws.connected ? 'connected' : 'disconnected'">
+        <span x-text="$store.ws.message"></span>
     </div>
 
     <!-- Navigation -->
