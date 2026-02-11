@@ -172,6 +172,12 @@ class MLEngine(Module):
             }
         )
 
+        # Store feature configuration for reuse across restarts
+        config = await self._get_feature_config()
+        config["last_modified"] = datetime.now().isoformat()
+        config["modified_by"] = "ml_engine"
+        await self.hub.set_cache("feature_config", config)
+
     async def _load_training_data(self, days: int) -> List[Dict[str, Any]]:
         """Load historical snapshots for training.
 
@@ -214,7 +220,7 @@ class MLEngine(Module):
         self.logger.info(f"Training model for target: {target}")
 
         # Extract features and target values
-        X, y = self._build_training_dataset(training_data, target)
+        X, y = await self._build_training_dataset(training_data, target)
 
         if len(X) < 14:
             self.logger.warning(f"Insufficient training data for {target}: {len(X)} samples (need 14+)")
@@ -266,8 +272,8 @@ class MLEngine(Module):
         rf_r2 = r2_score(y_val, rf_pred) if len(y_val) > 1 else 0.0
 
         # Extract feature importance from RandomForest
-        config = self._get_feature_config()
-        feature_names = self._get_feature_names(config)
+        config = await self._get_feature_config()
+        feature_names = await self._get_feature_names(config)
         feature_importance = {
             name: round(float(importance), 4)
             for name, importance in zip(feature_names, rf_model.feature_importances_)
@@ -328,7 +334,7 @@ class MLEngine(Module):
             return
 
         # Build feature matrix from all snapshots
-        config = self._get_feature_config()
+        config = await self._get_feature_config()
         X_list = []
 
         for i, snapshot in enumerate(training_data):
@@ -345,7 +351,7 @@ class MLEngine(Module):
                     s.get("lights", {}).get("on", 0) for s in recent
                 ) / len(recent)
 
-            features = self._extract_features(
+            features = await self._extract_features(
                 snapshot,
                 config=config,
                 prev_snapshot=prev_snapshot,
@@ -388,7 +394,7 @@ class MLEngine(Module):
             f"Anomaly detector trained: {len(X)} samples, contamination=0.05"
         )
 
-    def _build_training_dataset(
+    async def _build_training_dataset(
         self,
         snapshots: List[Dict[str, Any]],
         target: str
@@ -404,7 +410,7 @@ class MLEngine(Module):
         """
         X_list = []
         y_list = []
-        config = self._get_feature_config()
+        config = await self._get_feature_config()
 
         for i, snapshot in enumerate(snapshots):
             # Get previous snapshot and rolling stats for lag features
@@ -422,7 +428,7 @@ class MLEngine(Module):
                 ) / len(recent)
 
             # Extract features
-            features = self._extract_features(
+            features = await self._extract_features(
                 snapshot,
                 config=config,
                 prev_snapshot=prev_snapshot,
@@ -444,7 +450,7 @@ class MLEngine(Module):
 
         return np.array(X_list), np.array(y_list)
 
-    def _get_feature_config(self) -> Dict[str, Any]:
+    async def _get_feature_config(self) -> Dict[str, Any]:
         """Get feature configuration from cache or return default.
 
         Returns:
@@ -504,11 +510,16 @@ class MLEngine(Module):
             ],
         }
 
-        # TODO: Load from hub cache "feature_config" category with versioning
-        # For now, return default
+        # Load from hub cache with fallback to default
+        config_entry = await self.hub.get_cache("feature_config")
+        if config_entry:
+            self.logger.debug("Loaded feature config from cache")
+            return config_entry.get("data", DEFAULT_FEATURE_CONFIG.copy())
+
+        self.logger.debug("Using default feature config (no cache found)")
         return DEFAULT_FEATURE_CONFIG.copy()
 
-    def _get_feature_names(self, config: Optional[Dict[str, Any]] = None) -> List[str]:
+    async def _get_feature_names(self, config: Optional[Dict[str, Any]] = None) -> List[str]:
         """Return ordered list of feature names from config.
 
         Args:
@@ -518,7 +529,7 @@ class MLEngine(Module):
             List of feature names in order
         """
         if config is None:
-            config = self._get_feature_config()
+            config = await self._get_feature_config()
 
         names = []
 
@@ -651,7 +662,7 @@ class MLEngine(Module):
             "daylight_remaining_pct": daylight_remaining_pct,
         }
 
-    def _extract_features(
+    async def _extract_features(
         self,
         snapshot: Dict[str, Any],
         config: Optional[Dict[str, Any]] = None,
@@ -670,7 +681,7 @@ class MLEngine(Module):
             Dictionary of feature_name -> float value
         """
         if config is None:
-            config = self._get_feature_config()
+            config = await self._get_feature_config()
 
         features = {}
 
@@ -813,10 +824,10 @@ class MLEngine(Module):
         rolling_stats = await self._compute_rolling_stats()
 
         # Build feature config
-        config = self._get_feature_config()
+        config = await self._get_feature_config()
 
         # Extract features from current state
-        features = self._extract_features(
+        features = await self._extract_features(
             snapshot,
             config=config,
             prev_snapshot=prev_snapshot,
@@ -829,7 +840,7 @@ class MLEngine(Module):
 
         # Generate predictions for each trained model
         predictions_dict = {}
-        feature_names = self._get_feature_names(config)
+        feature_names = await self._get_feature_names(config)
 
         # Build feature vector in correct order (same for all models)
         feature_vector = [features.get(name, 0) for name in feature_names]
