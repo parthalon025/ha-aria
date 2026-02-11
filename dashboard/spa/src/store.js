@@ -44,6 +44,12 @@ function getCategory(name) {
 async function fetchCategory(name) {
   const sig = getCategory(name);
   const current = sig.value;
+
+  // Skip if already loading or fetched within the last 2 seconds (prevents
+  // double-fetch when mount effect and WS onopen both trigger simultaneously)
+  if (current.loading) return;
+  if (current.lastFetched && Date.now() - current.lastFetched < 2000) return;
+
   const hasData = current.data !== null;
   const isStaleRefresh = hasData && current.stale;
 

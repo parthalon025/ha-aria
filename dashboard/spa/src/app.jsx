@@ -1,7 +1,9 @@
+import { Component } from 'preact';
 import { useEffect } from 'preact/hooks';
 import Router from 'preact-router';
 import { connectWebSocket, disconnectWebSocket } from './store.js';
 import Sidebar from './components/Sidebar.jsx';
+import ErrorState from './components/ErrorState.jsx';
 import Home from './pages/Home.jsx';
 import Discovery from './pages/Discovery.jsx';
 import Capabilities from './pages/Capabilities.jsx';
@@ -53,12 +55,31 @@ function createHashHistory() {
     replace(path) {
       const url = window.location.pathname + window.location.search + '#' + path;
       window.history.replaceState(null, '', url);
-      notify();
+      // Dispatch hashchange so Sidebar (and any other hash listeners) update;
+      // replaceState alone does not fire this event
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
     },
   };
 }
 
 const hashHistory = createHashHistory();
+
+/** Catches render errors so a single broken page doesn't blank the whole app. */
+class ErrorBoundary extends Component {
+  state = { error: null };
+  componentDidCatch(error) { this.setState({ error }); }
+  render() {
+    if (this.state.error) {
+      return (
+        <ErrorState
+          error={this.state.error}
+          onRetry={() => this.setState({ error: null })}
+        />
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
   useEffect(() => {
@@ -73,14 +94,16 @@ export default function App() {
       {/* Content area: offset for sidebar on desktop, bottom padding for tab bar on mobile */}
       <main class="md:ml-60 pb-16 md:pb-0 min-h-screen">
         <div class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          <Router history={hashHistory}>
-            <Home path="/" />
-            <Discovery path="/discovery" />
-            <Capabilities path="/capabilities" />
-            <Predictions path="/predictions" />
-            <Patterns path="/patterns" />
-            <Automations path="/automations" />
-          </Router>
+          <ErrorBoundary>
+            <Router history={hashHistory}>
+              <Home path="/" />
+              <Discovery path="/discovery" />
+              <Capabilities path="/capabilities" />
+              <Predictions path="/predictions" />
+              <Patterns path="/patterns" />
+              <Automations path="/automations" />
+            </Router>
+          </ErrorBoundary>
         </div>
       </main>
     </div>

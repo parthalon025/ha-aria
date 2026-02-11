@@ -8,6 +8,9 @@ import StatusBadge from '../components/StatusBadge.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 
+// Stable empty-object references to avoid useMemo recomputation during loading
+const EMPTY_OBJ = {};
+
 export default function Discovery() {
   const entities = useCache('entities');
   const devices = useCache('devices');
@@ -22,11 +25,11 @@ export default function Discovery() {
   const cacheLoading = entities.loading || devices.loading || areas.loading || capabilities.loading;
   const cacheError = entities.error || devices.error || areas.error || capabilities.error;
 
-  // Unpack dicts
-  const entitiesDict = entities.data?.data || {};
-  const devicesDict = devices.data?.data || {};
-  const areasDict = areas.data?.data || {};
-  const capsDict = capabilities.data?.data || {};
+  // Unpack dicts (stable fallback prevents useMemo churn during loading)
+  const entitiesDict = entities.data?.data || EMPTY_OBJ;
+  const devicesDict = devices.data?.data || EMPTY_OBJ;
+  const areasDict = areas.data?.data || EMPTY_OBJ;
+  const capsDict = capabilities.data?.data || EMPTY_OBJ;
 
   // Entity array
   const entityArray = useComputed(
