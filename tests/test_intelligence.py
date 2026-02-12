@@ -630,3 +630,79 @@ class TestReadJson:
         path.write_text("not json {{{")
         result = module._read_json(path)
         assert result is None
+
+
+# ============================================================================
+# Phase 2-4 Engine Output Tests
+# ============================================================================
+
+
+class TestPhase2To4Outputs:
+    """Test reading Phase 2-4 engine outputs (entity correlations, sequence
+    anomalies, power profiles, automation suggestions)."""
+
+    def test_entity_correlations(self, module, intel_dir):
+        """entity_correlations.json is read into cache payload."""
+        data = {"pairs": [{"a": "light.kitchen", "b": "light.dining", "score": 0.92}]}
+        (intel_dir / "entity_correlations.json").write_text(json.dumps(data))
+
+        result = module._read_intelligence_data()
+        assert result["entity_correlations"] is not None
+        assert result["entity_correlations"]["pairs"][0]["score"] == 0.92
+
+    def test_sequence_anomalies(self, module, intel_dir):
+        """sequence_anomalies.json is read into cache payload."""
+        data = {"anomalies": [{"entity": "lock.front_door", "type": "unusual_time"}]}
+        (intel_dir / "sequence_anomalies.json").write_text(json.dumps(data))
+
+        result = module._read_intelligence_data()
+        assert result["sequence_anomalies"] is not None
+        assert result["sequence_anomalies"]["anomalies"][0]["entity"] == "lock.front_door"
+
+    def test_power_profiles(self, module, intel_dir):
+        """insights/power-profiles.json is read into cache payload."""
+        data = {"profiles": [{"entity": "switch.dryer", "avg_watts": 3200}]}
+        (intel_dir / "insights" / "power-profiles.json").write_text(json.dumps(data))
+
+        result = module._read_intelligence_data()
+        assert result["power_profiles"] is not None
+        assert result["power_profiles"]["profiles"][0]["avg_watts"] == 3200
+
+    def test_automation_suggestions_latest_file(self, module, intel_dir):
+        """Latest file from insights/automation-suggestions/ is read."""
+        suggestions_dir = intel_dir / "insights" / "automation-suggestions"
+        suggestions_dir.mkdir(parents=True)
+
+        old = {"suggestions": [{"name": "Old suggestion"}]}
+        new = {"suggestions": [{"name": "Turn off lights at midnight"}]}
+        (suggestions_dir / "2026-02-10.json").write_text(json.dumps(old))
+        (suggestions_dir / "2026-02-12.json").write_text(json.dumps(new))
+
+        result = module._read_intelligence_data()
+        assert result["automation_suggestions"] is not None
+        assert result["automation_suggestions"]["suggestions"][0]["name"] == "Turn off lights at midnight"
+
+    def test_missing_files_return_none(self, module):
+        """When Phase 2-4 files don't exist, their keys are None (no errors)."""
+        result = module._read_intelligence_data()
+        assert result["entity_correlations"] is None
+        assert result["sequence_anomalies"] is None
+        assert result["power_profiles"] is None
+        assert result["automation_suggestions"] is None
+
+    def test_automation_suggestions_empty_dir(self, module, intel_dir):
+        """Empty automation-suggestions directory returns None."""
+        suggestions_dir = intel_dir / "insights" / "automation-suggestions"
+        suggestions_dir.mkdir(parents=True)
+
+        result = module._read_latest_automation_suggestion()
+        assert result is None
+
+    def test_automation_suggestions_malformed_json(self, module, intel_dir):
+        """Malformed automation suggestion file returns None."""
+        suggestions_dir = intel_dir / "insights" / "automation-suggestions"
+        suggestions_dir.mkdir(parents=True)
+        (suggestions_dir / "2026-02-12.json").write_text("not valid json {{")
+
+        result = module._read_latest_automation_suggestion()
+        assert result is None

@@ -172,6 +172,10 @@ class IntelligenceModule(Module):
             "meta_learning": self._read_meta_learning(),
             "run_log": self._build_run_log(),
             "config": self._read_config(),
+            "entity_correlations": self._read_json(self.intel_dir / "entity_correlations.json"),
+            "sequence_anomalies": self._read_json(self.intel_dir / "sequence_anomalies.json"),
+            "power_profiles": self._read_json(self.intel_dir / "insights" / "power-profiles.json"),
+            "automation_suggestions": self._read_latest_automation_suggestion(),
         }
 
     def _determine_phase(
@@ -356,6 +360,20 @@ class IntelligenceModule(Module):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _read_latest_automation_suggestion(self) -> Optional[Dict[str, Any]]:
+        """Read the most recent automation suggestion file."""
+        suggestions_dir = self.intel_dir / "insights" / "automation-suggestions"
+        if not suggestions_dir.exists():
+            return None
+        files = sorted(suggestions_dir.glob("*.json"))
+        if not files:
+            return None
+        try:
+            return json.loads(files[-1].read_text())
+        except Exception as e:
+            self.logger.debug(f"Failed to read automation suggestion: {e}")
+            return None
 
     def _read_json(self, path: Path) -> Any:
         """Read a JSON file, returning None if missing or invalid."""
