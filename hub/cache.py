@@ -3,7 +3,7 @@
 import json
 import aiosqlite
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional, Dict, List
 from pathlib import Path
 
@@ -59,6 +59,46 @@ class CacheManager:
         await self._conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_events_type
             ON events(event_type)
+        """)
+
+        # Shadow engine tables
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS predictions (
+                id TEXT PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                context TEXT NOT NULL,
+                predictions TEXT NOT NULL,
+                outcome TEXT,
+                actual TEXT,
+                confidence REAL NOT NULL,
+                is_exploration BOOLEAN DEFAULT FALSE,
+                propagated_count INTEGER DEFAULT 0,
+                window_seconds INTEGER NOT NULL,
+                resolved_at TEXT
+            )
+        """)
+
+        await self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_predictions_timestamp
+            ON predictions(timestamp DESC)
+        """)
+
+        await self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_predictions_outcome
+            ON predictions(outcome)
+        """)
+
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS pipeline_state (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                current_stage TEXT NOT NULL DEFAULT 'backtest',
+                stage_entered_at TEXT NOT NULL,
+                backtest_accuracy REAL,
+                shadow_accuracy_7d REAL,
+                suggest_approval_rate_14d REAL,
+                autonomous_contexts TEXT,
+                updated_at TEXT NOT NULL
+            )
         """)
 
         await self._conn.commit()
@@ -274,3 +314,334 @@ class CacheManager:
             }
             for row in rows
         ]
+
+    # ========================================================================
+    # Shadow engine: predictions
+    # ========================================================================
+
+    async def insert_prediction(
+        self,
+        prediction_id: str,
+        timestamp: str,
+        context: Dict[str, Any],
+        predictions: List[Any],
+        confidence: float,
+        window_seconds: int,
+        is_exploration: bool = False,
+    ) -> None:
+        """Insert a new prediction record.
+
+        Args:
+            prediction_id: Unique ID for this prediction
+            timestamp: ISO timestamp when prediction was made
+            context: Full context snapshot (will be JSON-serialized)
+            predictions: Array of predictions (will be JSON-serialized)
+            confidence: Confidence score (0.0-1.0)
+            window_seconds: Evaluation window in seconds
+            is_exploration: Whether this is an exploration prediction
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        await self._conn.execute(
+            """
+            INSERT INTO predictions
+                (id, timestamp, context, predictions, confidence, window_seconds, is_exploration)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                prediction_id,
+                timestamp,
+                json.dumps(context),
+                json.dumps(predictions),
+                confidence,
+                window_seconds,
+                is_exploration,
+            ),
+        )
+        await self._conn.commit()
+
+    async def update_prediction_outcome(
+        self,
+        prediction_id: str,
+        outcome: str,
+        actual: Optional[Dict[str, Any]] = None,
+        propagated_count: int = 0,
+    ) -> None:
+        """Update a prediction with its outcome.
+
+        Args:
+            prediction_id: ID of the prediction to update
+            outcome: Result — 'correct', 'disagreement', or 'nothing'
+            actual: What actually happened (will be JSON-serialized)
+            propagated_count: Number of times this prediction was propagated
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        await self._conn.execute(
+            """
+            UPDATE predictions
+            SET outcome = ?, actual = ?, propagated_count = ?, resolved_at = ?
+            WHERE id = ?
+            """,
+            (
+                outcome,
+                json.dumps(actual) if actual else None,
+                propagated_count,
+                datetime.now().isoformat(),
+                prediction_id,
+            ),
+        )
+        await self._conn.commit()
+
+    async def get_recent_predictions(
+        self,
+        limit: int = 50,
+        outcome_filter: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get recent predictions, optionally filtered by outcome type.
+
+        Args:
+            limit: Maximum number of predictions to return
+            outcome_filter: Filter by outcome ('correct', 'disagreement', 'nothing', or None for all)
+
+        Returns:
+            List of prediction dicts
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        query = "SELECT * FROM predictions WHERE 1=1"
+        params: list = []
+
+        if outcome_filter is not None:
+            query += " AND outcome = ?"
+            params.append(outcome_filter)
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        cursor = await self._conn.execute(query, params)
+        rows = await cursor.fetchall()
+
+        return [self._prediction_from_row(row) for row in rows]
+
+    async def get_pending_predictions(
+        self,
+        before_timestamp: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get predictions with NULL outcome whose window has expired.
+
+        Args:
+            before_timestamp: Only return predictions made before this ISO timestamp.
+                If None, uses current time minus window_seconds for each row.
+
+        Returns:
+            List of pending prediction dicts
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        if before_timestamp is None:
+            before_timestamp = datetime.now().isoformat()
+
+        query = """
+            SELECT * FROM predictions
+            WHERE outcome IS NULL
+              AND datetime(timestamp, '+' || window_seconds || ' seconds') <= datetime(?)
+            ORDER BY timestamp ASC
+        """
+        params: list = [before_timestamp]
+
+        cursor = await self._conn.execute(query, params)
+        rows = await cursor.fetchall()
+
+        return [self._prediction_from_row(row) for row in rows]
+
+    async def get_accuracy_stats(self, days: int = 7) -> Dict[str, Any]:
+        """Calculate accuracy metrics over a time window.
+
+        Args:
+            days: Number of days to look back
+
+        Returns:
+            Dict with overall_accuracy, per_outcome breakdown, and daily_trend
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+        # Overall counts by outcome
+        cursor = await self._conn.execute(
+            """
+            SELECT outcome, COUNT(*) as cnt
+            FROM predictions
+            WHERE resolved_at IS NOT NULL AND timestamp >= ?
+            GROUP BY outcome
+            """,
+            (cutoff,),
+        )
+        rows = await cursor.fetchall()
+
+        per_outcome: Dict[str, int] = {}
+        total_resolved = 0
+        correct_count = 0
+        for row in rows:
+            per_outcome[row["outcome"]] = row["cnt"]
+            total_resolved += row["cnt"]
+            if row["outcome"] == "correct":
+                correct_count = row["cnt"]
+
+        overall_accuracy = (correct_count / total_resolved) if total_resolved > 0 else 0.0
+
+        # Daily trend
+        cursor = await self._conn.execute(
+            """
+            SELECT date(resolved_at) as day,
+                   SUM(CASE WHEN outcome = 'correct' THEN 1 ELSE 0 END) as correct,
+                   COUNT(*) as total
+            FROM predictions
+            WHERE resolved_at IS NOT NULL AND timestamp >= ?
+            GROUP BY date(resolved_at)
+            ORDER BY day ASC
+            """,
+            (cutoff,),
+        )
+        trend_rows = await cursor.fetchall()
+
+        daily_trend = [
+            {
+                "date": row["day"],
+                "correct": row["correct"],
+                "total": row["total"],
+                "accuracy": row["correct"] / row["total"] if row["total"] > 0 else 0.0,
+            }
+            for row in trend_rows
+        ]
+
+        return {
+            "overall_accuracy": overall_accuracy,
+            "total_resolved": total_resolved,
+            "per_outcome": per_outcome,
+            "daily_trend": daily_trend,
+        }
+
+    # ========================================================================
+    # Shadow engine: pipeline state
+    # ========================================================================
+
+    async def get_pipeline_state(self) -> Dict[str, Any]:
+        """Get current pipeline state, creating default row if not exists.
+
+        Returns:
+            Pipeline state dict
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        cursor = await self._conn.execute(
+            "SELECT * FROM pipeline_state WHERE id = 1"
+        )
+        row = await cursor.fetchone()
+
+        if not row:
+            now = datetime.now().isoformat()
+            await self._conn.execute(
+                """
+                INSERT INTO pipeline_state
+                    (id, current_stage, stage_entered_at, updated_at)
+                VALUES (1, 'backtest', ?, ?)
+                """,
+                (now, now),
+            )
+            await self._conn.commit()
+
+            cursor = await self._conn.execute(
+                "SELECT * FROM pipeline_state WHERE id = 1"
+            )
+            row = await cursor.fetchone()
+
+        return {
+            "id": row["id"],
+            "current_stage": row["current_stage"],
+            "stage_entered_at": row["stage_entered_at"],
+            "backtest_accuracy": row["backtest_accuracy"],
+            "shadow_accuracy_7d": row["shadow_accuracy_7d"],
+            "suggest_approval_rate_14d": row["suggest_approval_rate_14d"],
+            "autonomous_contexts": (
+                json.loads(row["autonomous_contexts"])
+                if row["autonomous_contexts"]
+                else None
+            ),
+            "updated_at": row["updated_at"],
+        }
+
+    async def update_pipeline_state(self, **kwargs) -> None:
+        """Update pipeline state fields.
+
+        Args:
+            **kwargs: Fields to update. Supported fields:
+                current_stage, stage_entered_at, backtest_accuracy,
+                shadow_accuracy_7d, suggest_approval_rate_14d,
+                autonomous_contexts
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        # Ensure default row exists
+        await self.get_pipeline_state()
+
+        allowed_fields = {
+            "current_stage",
+            "stage_entered_at",
+            "backtest_accuracy",
+            "shadow_accuracy_7d",
+            "suggest_approval_rate_14d",
+            "autonomous_contexts",
+        }
+
+        updates = {}
+        for key, value in kwargs.items():
+            if key not in allowed_fields:
+                raise ValueError(f"Unknown pipeline_state field: {key}")
+            if key == "autonomous_contexts" and value is not None:
+                updates[key] = json.dumps(value)
+            else:
+                updates[key] = value
+
+        if not updates:
+            return
+
+        updates["updated_at"] = datetime.now().isoformat()
+
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values())
+        values.append(1)  # WHERE id = 1
+
+        await self._conn.execute(
+            f"UPDATE pipeline_state SET {set_clause} WHERE id = ?",
+            values,
+        )
+        await self._conn.commit()
+
+    # ========================================================================
+    # Internal helpers
+    # ========================================================================
+
+    def _prediction_from_row(self, row: aiosqlite.Row) -> Dict[str, Any]:
+        """Convert a predictions table row to a dict."""
+        return {
+            "id": row["id"],
+            "timestamp": row["timestamp"],
+            "context": json.loads(row["context"]),
+            "predictions": json.loads(row["predictions"]),
+            "outcome": row["outcome"],
+            "actual": json.loads(row["actual"]) if row["actual"] else None,
+            "confidence": row["confidence"],
+            "is_exploration": bool(row["is_exploration"]),
+            "propagated_count": row["propagated_count"],
+            "window_seconds": row["window_seconds"],
+            "resolved_at": row["resolved_at"],
+        }

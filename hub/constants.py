@@ -13,3 +13,7 @@ CACHE_ENTITIES = "entities"
 CACHE_DEVICES = "devices"
 CACHE_AREAS = "areas"
 CACHE_DISCOVERY_METADATA = "discovery_metadata"
+
+# Shadow engine table name constants
+CACHE_PREDICTIONS = "predictions"
+CACHE_PIPELINE_STATE = "pipeline_state"
