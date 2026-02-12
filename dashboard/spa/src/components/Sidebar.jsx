@@ -3,6 +3,7 @@ import { wsConnected, wsMessage } from '../store.js';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Home', icon: GridIcon },
+  { path: '/intelligence', label: 'Intelligence', icon: BrainIcon },
   { path: '/discovery', label: 'Discovery', icon: SearchIcon },
   { path: '/capabilities', label: 'Capabilities', icon: ZapIcon },
   { path: '/predictions', label: 'Predictions', icon: TrendingUpIcon },
@@ -51,6 +52,16 @@ function LayersIcon() {
       <polygon points="12 2 2 7 12 12 22 7 12 2" />
       <polyline points="2 17 12 22 22 17" />
       <polyline points="2 12 12 17 22 12" />
+    </svg>
+  );
+}
+
+function BrainIcon() {
+  return (
+    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z" />
+      <line x1="9" y1="21" x2="15" y2="21" />
+      <line x1="10" y1="19" x2="14" y2="19" />
     </svg>
   );
 }

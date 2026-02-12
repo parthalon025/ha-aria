@@ -83,10 +83,15 @@ export default function Capabilities() {
     return Object.entries(inner).map(([name, cap]) => ({ name, ...cap }));
   }, [data]);
 
+  const pageSubtitle = "What your home can do — detected automatically from your entities. Each card represents a capability with its supporting entities.";
+
   if (loading && !data) {
     return (
       <div class="space-y-6">
-        <h1 class="text-2xl font-bold text-gray-900">Capabilities</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Capabilities</h1>
+          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        </div>
         <LoadingState type="cards" />
       </div>
     );
@@ -95,7 +100,10 @@ export default function Capabilities() {
   if (error) {
     return (
       <div class="space-y-6">
-        <h1 class="text-2xl font-bold text-gray-900">Capabilities</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Capabilities</h1>
+          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        </div>
         <ErrorState error={error} onRetry={refetch} />
       </div>
     );
@@ -103,11 +111,14 @@ export default function Capabilities() {
 
   return (
     <div class="space-y-6">
-      <h1 class="text-2xl font-bold text-gray-900">Capabilities</h1>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Capabilities</h1>
+        <p class="text-sm text-gray-500">{pageSubtitle}</p>
+      </div>
 
       {capabilities.length === 0 ? (
-        <div class="bg-white rounded-lg shadow-sm p-6 text-center text-gray-500">
-          No capabilities detected yet.
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+          No capabilities detected yet. Capabilities are identified during discovery by matching entity domains and device classes to known patterns (e.g., power monitoring, lighting, occupancy). They appear after the first successful discovery scan.
         </div>
       ) : (
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">

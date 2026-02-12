@@ -216,10 +216,15 @@ export default function Automations() {
     }
   }
 
+  const pageSubtitle = "Automation ideas generated from discovered patterns. Review, approve, or reject — approved automations can be exported to HA.";
+
   if (loading && !data) {
     return (
       <div class="space-y-6">
-        <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
+          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        </div>
         <LoadingState type="cards" />
       </div>
     );
@@ -228,7 +233,10 @@ export default function Automations() {
   if (error) {
     return (
       <div class="space-y-6">
-        <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
+          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        </div>
         <ErrorState error={error} onRetry={refetch} />
       </div>
     );
@@ -236,7 +244,10 @@ export default function Automations() {
 
   return (
     <div class="space-y-6">
-      <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
+        <p class="text-sm text-gray-500">{pageSubtitle}</p>
+      </div>
 
       {/* Metadata summary */}
       {metadata && (
@@ -261,8 +272,8 @@ export default function Automations() {
       )}
 
       {displaySuggestions.length === 0 ? (
-        <div class="bg-white rounded-lg shadow-sm p-6 text-center text-gray-500">
-          No automation suggestions yet.
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+          No automation suggestions yet. The orchestrator generates suggestions when it finds patterns with high enough confidence and matching capabilities. This requires the pattern recognition and discovery modules to have populated data first.
         </div>
       ) : (
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">

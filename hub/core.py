@@ -240,6 +240,41 @@ class IntelligenceHub:
         """
         return await self.cache.get(category)
 
+    async def get_cache_fresh(
+        self,
+        category: str,
+        max_age: timedelta,
+        caller: str = ""
+    ) -> Optional[Dict[str, Any]]:
+        """Get cache data with freshness check.
+
+        Returns the cache entry like get_cache(), but logs a warning if
+        the data is older than max_age. Always returns the data regardless
+        of age — staleness is informational, not blocking.
+
+        Args:
+            category: Cache category
+            max_age: Maximum acceptable age
+            caller: Module name for log attribution
+
+        Returns:
+            Cache entry or None if not found
+        """
+        entry = await self.cache.get(category)
+        if entry and entry.get("last_updated"):
+            try:
+                updated = datetime.fromisoformat(entry["last_updated"])
+                age = datetime.now() - updated
+                if age > max_age:
+                    who = f" ({caller})" if caller else ""
+                    self.logger.warning(
+                        f"Stale cache: '{category}' is {age} old "
+                        f"(max {max_age}){who}"
+                    )
+            except (ValueError, TypeError):
+                pass
+        return entry
+
     async def set_cache(
         self,
         category: str,

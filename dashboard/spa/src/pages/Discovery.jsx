@@ -257,11 +257,16 @@ export default function Discovery() {
     </div>
   );
 
+  const pageSubtitle = "Everything the hub found by scanning your Home Assistant instance. Rescans automatically every 24 hours.";
+
   // Loading
   if (cacheLoading && !entities.data) {
     return (
       <div class="space-y-6">
-        <h1 class="text-2xl font-bold text-gray-900">Discovery</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Discovery</h1>
+          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        </div>
         <LoadingState type="full" />
       </div>
     );
@@ -271,7 +276,10 @@ export default function Discovery() {
   if (cacheError) {
     return (
       <div class="space-y-6">
-        <h1 class="text-2xl font-bold text-gray-900">Discovery</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Discovery</h1>
+          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        </div>
         <ErrorState error={cacheError} onRetry={() => { entities.refetch(); devices.refetch(); areas.refetch(); capabilities.refetch(); }} />
       </div>
     );
@@ -279,14 +287,20 @@ export default function Discovery() {
 
   return (
     <div class="space-y-6">
-      <h1 class="text-2xl font-bold text-gray-900">Discovery</h1>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Discovery</h1>
+        <p class="text-sm text-gray-500">{pageSubtitle}</p>
+      </div>
 
       {/* Stats */}
       {stats ? <StatsGrid items={stats} /> : <LoadingState type="stats" />}
 
       {/* Domain Breakdown */}
       <section>
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Domain Breakdown</h2>
+        <div class="mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Domain Breakdown</h2>
+          <p class="text-sm text-gray-500">How your entities are distributed across HA domains. Larger bars = more entities in that domain.</p>
+        </div>
         <div class="bg-white rounded-lg shadow-sm p-4">
           <DomainChart data={domainBreakdown} total={entityArray.length} />
         </div>
@@ -295,7 +309,10 @@ export default function Discovery() {
       {/* Area Grid */}
       {areaCounts.length > 0 && (
         <section>
-          <h2 class="text-lg font-semibold text-gray-900 mb-4">Areas</h2>
+          <div class="mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">Areas</h2>
+            <p class="text-sm text-gray-500">Physical locations defined in Home Assistant, with entity counts per area.</p>
+          </div>
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {areaCounts.map((a) => (
               <div key={a.area_id} class="bg-white rounded-lg shadow-sm p-4">
@@ -309,7 +326,10 @@ export default function Discovery() {
 
       {/* Entity Table */}
       <section>
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Entities</h2>
+        <div class="mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Entities</h2>
+          <p class="text-sm text-gray-500">Every entity registered in HA — sensors, switches, lights, and more. Filter by domain, state, or area.</p>
+        </div>
         <DataTable
           columns={entityColumns}
           data={filteredEntities}
@@ -322,7 +342,10 @@ export default function Discovery() {
 
       {/* Device Table */}
       <section>
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Devices</h2>
+        <div class="mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Devices</h2>
+          <p class="text-sm text-gray-500">Physical devices registered in HA. Each device groups multiple entities (e.g., a thermostat has temperature, humidity, and mode entities).</p>
+        </div>
         <DataTable
           columns={deviceColumns}
           data={deviceArray}

@@ -97,10 +97,15 @@ export default function Predictions() {
     };
   }, [data]);
 
+  const pageSubtitle = "ML model predictions for individual entity states. Each card shows what the model expects and how confident it is.";
+
   if (loading && !data) {
     return (
       <div class="space-y-6">
-        <h1 class="text-2xl font-bold text-gray-900">Predictions</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Predictions</h1>
+          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        </div>
         <LoadingState type="cards" />
       </div>
     );
@@ -109,7 +114,10 @@ export default function Predictions() {
   if (error) {
     return (
       <div class="space-y-6">
-        <h1 class="text-2xl font-bold text-gray-900">Predictions</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Predictions</h1>
+          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        </div>
         <ErrorState error={error} onRetry={refetch} />
       </div>
     );
@@ -117,7 +125,10 @@ export default function Predictions() {
 
   return (
     <div class="space-y-6">
-      <h1 class="text-2xl font-bold text-gray-900">Predictions</h1>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Predictions</h1>
+        <p class="text-sm text-gray-500">{pageSubtitle}</p>
+      </div>
 
       {/* Metadata summary */}
       {metadata && (
@@ -137,8 +148,8 @@ export default function Predictions() {
       )}
 
       {predictions.length === 0 ? (
-        <div class="bg-white rounded-lg shadow-sm p-6 text-center text-gray-500">
-          No predictions yet — ML models train after 14+ days of data.
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+          No entity-level predictions yet. The ML engine trains models after 14+ days of data, then predicts individual entity states. Until then, aggregate predictions are available on the Intelligence page.
         </div>
       ) : (
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

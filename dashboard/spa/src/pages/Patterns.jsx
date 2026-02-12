@@ -114,10 +114,15 @@ export default function Patterns() {
     };
   }, [data]);
 
+  const pageSubtitle = "Recurring behaviors the system has found — things that happen at the same time, in the same sequence, or that correlate with each other.";
+
   if (loading && !data) {
     return (
       <div class="space-y-6">
-        <h1 class="text-2xl font-bold text-gray-900">Patterns</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Patterns</h1>
+          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        </div>
         <LoadingState type="cards" />
       </div>
     );
@@ -126,7 +131,10 @@ export default function Patterns() {
   if (error) {
     return (
       <div class="space-y-6">
-        <h1 class="text-2xl font-bold text-gray-900">Patterns</h1>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Patterns</h1>
+          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        </div>
         <ErrorState error={error} onRetry={refetch} />
       </div>
     );
@@ -134,7 +142,10 @@ export default function Patterns() {
 
   return (
     <div class="space-y-6">
-      <h1 class="text-2xl font-bold text-gray-900">Patterns</h1>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Patterns</h1>
+        <p class="text-sm text-gray-500">{pageSubtitle}</p>
+      </div>
 
       {/* Metadata summary */}
       {metadata && (
@@ -154,8 +165,8 @@ export default function Patterns() {
       )}
 
       {patterns.length === 0 ? (
-        <div class="bg-white rounded-lg shadow-sm p-6 text-center text-gray-500">
-          No patterns detected yet.
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+          No patterns detected yet. The pattern recognition module analyzes HA logbook sequences to find temporal, correlation, and sequence patterns. It needs several days of logbook data with meaningful device events to identify reliable patterns.
         </div>
       ) : (
         <div class="space-y-4">

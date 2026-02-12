@@ -68,8 +68,10 @@ class MLEngine(Module):
         """Initialize module - load existing models."""
         self.logger.info("ML Engine initializing...")
 
-        # Load capabilities from hub cache
-        capabilities_entry = await self.hub.get_cache("capabilities")
+        # Load capabilities from hub cache (warn if stale)
+        capabilities_entry = await self.hub.get_cache_fresh(
+            "capabilities", timedelta(hours=48), caller="ml_engine.init"
+        )
         if not capabilities_entry:
             self.logger.warning("No capabilities found in cache. Run discovery first.")
             return
@@ -104,8 +106,10 @@ class MLEngine(Module):
         """
         self.logger.info(f"Training models with {days_history} days of history...")
 
-        # Get capabilities to determine what to train
-        capabilities_entry = await self.hub.get_cache("capabilities")
+        # Get capabilities to determine what to train (warn if stale)
+        capabilities_entry = await self.hub.get_cache_fresh(
+            "capabilities", timedelta(hours=48), caller="ml_engine.train"
+        )
         if not capabilities_entry:
             self.logger.error("No capabilities in cache. Cannot train without discovery data.")
             return

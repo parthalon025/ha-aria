@@ -30,6 +30,8 @@ from modules.discovery import DiscoveryModule
 from modules.ml_engine import MLEngine
 from modules.orchestrator import OrchestratorModule
 from modules.patterns import PatternRecognition
+from modules.intelligence import IntelligenceModule
+from modules.activity_monitor import ActivityMonitor
 
 
 # Global hub instance for signal handling
@@ -157,6 +159,12 @@ async def main():
         # Schedule periodic discovery (every 24 hours)
         await discovery.schedule_periodic_discovery(interval_hours=24)
 
+        # Start event-driven discovery (WebSocket listener for registry changes)
+        try:
+            await discovery.start_event_listener()
+        except Exception as e:
+            logger.warning(f"Event listener failed to start (non-fatal): {e}")
+
         logger.info("Discovery module ready")
     except Exception as e:
         logger.error(f"Failed to initialize discovery module: {e}")
@@ -208,6 +216,28 @@ async def main():
         logger.error(f"Failed to initialize orchestrator: {e}")
         await shutdown_hub(hub_instance)
         return 1
+
+    # Register intelligence module (non-fatal — hub works without it)
+    try:
+        logger.info("Initializing intelligence module...")
+        intelligence_dir = str(Path(args.cache_dir).parent)
+        intel_mod = IntelligenceModule(hub_instance, intelligence_dir)
+        hub_instance.register_module(intel_mod)
+        await intel_mod.initialize()
+        await intel_mod.schedule_refresh()
+        logger.info("Intelligence module ready")
+    except Exception as e:
+        logger.warning(f"Intelligence module failed (non-fatal): {e}")
+
+    # Register activity monitor (non-fatal — hub works without it)
+    try:
+        logger.info("Initializing activity monitor...")
+        activity_monitor = ActivityMonitor(hub_instance, ha_url, ha_token)
+        hub_instance.register_module(activity_monitor)
+        await activity_monitor.initialize()
+        logger.info("Activity monitor ready")
+    except Exception as e:
+        logger.warning(f"Activity monitor failed (non-fatal): {e}")
 
     # Create FastAPI app
     # Note: uvicorn handles SIGINT/SIGTERM internally — no custom signal handlers needed

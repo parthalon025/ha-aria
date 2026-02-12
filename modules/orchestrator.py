@@ -104,8 +104,10 @@ class OrchestratorModule(Module):
         """
         self.logger.info("Generating automation suggestions from patterns...")
 
-        # 1. Load patterns from cache
-        patterns_cache = await self.hub.get_cache("patterns")
+        # 1. Load patterns from cache (warn if older than 24 hours)
+        patterns_cache = await self.hub.get_cache_fresh(
+            "patterns", timedelta(hours=24), caller="orchestrator"
+        )
         if not patterns_cache or "data" not in patterns_cache:
             self.logger.warning("No patterns found in cache")
             return []
