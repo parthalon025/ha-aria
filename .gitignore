@@ -24,3 +24,6 @@ htmlcov/
 *.db
 *.sqlite
 *.log
+
+# Worktrees
+.worktrees/
