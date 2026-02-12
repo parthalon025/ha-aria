@@ -81,6 +81,30 @@ function ExecutiveSummary({ entityCount, capCount, moduleCount, maturity }) {
   );
 }
 
+function ShadowSummary({ shadowAccuracy }) {
+  if (!shadowAccuracy) return null;
+
+  const total = shadowAccuracy.predictions_total ?? 0;
+  const acc = shadowAccuracy.overall_accuracy ?? 0;
+  const stage = shadowAccuracy.stage || 'backtest';
+
+  return (
+    <section class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-blue-500">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="text-xs font-medium bg-blue-100 text-blue-700 rounded-full px-2.5 py-0.5 capitalize">{stage}</span>
+          <span class="text-sm text-gray-700">
+            {total > 0
+              ? `${total} prediction${total !== 1 ? 's' : ''}, ${Math.round(acc)}% accuracy`
+              : 'No predictions yet'}
+          </span>
+        </div>
+        <a href="#/shadow" class="text-sm text-blue-600 hover:text-blue-800 font-medium">View details &rarr;</a>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   const entities = useCache('entities');
   const devices = useCache('devices');
@@ -93,6 +117,7 @@ export default function Home() {
   const [healthError, setHealthError] = useState(null);
   const [events, setEvents] = useState(null);
   const [eventsError, setEventsError] = useState(null);
+  const [shadowAccuracy, setShadowAccuracy] = useState(null);
 
   useEffect(() => {
     fetchJson('/health')
@@ -104,6 +129,12 @@ export default function Home() {
     fetchJson('/api/events?limit=20')
       .then((d) => { setEvents(d); setEventsError(null); })
       .catch((err) => setEventsError(err.message || String(err)));
+  }, []);
+
+  useEffect(() => {
+    fetchJson('/api/shadow/accuracy')
+      .then((d) => setShadowAccuracy(d))
+      .catch(() => {}); // silently hide on error — shadow is non-essential on Home
   }, []);
 
   const cacheLoading = entities.loading || devices.loading || areas.loading || capabilities.loading;
@@ -208,6 +239,9 @@ export default function Home() {
 
       {/* Stats */}
       {stats ? <StatsGrid items={stats.items} /> : <LoadingState type="stats" />}
+
+      {/* Shadow Mode Summary */}
+      <ShadowSummary shadowAccuracy={shadowAccuracy} />
 
       {/* Module Health */}
       <section>
