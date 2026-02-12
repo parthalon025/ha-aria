@@ -447,7 +447,7 @@ class TestPredictionGeneration:
 
         domain_preds = [p for p in predictions if p["type"] == "next_domain_action"]
         assert len(domain_preds) == 1
-        assert domain_preds[0]["predicted_value"] == "light"
+        assert domain_preds[0]["predicted"] == "light"
         assert domain_preds[0]["confidence"] > 0
 
     @pytest.mark.asyncio
@@ -470,7 +470,7 @@ class TestPredictionGeneration:
 
         domain_preds = [p for p in predictions if p["type"] == "next_domain_action"]
         assert len(domain_preds) == 1
-        assert domain_preds[0]["predicted_value"] == "media_player"
+        assert domain_preds[0]["predicted"] == "media_player"
         assert domain_preds[0]["confidence"] == 0.75
 
     @pytest.mark.asyncio
@@ -503,7 +503,7 @@ class TestPredictionGeneration:
 
         room_preds = [p for p in predictions if p["type"] == "room_activation"]
         assert len(room_preds) == 1
-        assert room_preds[0]["predicted_value"] in ("kitchen", "bedroom")
+        assert room_preds[0]["predicted"] in ("kitchen", "bedroom")
 
     @pytest.mark.asyncio
     async def test_routine_trigger_from_patterns(self, engine, hub):
@@ -535,7 +535,7 @@ class TestPredictionGeneration:
 
         routine_preds = [p for p in predictions if p["type"] == "routine_trigger"]
         assert len(routine_preds) == 1
-        assert routine_preds[0]["predicted_value"] == "Evening Routine"
+        assert routine_preds[0]["predicted"] == "Evening Routine"
 
     @pytest.mark.asyncio
     async def test_no_routine_trigger_when_time_far(self, engine, hub):
@@ -616,7 +616,7 @@ class TestOutcomeScoring:
         """Score as correct when predicted domain matches actual events."""
         prediction = {
             "predictions": [
-                {"type": "next_domain_action", "predicted_value": "light"},
+                {"type": "next_domain_action", "predicted": "light"},
             ]
         }
         actual_events = [
@@ -632,7 +632,7 @@ class TestOutcomeScoring:
         """Score as disagreement when events happen but domain doesn't match."""
         prediction = {
             "predictions": [
-                {"type": "next_domain_action", "predicted_value": "light"},
+                {"type": "next_domain_action", "predicted": "light"},
             ]
         }
         actual_events = [
@@ -647,7 +647,7 @@ class TestOutcomeScoring:
         """Score as nothing when no events occurred during window."""
         prediction = {
             "predictions": [
-                {"type": "next_domain_action", "predicted_value": "light"},
+                {"type": "next_domain_action", "predicted": "light"},
             ]
         }
 
@@ -659,7 +659,7 @@ class TestOutcomeScoring:
         """Score as correct when predicted room matches actual events."""
         prediction = {
             "predictions": [
-                {"type": "room_activation", "predicted_value": "kitchen"},
+                {"type": "room_activation", "predicted": "kitchen"},
             ]
         }
         actual_events = [
@@ -674,7 +674,7 @@ class TestOutcomeScoring:
         """Score as disagreement when activity happens in different room."""
         prediction = {
             "predictions": [
-                {"type": "room_activation", "predicted_value": "bedroom"},
+                {"type": "room_activation", "predicted": "bedroom"},
             ]
         }
         actual_events = [
@@ -686,11 +686,15 @@ class TestOutcomeScoring:
         assert "kitchen" in actual_data["rooms"]
         assert "bedroom" not in actual_data["rooms"]
 
-    def test_correct_routine_trigger(self, engine):
-        """Score routine_trigger as correct when multiple events occur."""
+    def test_correct_routine_trigger_with_expected_domains(self, engine):
+        """Score routine_trigger correct when expected domains overlap."""
         prediction = {
             "predictions": [
-                {"type": "routine_trigger", "predicted_value": "Evening Routine"},
+                {
+                    "type": "routine_trigger",
+                    "predicted": "Evening Routine",
+                    "expected_domains": ["light", "media_player"],
+                },
             ]
         }
         actual_events = [
@@ -701,11 +705,34 @@ class TestOutcomeScoring:
         outcome, actual_data = engine._score_prediction(prediction, actual_events)
         assert outcome == "correct"
 
-    def test_disagreement_routine_single_event(self, engine):
-        """Routine trigger needs 2+ events to be considered correct."""
+    def test_disagreement_routine_no_domain_overlap(self, engine):
+        """Routine trigger scores disagreement when wrong domains fire."""
         prediction = {
             "predictions": [
-                {"type": "routine_trigger", "predicted_value": "Evening Routine"},
+                {
+                    "type": "routine_trigger",
+                    "predicted": "Evening Routine",
+                    "expected_domains": ["light", "media_player"],
+                },
+            ]
+        }
+        actual_events = [
+            {"domain": "climate", "entity_id": "climate.thermostat", "to": "heat"},
+            {"domain": "switch", "entity_id": "switch.fan", "to": "on"},
+        ]
+
+        outcome, actual_data = engine._score_prediction(prediction, actual_events)
+        assert outcome == "disagreement"
+
+    def test_disagreement_routine_single_event(self, engine):
+        """Routine trigger needs 2+ matching domain events."""
+        prediction = {
+            "predictions": [
+                {
+                    "type": "routine_trigger",
+                    "predicted": "Evening Routine",
+                    "expected_domains": ["light", "media_player"],
+                },
             ]
         }
         actual_events = [
@@ -715,12 +742,44 @@ class TestOutcomeScoring:
         outcome, actual_data = engine._score_prediction(prediction, actual_events)
         assert outcome == "disagreement"
 
+    def test_correct_routine_trigger_fallback_no_expected_domains(self, engine):
+        """Without expected_domains, fallback requires 3+ events and 2+ domains."""
+        prediction = {
+            "predictions": [
+                {"type": "routine_trigger", "predicted": "Evening Routine"},
+            ]
+        }
+        actual_events = [
+            {"domain": "light", "entity_id": "light.living_room", "to": "on"},
+            {"domain": "media_player", "entity_id": "media_player.tv", "to": "playing"},
+            {"domain": "light", "entity_id": "light.kitchen", "to": "on"},
+        ]
+
+        outcome, actual_data = engine._score_prediction(prediction, actual_events)
+        assert outcome == "correct"
+
+    def test_disagreement_routine_fallback_single_domain(self, engine):
+        """Without expected_domains, 3 events in same domain = disagreement."""
+        prediction = {
+            "predictions": [
+                {"type": "routine_trigger", "predicted": "Evening Routine"},
+            ]
+        }
+        actual_events = [
+            {"domain": "light", "entity_id": "light.living_room", "to": "on"},
+            {"domain": "light", "entity_id": "light.kitchen", "to": "on"},
+            {"domain": "light", "entity_id": "light.bedroom", "to": "on"},
+        ]
+
+        outcome, actual_data = engine._score_prediction(prediction, actual_events)
+        assert outcome == "disagreement"
+
     def test_multiple_predictions_any_correct_wins(self, engine):
         """If any prediction matches, the overall outcome is correct."""
         prediction = {
             "predictions": [
-                {"type": "next_domain_action", "predicted_value": "climate"},
-                {"type": "room_activation", "predicted_value": "kitchen"},
+                {"type": "next_domain_action", "predicted": "climate"},
+                {"type": "room_activation", "predicted": "kitchen"},
             ]
         }
         actual_events = [
@@ -882,25 +941,19 @@ class TestEventHandling:
         assert engine._recent_events[0]["from"] == "off"
 
     @pytest.mark.asyncio
-    async def test_on_event_delegates_state_changed(self, engine, hub):
-        """on_event should delegate state_changed to _on_state_changed."""
-        event_data = make_state_changed_event()
+    async def test_on_event_does_not_handle_state_changed(self, engine, hub):
+        """on_event is a no-op — shadow engine uses hub.subscribe() instead.
 
-        # Pre-populate buffer so prediction can be generated
-        engine._recent_events = [
-            {
-                "entity_id": "light.bedroom",
-                "domain": "light",
-                "to": "on",
-                "timestamp": datetime.now().isoformat(),
-            },
-        ]
+        This prevents double-handling when hub.publish() calls both
+        subscriber callbacks and module.on_event().
+        """
+        event_data = make_state_changed_event()
+        initial_count = len(engine._recent_events)
 
         await engine.on_event("state_changed", event_data)
 
-        # Should have added to recent events
-        entities = [e["entity_id"] for e in engine._recent_events]
-        assert "light.kitchen" in entities
+        # on_event should NOT add events (subscribe handler does that)
+        assert len(engine._recent_events) == initial_count
 
 
 # ============================================================================
@@ -920,7 +973,7 @@ class TestExpiredWindowResolution:
                 "id": "pred-001",
                 "timestamp": (datetime.now() - timedelta(minutes=15)).isoformat(),
                 "predictions": [
-                    {"type": "next_domain_action", "predicted_value": "light"},
+                    {"type": "next_domain_action", "predicted": "light"},
                 ],
                 "confidence": 0.8,
                 "window_seconds": 600,
@@ -949,7 +1002,7 @@ class TestExpiredWindowResolution:
                 "id": "pred-002",
                 "timestamp": (datetime.now() - timedelta(minutes=15)).isoformat(),
                 "predictions": [
-                    {"type": "next_domain_action", "predicted_value": "light"},
+                    {"type": "next_domain_action", "predicted": "light"},
                 ],
                 "confidence": 0.8,
                 "window_seconds": 600,
@@ -975,7 +1028,7 @@ class TestExpiredWindowResolution:
                 "id": "pred-003",
                 "timestamp": (datetime.now() - timedelta(minutes=15)).isoformat(),
                 "predictions": [
-                    {"type": "next_domain_action", "predicted_value": "climate"},
+                    {"type": "next_domain_action", "predicted": "climate"},
                 ],
                 "confidence": 0.8,
                 "window_seconds": 600,
@@ -1010,7 +1063,7 @@ class TestExpiredWindowResolution:
                 "id": "pred-004",
                 "timestamp": (datetime.now() - timedelta(minutes=15)).isoformat(),
                 "predictions": [
-                    {"type": "next_domain_action", "predicted_value": "light"},
+                    {"type": "next_domain_action", "predicted": "light"},
                 ],
                 "confidence": 0.8,
                 "window_seconds": 600,
@@ -1044,7 +1097,7 @@ class TestExpiredWindowResolution:
                 "id": f"pred-{i}",
                 "timestamp": (datetime.now() - timedelta(minutes=15)).isoformat(),
                 "predictions": [
-                    {"type": "next_domain_action", "predicted_value": "light"},
+                    {"type": "next_domain_action", "predicted": "light"},
                 ],
                 "confidence": 0.8,
                 "window_seconds": 600,
@@ -1074,7 +1127,7 @@ class TestPredictionStorage:
         predictions = [
             {
                 "type": "next_domain_action",
-                "predicted_value": "light",
+                "predicted": "light",
                 "confidence": 0.8,
                 "window_seconds": 600,
             }

@@ -80,7 +80,9 @@ class ShadowEngine(Module):
         self.logger.info("Shadow engine initialized")
 
     async def shutdown(self):
-        """Cancel the resolution task."""
+        """Cancel the resolution task and unsubscribe from events."""
+        self.hub.unsubscribe("state_changed", self._on_state_changed)
+
         if self._resolution_task and not self._resolution_task.done():
             self._resolution_task.cancel()
             try:
@@ -92,14 +94,13 @@ class ShadowEngine(Module):
         self.logger.info("Shadow engine shut down")
 
     async def on_event(self, event_type: str, data: Dict[str, Any]):
-        """Handle hub events broadcast to all modules.
+        """Not used — shadow engine listens via hub.subscribe() instead.
 
-        The shadow engine primarily listens via hub.subscribe() for
-        state_changed events. This on_event handler is a fallback
-        that also catches state_changed if published via hub.publish().
+        Using on_event AND subscribe would cause double-handling since
+        hub.publish() invokes both subscriber callbacks and on_event
+        for all registered modules.
         """
-        if event_type == "state_changed":
-            await self._on_state_changed(data)
+        pass
 
     # ------------------------------------------------------------------
     # Event handling
@@ -461,7 +462,7 @@ class ShadowEngine(Module):
                 probability = event_preds.get("probability", 0)
                 return {
                     "type": "next_domain_action",
-                    "predicted_value": event_preds["predicted_next_domain"],
+                    "predicted": event_preds["predicted_next_domain"],
                     "confidence": probability,
                     "method": event_preds.get("method", "frequency"),
                     "window_seconds": DEFAULT_WINDOW_SECONDS,
@@ -487,7 +488,7 @@ class ShadowEngine(Module):
 
         return {
             "type": "next_domain_action",
-            "predicted_value": top_domain,
+            "predicted": top_domain,
             "confidence": round(confidence, 3),
             "method": "recent_frequency",
             "window_seconds": DEFAULT_WINDOW_SECONDS,
@@ -541,7 +542,7 @@ class ShadowEngine(Module):
 
         return {
             "type": "room_activation",
-            "predicted_value": predicted_room,
+            "predicted": predicted_room,
             "confidence": round(confidence, 3),
             "method": "activity_frequency",
             "window_seconds": DEFAULT_WINDOW_SECONDS,
@@ -606,13 +607,21 @@ class ShadowEngine(Module):
         if not best_match or best_confidence < MIN_CONFIDENCE:
             return None
 
+        # Extract expected domains from the pattern's associated signals
+        # so the scorer can verify domain overlap instead of just event count
+        expected_domains = set()
+        for signal in best_match.get("associated_signals", []):
+            if isinstance(signal, str) and "." in signal:
+                expected_domains.add(signal.split(".")[0])
+
         return {
             "type": "routine_trigger",
-            "predicted_value": best_match.get("name", "unknown"),
+            "predicted": best_match.get("name", "unknown"),
             "confidence": round(best_confidence, 3),
             "method": "pattern_match",
             "window_seconds": DEFAULT_WINDOW_SECONDS,
             "pattern_id": best_match.get("pattern_id", ""),
+            "expected_domains": list(expected_domains),
         }
 
     # ------------------------------------------------------------------
@@ -766,7 +775,7 @@ class ShadowEngine(Module):
         any_correct = False
         for pred in predictions_list:
             pred_type = pred.get("type", "")
-            predicted_value = pred.get("predicted_value", "")
+            predicted_value = pred.get("predicted", "")
 
             if pred_type == "next_domain_action":
                 if predicted_value in actual_domains:
@@ -779,13 +788,22 @@ class ShadowEngine(Module):
                     break
 
             elif pred_type == "routine_trigger":
-                # For routine triggers, check if the predicted domain
-                # pattern occurred (any significant activity matches)
-                if len(actual_events) >= 2:
-                    # A routine typically involves multiple events;
-                    # if we saw activity, consider it a match
-                    any_correct = True
-                    break
+                # Routine triggers must show domain overlap with the
+                # pattern's expected domains — not just "any 2+ events"
+                expected_domains = set(pred.get("expected_domains", []))
+                if expected_domains:
+                    overlap = actual_domains & expected_domains
+                    # At least 2 expected domains must appear
+                    if len(overlap) >= 2:
+                        any_correct = True
+                        break
+                else:
+                    # No expected_domains stored — require 3+ diverse
+                    # domain events as a lenient fallback
+                    if (len(actual_events) >= 3
+                            and len(actual_domains) >= 2):
+                        any_correct = True
+                        break
 
         if any_correct:
             return "correct", actual_data
