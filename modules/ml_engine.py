@@ -31,6 +31,11 @@ from hub.core import Module, IntelligenceHub
 
 logger = logging.getLogger(__name__)
 
+# Feature engineering constants — will move to config store in Phase 2
+DECAY_HALF_LIFE_DAYS = 7
+WEEKDAY_ALIGNMENT_BONUS = 1.5
+ROLLING_WINDOWS_HOURS = [1, 3, 6]
+
 
 class MLEngine(Module):
     """Machine learning prediction engine with adaptive capability mapping."""
@@ -239,8 +244,8 @@ class MLEngine(Module):
         """
         self.logger.info(f"Training model for target: {target}")
 
-        # Extract features and target values
-        X, y = await self._build_training_dataset(training_data, target)
+        # Extract features, target values, and decay-based sample weights
+        X, y, sample_weights = await self._build_training_dataset(training_data, target)
 
         if len(X) < 14:
             self.logger.warning(f"Insufficient training data for {target}: {len(X)} samples (need 14+)")
@@ -253,6 +258,7 @@ class MLEngine(Module):
         split_idx = int(len(X) * 0.8)
         X_train, X_val = X[:split_idx], X[split_idx:]
         y_train, y_val = y[:split_idx], y[split_idx:]
+        w_train = sample_weights[:split_idx] if len(sample_weights) > 0 else None
 
         # Train GradientBoosting model
         gb_model = GradientBoostingRegressor(
@@ -263,7 +269,7 @@ class MLEngine(Module):
             subsample=0.8,
             random_state=42
         )
-        gb_model.fit(X_train, y_train)
+        gb_model.fit(X_train, y_train, sample_weight=w_train)
 
         # Train RandomForest model
         rf_model = RandomForestRegressor(
@@ -271,7 +277,7 @@ class MLEngine(Module):
             max_depth=5,
             random_state=42
         )
-        rf_model.fit(X_train, y_train)
+        rf_model.fit(X_train, y_train, sample_weight=w_train)
 
         # Train LightGBM model (always trained even if disabled in enabled_models,
         # so toggling a model on doesn't require a full retrain cycle)
@@ -286,7 +292,7 @@ class MLEngine(Module):
             verbosity=-1,  # Suppress LightGBM info logs
             importance_type='gain',  # Gain-based importance (reduction in loss)
         )
-        lgbm_model.fit(X_train, y_train)
+        lgbm_model.fit(X_train, y_train, sample_weight=w_train)
 
         # Train IsolationForest for anomaly detection
         iso_model = IsolationForest(
@@ -448,7 +454,7 @@ class MLEngine(Module):
         self,
         snapshots: List[Dict[str, Any]],
         target: str
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Build training dataset from snapshots.
 
         Args:
@@ -456,10 +462,13 @@ class MLEngine(Module):
             target: Target metric to extract
 
         Returns:
-            Tuple of (features, targets) as numpy arrays
+            Tuple of (features, targets, sample_weights) as numpy arrays.
+            Sample weights are decay-based: recent data and same-weekday
+            data receive higher weight.
         """
         X_list = []
         y_list = []
+        included_snapshots = []
         config = await self._get_feature_config()
 
         for i, snapshot in enumerate(snapshots):
@@ -494,11 +503,15 @@ class MLEngine(Module):
 
             X_list.append(list(features.values()))
             y_list.append(target_value)
+            included_snapshots.append(snapshot)
 
         if not X_list:
-            return np.array([]), np.array([])
+            return np.array([]), np.array([]), np.array([])
 
-        return np.array(X_list), np.array(y_list)
+        # Compute decay-based sample weights
+        sample_weights = self._compute_decay_weights(included_snapshots)
+
+        return np.array(X_list), np.array(y_list), sample_weights
 
     async def _get_feature_config(self) -> Dict[str, Any]:
         """Get feature configuration from cache or return default.
@@ -618,6 +631,13 @@ class MLEngine(Module):
             if config["interaction_features"][key]:
                 names.append(key)
 
+        # Rolling window features (always included)
+        for hours in ROLLING_WINDOWS_HOURS:
+            names.append(f"rolling_{hours}h_event_count")
+            names.append(f"rolling_{hours}h_domain_entropy")
+            names.append(f"rolling_{hours}h_dominant_domain_pct")
+            names.append(f"rolling_{hours}h_trend")
+
         return names
 
     def _compute_time_features(self, snapshot: Dict[str, Any]) -> Dict[str, float]:
@@ -712,12 +732,173 @@ class MLEngine(Module):
             "daylight_remaining_pct": daylight_remaining_pct,
         }
 
+    def _compute_decay_weights(
+        self,
+        snapshots: List[Dict[str, Any]],
+        reference_date: Optional[datetime] = None
+    ) -> np.ndarray:
+        """Compute decay-based sample weights for training data.
+
+        Recent snapshots get higher weight. Same-weekday snapshots get a bonus.
+
+        Args:
+            snapshots: List of snapshots (must have 'date' field)
+            reference_date: Reference date for computing age (defaults to now)
+
+        Returns:
+            Array of weights, one per snapshot
+        """
+        if reference_date is None:
+            reference_date = datetime.now()
+
+        ref_weekday = reference_date.weekday()
+        weights = []
+
+        for snapshot in snapshots:
+            date_str = snapshot.get("date", "")
+            if not date_str:
+                weights.append(0.0)
+                continue
+
+            try:
+                if "T" in date_str:
+                    snap_dt = datetime.fromisoformat(date_str)
+                else:
+                    snap_dt = datetime.strptime(date_str, "%Y-%m-%d")
+            except (ValueError, TypeError):
+                weights.append(0.0)
+                continue
+
+            days_ago = max(0, (reference_date - snap_dt).total_seconds() / 86400)
+            recency_decay = math.exp(-days_ago / DECAY_HALF_LIFE_DAYS)
+
+            same_weekday = snap_dt.weekday() == ref_weekday
+            weekday_bonus = WEEKDAY_ALIGNMENT_BONUS if same_weekday else 1.0
+
+            weights.append(recency_decay * weekday_bonus)
+
+        return np.array(weights, dtype=float)
+
+    async def _compute_rolling_window_stats(
+        self,
+        activity_log: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, float]:
+        """Compute rolling window statistics from activity log.
+
+        For each window size (1h, 3h, 6h), computes:
+        - Event count per domain
+        - Domain entropy (spread of activity across domains)
+        - Dominant domain (most active domain)
+        - Activity trend (increasing/decreasing/stable)
+
+        Args:
+            activity_log: Activity log data (from cache). If None, attempts
+                to read from hub cache.
+
+        Returns:
+            Dictionary of rolling window features
+        """
+        if activity_log is None:
+            cache_entry = await self.hub.get_cache("activity_log")
+            if cache_entry and cache_entry.get("data"):
+                activity_log = cache_entry["data"]
+
+        stats: Dict[str, float] = {}
+
+        if not activity_log:
+            # Return zeros for all rolling window features
+            for hours in ROLLING_WINDOWS_HOURS:
+                stats[f"rolling_{hours}h_event_count"] = 0
+                stats[f"rolling_{hours}h_domain_entropy"] = 0
+                stats[f"rolling_{hours}h_dominant_domain_pct"] = 0
+                stats[f"rolling_{hours}h_trend"] = 0  # 0=stable
+            return stats
+
+        windows = activity_log.get("windows", [])
+        if not windows:
+            for hours in ROLLING_WINDOWS_HOURS:
+                stats[f"rolling_{hours}h_event_count"] = 0
+                stats[f"rolling_{hours}h_domain_entropy"] = 0
+                stats[f"rolling_{hours}h_dominant_domain_pct"] = 0
+                stats[f"rolling_{hours}h_trend"] = 0
+            return stats
+
+        now = datetime.now()
+
+        for hours in ROLLING_WINDOWS_HOURS:
+            cutoff = (now - timedelta(hours=hours)).isoformat()
+
+            # Filter windows within this time range
+            relevant = [w for w in windows if w.get("window_start", "") >= cutoff]
+
+            if not relevant:
+                stats[f"rolling_{hours}h_event_count"] = 0
+                stats[f"rolling_{hours}h_domain_entropy"] = 0
+                stats[f"rolling_{hours}h_dominant_domain_pct"] = 0
+                stats[f"rolling_{hours}h_trend"] = 0
+                continue
+
+            # Aggregate domain counts across windows
+            total_events = 0
+            domain_counts: Dict[str, int] = {}
+            for w in relevant:
+                total_events += w.get("event_count", 0)
+                for domain, count in w.get("by_domain", {}).items():
+                    domain_counts[domain] = domain_counts.get(domain, 0) + count
+
+            stats[f"rolling_{hours}h_event_count"] = total_events
+
+            # Domain entropy: -sum(p * log2(p)) for each domain
+            if total_events > 0 and domain_counts:
+                entropy = 0.0
+                for count in domain_counts.values():
+                    p = count / total_events
+                    if p > 0:
+                        entropy -= p * math.log2(p)
+                stats[f"rolling_{hours}h_domain_entropy"] = round(entropy, 4)
+
+                # Dominant domain percentage
+                max_count = max(domain_counts.values())
+                stats[f"rolling_{hours}h_dominant_domain_pct"] = round(
+                    max_count / total_events, 4
+                )
+            else:
+                stats[f"rolling_{hours}h_domain_entropy"] = 0
+                stats[f"rolling_{hours}h_dominant_domain_pct"] = 0
+
+            # Activity trend: compare first half vs second half of window
+            if len(relevant) >= 2:
+                mid = len(relevant) // 2
+                first_half = relevant[:mid]
+                second_half = relevant[mid:]
+                first_count = sum(w.get("event_count", 0) for w in first_half)
+                second_count = sum(w.get("event_count", 0) for w in second_half)
+
+                if first_count == 0 and second_count == 0:
+                    trend = 0.0  # stable
+                elif first_count == 0:
+                    trend = 1.0  # increasing
+                else:
+                    ratio = second_count / first_count
+                    if ratio > 1.2:
+                        trend = 1.0   # increasing
+                    elif ratio < 0.8:
+                        trend = -1.0  # decreasing
+                    else:
+                        trend = 0.0   # stable
+                stats[f"rolling_{hours}h_trend"] = trend
+            else:
+                stats[f"rolling_{hours}h_trend"] = 0.0
+
+        return stats
+
     async def _extract_features(
         self,
         snapshot: Dict[str, Any],
         config: Optional[Dict[str, Any]] = None,
         prev_snapshot: Optional[Dict[str, Any]] = None,
-        rolling_stats: Optional[Dict[str, float]] = None
+        rolling_stats: Optional[Dict[str, float]] = None,
+        rolling_window_stats: Optional[Dict[str, float]] = None
     ) -> Optional[Dict[str, float]]:
         """Extract feature vector from snapshot using feature config.
 
@@ -726,6 +907,7 @@ class MLEngine(Module):
             config: Feature configuration (uses default if None)
             prev_snapshot: Previous snapshot for lag features (optional)
             rolling_stats: Rolling statistics dict (optional)
+            rolling_window_stats: Rolling window stats from activity log (optional)
 
         Returns:
             Dictionary of feature_name -> float value
@@ -816,6 +998,14 @@ class MLEngine(Module):
         if ic.get("daylight_x_lights"):
             features["daylight_x_lights"] = features.get("daylight_remaining_pct", 0) * features.get("lights_on", 0)
 
+        # Rolling window features (from activity log)
+        rws = rolling_window_stats or {}
+        for hours in ROLLING_WINDOWS_HOURS:
+            features[f"rolling_{hours}h_event_count"] = rws.get(f"rolling_{hours}h_event_count", 0)
+            features[f"rolling_{hours}h_domain_entropy"] = rws.get(f"rolling_{hours}h_domain_entropy", 0)
+            features[f"rolling_{hours}h_dominant_domain_pct"] = rws.get(f"rolling_{hours}h_dominant_domain_pct", 0)
+            features[f"rolling_{hours}h_trend"] = rws.get(f"rolling_{hours}h_trend", 0)
+
         return features
 
     def _extract_target(self, snapshot: Dict[str, Any], target: str) -> Optional[float]:
@@ -873,6 +1063,9 @@ class MLEngine(Module):
         # Compute rolling stats (last 7 snapshots)
         rolling_stats = await self._compute_rolling_stats()
 
+        # Compute rolling window stats from live activity log
+        rolling_window_stats = await self._compute_rolling_window_stats()
+
         # Build feature config
         config = await self._get_feature_config()
 
@@ -881,7 +1074,8 @@ class MLEngine(Module):
             snapshot,
             config=config,
             prev_snapshot=prev_snapshot,
-            rolling_stats=rolling_stats
+            rolling_stats=rolling_stats,
+            rolling_window_stats=rolling_window_stats
         )
 
         if features is None:
