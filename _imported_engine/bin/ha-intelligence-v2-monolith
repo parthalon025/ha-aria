@@ -1,0 +1,2373 @@
+#!/usr/bin/env python3
+"""Home Assistant Intelligence Engine v2.
+
+Collects daily and intra-day snapshots, computes baselines, detects anomalies,
+trains ML models, generates predictions, and self-improves via LLM meta-learning.
+
+Usage:
+  ha-intelligence --snapshot           # Collect today's daily snapshot
+  ha-intelligence --snapshot-intraday  # Collect intra-day snapshot (current hour)
+  ha-intelligence --analyze            # Run analysis on latest snapshot
+  ha-intelligence --predict            # Generate predictions for tomorrow
+  ha-intelligence --score              # Score yesterday's predictions
+  ha-intelligence --retrain            # Retrain sklearn ML models
+  ha-intelligence --meta-learn         # Run LLM meta-learning analysis
+  ha-intelligence --report             # Full Ollama insight report
+  ha-intelligence --brief              # One-liner for telegram-brief
+  ha-intelligence --full               # Full daily pipeline
+  ha-intelligence --dry-run            # Print instead of saving
+"""
+import json
+import math
+import os
+import re
+import statistics
+import subprocess
+import sys
+import time
+import urllib.request
+import urllib.error
+from datetime import datetime, timedelta
+
+# === Config ===
+HA_URL = os.environ.get("HA_URL", "http://192.168.1.35:8123")
+HA_TOKEN = os.environ.get("HA_TOKEN", "")
+OLLAMA_URL = "http://localhost:11434/api/chat"
+OLLAMA_MODEL = "deepseek-r1:8b"
+DATA_DIR = os.path.expanduser("~/ha-logs/intelligence")
+DAILY_DIR = os.path.join(DATA_DIR, "daily")
+INSIGHTS_DIR = os.path.join(DATA_DIR, "insights")
+BASELINES_PATH = os.path.join(DATA_DIR, "baselines.json")
+PREDICTIONS_PATH = os.path.join(DATA_DIR, "predictions.json")
+ACCURACY_PATH = os.path.join(DATA_DIR, "accuracy.json")
+CORRELATIONS_PATH = os.path.join(DATA_DIR, "correlations.json")
+INTRADAY_DIR = os.path.join(DATA_DIR, "intraday")
+MODELS_DIR = os.path.join(DATA_DIR, "models")
+META_DIR = os.path.join(DATA_DIR, "meta-learning")
+FEATURE_CONFIG_PATH = os.path.join(DATA_DIR, "feature_config.json")
+WEATHER_LOCATION = "Shalimar+FL"
+LOGBOOK_PATH = os.path.expanduser("~/ha-logs/current.json")
+
+# Entities to exclude from unavailable counts (normally unavailable)
+UNAVAILABLE_EXCLUDE_DOMAINS = {"update", "tts", "stt"}
+
+# Safety-critical entities (excluded from predictions that suggest changes)
+SAFETY_ENTITIES = {"lock.", "alarm_", "camera."}
+
+# US holidays (Florida)
+try:
+    import holidays as holidays_lib
+    US_HOLIDAYS = holidays_lib.US(years=range(2025, 2028))
+except ImportError:
+    US_HOLIDAYS = {}
+
+
+def ensure_dirs():
+    for d in [DATA_DIR, DAILY_DIR, INSIGHTS_DIR, INTRADAY_DIR, MODELS_DIR, META_DIR]:
+        os.makedirs(d, exist_ok=True)
+
+
+def build_empty_snapshot(date_str):
+    """Build an empty snapshot with metadata filled in."""
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    return {
+        "date": date_str,
+        "day_of_week": dt.strftime("%A"),
+        "is_weekend": dt.weekday() >= 5,
+        "is_holiday": date_str in US_HOLIDAYS if US_HOLIDAYS else False,
+        "holiday_name": US_HOLIDAYS.get(date_str, None) if US_HOLIDAYS else None,
+        "weather": {},
+        "calendar_events": [],
+        "entities": {"total": 0, "unavailable": 0, "by_domain": {}},
+        "power": {"total_watts": 0.0, "outlets": {}},
+        "occupancy": {"people_home": [], "people_away": [], "device_count_home": 0},
+        "climate": [],
+        "locks": [],
+        "lights": {"on": 0, "off": 0, "unavailable": 0, "total_brightness": 0},
+        "motion": {"events_24h": 0, "sensors": {}},
+        "automations": {"on": 0, "off": 0, "unavailable": 0, "fired_24h": 0},
+        "ev": {},
+        "logbook_summary": {"total_events": 0, "useful_events": 0, "by_domain": {}, "hourly": {}},
+    }
+
+
+# Clock sensors to exclude from "useful events" count
+CLOCK_SENSORS = {
+    "sensor.date_time_utc", "sensor.date_time_iso", "sensor.time_date",
+    "sensor.time_utc", "sensor.time", "sensor.date_time",
+}
+
+
+def fetch_weather():
+    """Fetch weather from wttr.in, return raw string."""
+    try:
+        url = f"https://wttr.in/{WEATHER_LOCATION}?format=%C+%t+%h+%w"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.read().decode("utf-8", errors="replace").strip()
+    except Exception:
+        return ""
+
+
+def parse_weather(raw):
+    """Parse wttr.in compact format into structured dict."""
+    result = {"raw": raw, "condition": "", "temp_f": None, "humidity_pct": None, "wind_mph": None}
+    if not raw:
+        return result
+    m = re.search(r'([+-]?\d+)\s*°F', raw)
+    if m:
+        result["temp_f"] = int(m.group(1))
+    m = re.search(r'(\d+)%', raw)
+    if m:
+        result["humidity_pct"] = int(m.group(1))
+    m = re.search(r'[→←↑↓↗↘↙↖]?\s*(\d+)\s*mph', raw)
+    if m:
+        result["wind_mph"] = int(m.group(1))
+    m = re.match(r'^(.+?)\s*[+-]?\d+°', raw)
+    if m:
+        result["condition"] = m.group(1).strip()
+    return result
+
+
+def fetch_calendar_events():
+    """Fetch today's calendar events via gog CLI."""
+    try:
+        result = subprocess.run(
+            ["gog", "calendar", "list", "--today", "--all", "--plain"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            return []
+        lines = result.stdout.strip().split("\n")
+        if len(lines) <= 1:
+            return []
+        events = []
+        for line in lines[1:]:
+            parts = line.split("\t")
+            if len(parts) >= 4:
+                events.append({"start": parts[1], "end": parts[2], "summary": parts[3]})
+            elif len(parts) >= 5:
+                events.append({"start": parts[2], "end": parts[3], "summary": parts[4]})
+        return events
+    except Exception:
+        return []
+
+
+def summarize_logbook(entries):
+    """Summarize logbook entries into counts by domain and hour."""
+    total = len(entries)
+    useful = 0
+    by_domain = {}
+    hourly = {}
+    for e in entries:
+        eid = e.get("entity_id", "")
+        domain = eid.split(".")[0] if "." in eid else e.get("domain", "unknown")
+        by_domain[domain] = by_domain.get(domain, 0) + 1
+        if eid not in CLOCK_SENSORS:
+            useful += 1
+        when = e.get("when", "")
+        if len(when) >= 13:
+            h = when[11:13]
+            hourly[h] = hourly.get(h, 0) + 1
+    return {
+        "total_events": total,
+        "useful_events": useful,
+        "by_domain": by_domain,
+        "hourly": hourly,
+    }
+
+
+def _safe_float(val, default=0.0):
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def extract_power(snapshot, states):
+    """Extract USP PDU Pro power data."""
+    total = 0.0
+    outlets = {}
+    for s in states:
+        eid = s["entity_id"]
+        if "usp_pdu_pro" in eid and "outlet" in eid and "power" in eid:
+            name = s.get("attributes", {}).get("friendly_name", eid)
+            try:
+                watts = float(s["state"])
+                outlets[name] = watts
+                total += watts
+            except (ValueError, TypeError):
+                pass
+        elif eid == "sensor.usp_pdu_pro_ac_power_consumption":
+            try:
+                total = float(s["state"])
+            except (ValueError, TypeError):
+                pass
+    snapshot["power"]["total_watts"] = total
+    snapshot["power"]["outlets"] = outlets
+
+
+def extract_occupancy(snapshot, states):
+    """Extract person and device tracker occupancy."""
+    home = []
+    away = []
+    device_home = 0
+    for s in states:
+        eid = s["entity_id"]
+        state = s.get("state", "")
+        name = s.get("attributes", {}).get("friendly_name", eid)
+        if eid.startswith("person."):
+            if state == "home":
+                home.append(name)
+            elif state == "not_home":
+                away.append(name)
+        elif eid.startswith("device_tracker.") and state == "home":
+            device_home += 1
+    snapshot["occupancy"]["people_home"] = home
+    snapshot["occupancy"]["people_away"] = away
+    snapshot["occupancy"]["device_count_home"] = device_home
+
+
+def extract_climate(snapshot, states):
+    """Extract climate/thermostat data."""
+    zones = []
+    for s in states:
+        if s["entity_id"].startswith("climate."):
+            attrs = s.get("attributes", {})
+            name = attrs.get("friendly_name", s["entity_id"])
+            if "tars" in name.lower() or "tessy" in name.lower():
+                continue
+            zones.append({
+                "name": name,
+                "state": s.get("state", "unknown"),
+                "current_temp": attrs.get("current_temperature"),
+                "target_temp": attrs.get("temperature"),
+                "hvac_action": attrs.get("hvac_action", ""),
+            })
+    snapshot["climate"] = zones
+
+
+def extract_lights(snapshot, states):
+    """Extract light state summary."""
+    on = off = unavail = 0
+    total_brightness = 0
+    for s in states:
+        if s["entity_id"].startswith("light."):
+            state = s.get("state", "")
+            if state == "on":
+                on += 1
+                total_brightness += s.get("attributes", {}).get("brightness", 0) or 0
+            elif state == "off":
+                off += 1
+            elif state == "unavailable":
+                unavail += 1
+    snapshot["lights"]["on"] = on
+    snapshot["lights"]["off"] = off
+    snapshot["lights"]["unavailable"] = unavail
+    snapshot["lights"]["total_brightness"] = total_brightness
+
+
+def extract_locks(snapshot, states):
+    """Extract lock states and battery levels."""
+    locks = []
+    for s in states:
+        if s["entity_id"].startswith("lock."):
+            attrs = s.get("attributes", {})
+            name = attrs.get("friendly_name", s["entity_id"])
+            locks.append({
+                "name": name,
+                "state": s.get("state", "unknown"),
+                "battery": attrs.get("battery_level"),
+            })
+    snapshot["locks"] = locks
+
+
+def extract_automations(snapshot, states):
+    """Extract automation summary."""
+    on = off = unavail = 0
+    for s in states:
+        if s["entity_id"].startswith("automation."):
+            state = s.get("state", "")
+            if state == "on":
+                on += 1
+            elif state == "off":
+                off += 1
+            elif state == "unavailable":
+                unavail += 1
+    snapshot["automations"]["on"] = on
+    snapshot["automations"]["off"] = off
+    snapshot["automations"]["unavailable"] = unavail
+
+
+def extract_motion(snapshot, states):
+    """Extract motion sensor data."""
+    sensors = {}
+    for s in states:
+        if s["entity_id"].startswith("binary_sensor."):
+            dc = s.get("attributes", {}).get("device_class", "")
+            if dc == "motion":
+                name = s.get("attributes", {}).get("friendly_name", s["entity_id"])
+                sensors[name] = s.get("state", "off")
+    snapshot["motion"]["sensors"] = sensors
+
+
+def extract_ev(snapshot, states):
+    """Extract Tesla/EV data. Maps luda_* entities to TARS."""
+    ev_data = {}
+    for s in states:
+        eid = s["entity_id"]
+        state_val = s.get("state", "")
+        attrs = s.get("attributes", {})
+        if "luda_battery" in eid and attrs.get("unit_of_measurement") == "%":
+            ev_data.setdefault("TARS", {})["battery_pct"] = _safe_float(state_val)
+        elif "luda_charger_power" in eid:
+            ev_data.setdefault("TARS", {})["charger_power_kw"] = _safe_float(state_val)
+        elif "luda_range" in eid and "mi" in str(attrs.get("unit_of_measurement", "")):
+            ev_data.setdefault("TARS", {})["range_miles"] = _safe_float(state_val)
+        elif "luda_charging_rate" in eid:
+            ev_data.setdefault("TARS", {})["charging_rate_mph"] = _safe_float(state_val)
+        elif "luda_energy_added" in eid:
+            ev_data.setdefault("TARS", {})["energy_added_kwh"] = _safe_float(state_val)
+    snapshot["ev"] = ev_data
+
+
+def extract_entities_summary(snapshot, states):
+    """Extract high-level entity counts."""
+    total = len(states)
+    unavail = 0
+    by_domain = {}
+    for s in states:
+        eid = s["entity_id"]
+        domain = eid.split(".")[0] if "." in eid else "unknown"
+        by_domain[domain] = by_domain.get(domain, 0) + 1
+        if s.get("state") == "unavailable" and domain not in UNAVAILABLE_EXCLUDE_DOMAINS:
+            unavail += 1
+    snapshot["entities"]["total"] = total
+    snapshot["entities"]["unavailable"] = unavail
+    snapshot["entities"]["by_domain"] = by_domain
+    snapshot["entities"]["unavailable_list"] = [
+        s["entity_id"] for s in states
+        if s.get("state") == "unavailable"
+        and s["entity_id"].split(".")[0] not in UNAVAILABLE_EXCLUDE_DOMAINS
+    ]
+
+
+def extract_doors_windows(snapshot, states):
+    """Extract door/window binary sensor data."""
+    dw = {}
+    for s in states:
+        if s["entity_id"].startswith("binary_sensor."):
+            dc = s.get("attributes", {}).get("device_class", "")
+            if dc in ("door", "window", "garage_door"):
+                name = s.get("attributes", {}).get("friendly_name", s["entity_id"])
+                dw[name] = {"state": s.get("state", "unknown"), "open_count_today": 0}
+    snapshot["doors_windows"] = dw
+
+
+def extract_batteries(snapshot, states):
+    """Extract battery levels from all entities with battery_level attribute."""
+    batteries = {}
+    for s in states:
+        attrs = s.get("attributes", {})
+        battery = attrs.get("battery_level")
+        if battery is None:
+            # Also check device_class battery sensors
+            if s["entity_id"].startswith("sensor.") and attrs.get("device_class") == "battery":
+                try:
+                    battery = float(s["state"])
+                except (ValueError, TypeError):
+                    continue
+            else:
+                continue
+        batteries[s["entity_id"]] = {
+            "level": battery,
+            "entity_type": s["entity_id"].split(".")[0],
+        }
+    snapshot["batteries"] = batteries
+
+
+def extract_network(snapshot, states):
+    """Extract device_tracker domain summary."""
+    home = away = unavail = 0
+    for s in states:
+        if s["entity_id"].startswith("device_tracker."):
+            st = s.get("state", "")
+            if st == "home":
+                home += 1
+            elif st == "not_home":
+                away += 1
+            elif st == "unavailable":
+                unavail += 1
+    snapshot["network"] = {
+        "devices_home": home,
+        "devices_away": away,
+        "devices_unavailable": unavail,
+    }
+
+
+def extract_media(snapshot, states):
+    """Extract media_player state summary."""
+    active = []
+    for s in states:
+        if s["entity_id"].startswith("media_player."):
+            if s.get("state") == "playing":
+                name = s.get("attributes", {}).get("friendly_name", s["entity_id"])
+                active.append(name)
+    snapshot["media"] = {"active_players": active, "total_active": len(active)}
+
+
+def extract_sun(snapshot, states):
+    """Extract sun.sun entity for sunrise/sunset data."""
+    sun_data = {"sunrise": "06:00", "sunset": "18:00", "daylight_hours": 12.0, "solar_elevation": 0}
+    for s in states:
+        if s["entity_id"] == "sun.sun":
+            attrs = s.get("attributes", {})
+            # HA sun entity has next_rising, next_setting, elevation
+            rising = attrs.get("next_rising", "")
+            setting = attrs.get("next_setting", "")
+            if rising and len(rising) >= 16:
+                sun_data["sunrise"] = rising[11:16]
+            if setting and len(setting) >= 16:
+                sun_data["sunset"] = setting[11:16]
+            sun_data["solar_elevation"] = attrs.get("elevation", 0) or 0
+            # Compute daylight hours
+            try:
+                sr = _time_to_minutes(sun_data["sunrise"])
+                ss = _time_to_minutes(sun_data["sunset"])
+                sun_data["daylight_hours"] = round(max(0, ss - sr) / 60.0, 2)
+            except Exception:
+                pass
+            break
+    snapshot["sun"] = sun_data
+
+
+def extract_vacuum(snapshot, states):
+    """Extract vacuum domain data."""
+    vacuums = {}
+    for s in states:
+        if s["entity_id"].startswith("vacuum."):
+            attrs = s.get("attributes", {})
+            name = attrs.get("friendly_name", s["entity_id"])
+            vacuums[name] = {
+                "status": s.get("state", "unknown"),
+                "battery": attrs.get("battery_level"),
+            }
+    snapshot["vacuum"] = vacuums
+
+
+def _time_to_minutes(time_str):
+    """Convert HH:MM string to minutes since midnight."""
+    parts = time_str.split(":")
+    return int(parts[0]) * 60 + int(parts[1])
+
+
+def cyclical_encode(value, max_value):
+    """Encode a cyclical feature as sin/cos pair."""
+    angle = 2 * math.pi * value / max_value
+    return round(math.sin(angle), 6), round(math.cos(angle), 6)
+
+
+def build_time_features(timestamp_str, sun_data=None, date_str=None):
+    """Build all time features from a timestamp and sun data."""
+    if timestamp_str:
+        dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")) if "T" in timestamp_str else datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+    else:
+        dt = datetime.now()
+
+    hour = dt.hour + dt.minute / 60.0
+    dow = dt.weekday()
+    month = dt.month
+    doy = dt.timetuple().tm_yday
+
+    h_sin, h_cos = cyclical_encode(hour, 24)
+    d_sin, d_cos = cyclical_encode(dow, 7)
+    m_sin, m_cos = cyclical_encode(month, 12)
+    y_sin, y_cos = cyclical_encode(doy, 365)
+
+    current_minutes = dt.hour * 60 + dt.minute
+
+    # Sun-relative features
+    sunrise_minutes = 360  # default 6:00
+    sunset_minutes = 1080  # default 18:00
+    if sun_data:
+        try:
+            sunrise_minutes = _time_to_minutes(sun_data.get("sunrise", "06:00"))
+            sunset_minutes = _time_to_minutes(sun_data.get("sunset", "18:00"))
+        except Exception:
+            pass
+
+    daylight_total = max(1, sunset_minutes - sunrise_minutes)
+    is_night = current_minutes < sunrise_minutes or current_minutes > sunset_minutes
+
+    # Holiday check
+    check_date = date_str or dt.strftime("%Y-%m-%d")
+    is_holiday = check_date in US_HOLIDAYS if US_HOLIDAYS else False
+
+    return {
+        "hour": dt.hour,
+        "hour_sin": h_sin, "hour_cos": h_cos,
+        "dow": dow,
+        "dow_sin": d_sin, "dow_cos": d_cos,
+        "month": month,
+        "month_sin": m_sin, "month_cos": m_cos,
+        "day_of_year": doy,
+        "day_of_year_sin": y_sin, "day_of_year_cos": y_cos,
+        "is_weekend": dow >= 5,
+        "is_holiday": is_holiday,
+        "is_night": is_night,
+        "is_work_hours": not (dow >= 5) and 480 <= current_minutes <= 1020,
+        "minutes_since_midnight": current_minutes,
+        "minutes_since_sunrise": max(0, current_minutes - sunrise_minutes),
+        "minutes_until_sunset": max(0, sunset_minutes - current_minutes),
+        "daylight_remaining_pct": round(max(0, (sunset_minutes - current_minutes) / daylight_total * 100), 1) if not is_night else 0,
+        "week_of_year": dt.isocalendar()[1],
+    }
+
+
+def build_intraday_snapshot(hour=None, date_str=None):
+    """Build an intra-day snapshot capturing current state with time features."""
+    now = datetime.now()
+    if date_str is None:
+        date_str = now.strftime("%Y-%m-%d")
+    if hour is None:
+        hour = now.hour
+    timestamp = now.strftime("%Y-%m-%dT%H:%M:%S")
+
+    # Start with the standard snapshot structure
+    snapshot = build_empty_snapshot(date_str)
+    snapshot["hour"] = hour
+    snapshot["timestamp"] = timestamp
+
+    # HA entities
+    states = fetch_ha_states()
+    if states:
+        extract_entities_summary(snapshot, states)
+        extract_power(snapshot, states)
+        extract_occupancy(snapshot, states)
+        snapshot["occupancy"]["people_home_count"] = len(snapshot["occupancy"]["people_home"])
+        extract_climate(snapshot, states)
+        extract_lights(snapshot, states)
+        # Enhanced lights: avg brightness, rooms lit
+        if snapshot["lights"]["on"] > 0:
+            snapshot["lights"]["avg_brightness"] = round(snapshot["lights"]["total_brightness"] / snapshot["lights"]["on"], 1)
+        else:
+            snapshot["lights"]["avg_brightness"] = 0
+        # Rooms lit from individual lights
+        rooms_lit = []
+        for s in states:
+            if s["entity_id"].startswith("light.") and s.get("state") == "on":
+                name = s.get("attributes", {}).get("friendly_name", s["entity_id"])
+                rooms_lit.append(name)
+        snapshot["lights"]["rooms_lit"] = rooms_lit
+        extract_locks(snapshot, states)
+        extract_motion(snapshot, states)
+        snapshot["motion"]["active_count"] = sum(1 for v in snapshot["motion"]["sensors"].values() if v == "on")
+        extract_automations(snapshot, states)
+        extract_ev(snapshot, states)
+        # Add is_charging and is_home for EV
+        for ev_name, ev_data in snapshot["ev"].items():
+            ev_data["is_charging"] = ev_data.get("charger_power_kw", 0) > 0
+        extract_doors_windows(snapshot, states)
+        extract_batteries(snapshot, states)
+        extract_network(snapshot, states)
+        extract_media(snapshot, states)
+        extract_sun(snapshot, states)
+        extract_vacuum(snapshot, states)
+
+    # Time features
+    snapshot["time_features"] = build_time_features(timestamp, snapshot.get("sun"), date_str)
+
+    # Weather
+    weather_raw = fetch_weather()
+    snapshot["weather"] = parse_weather(weather_raw)
+
+    # Logbook summary (since last snapshot — approximated as recent entries)
+    entries = load_logbook()
+    snapshot["logbook_summary"] = summarize_logbook(entries)
+
+    return snapshot
+
+
+def save_intraday_snapshot(snapshot):
+    """Save intra-day snapshot to intraday/YYYY-MM-DD/HH.json."""
+    ensure_dirs()
+    day_dir = os.path.join(INTRADAY_DIR, snapshot["date"])
+    os.makedirs(day_dir, exist_ok=True)
+    hour = snapshot.get("hour", 0)
+    path = os.path.join(day_dir, f"{hour:02d}.json")
+    with open(path, "w") as f:
+        json.dump(snapshot, f, indent=2)
+    return path
+
+
+def load_intraday_snapshots(date_str):
+    """Load all intra-day snapshots for a given date."""
+    day_dir = os.path.join(INTRADAY_DIR, date_str)
+    if not os.path.isdir(day_dir):
+        return []
+    snapshots = []
+    for fname in sorted(os.listdir(day_dir)):
+        if fname.endswith(".json"):
+            path = os.path.join(day_dir, fname)
+            try:
+                with open(path) as f:
+                    snapshots.append(json.load(f))
+            except Exception:
+                pass
+    return snapshots
+
+
+def load_all_intraday_snapshots(days=30):
+    """Load all intra-day snapshots for the last N days."""
+    all_snapshots = []
+    today = datetime.now()
+    for i in range(days):
+        date_str = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        all_snapshots.extend(load_intraday_snapshots(date_str))
+    return all_snapshots
+
+
+# === Feature Config & Vector Builder ===
+
+DEFAULT_FEATURE_CONFIG = {
+    "version": 1,
+    "last_modified": "",
+    "modified_by": "initial",
+    "time_features": {
+        "hour_sin_cos": True, "dow_sin_cos": True, "month_sin_cos": True,
+        "day_of_year_sin_cos": True, "is_weekend": True, "is_holiday": True,
+        "is_night": True, "is_work_hours": True, "minutes_since_sunrise": True,
+        "minutes_until_sunset": True, "daylight_remaining_pct": True,
+    },
+    "weather_features": {
+        "temp_f": True, "humidity_pct": True, "wind_mph": True,
+    },
+    "home_features": {
+        "people_home_count": True, "device_count_home": True,
+        "lights_on": True, "total_brightness": True,
+        "motion_active_count": True, "active_media_players": True,
+        "ev_battery_pct": True, "ev_is_charging": True,
+    },
+    "lag_features": {
+        "prev_snapshot_power": True, "prev_snapshot_lights": True,
+        "prev_snapshot_occupancy": True,
+        "rolling_7d_power_mean": True, "rolling_7d_lights_mean": True,
+    },
+    "interaction_features": {
+        "is_weekend_x_temp": False, "people_home_x_hour_sin": False,
+        "daylight_x_lights": False,
+    },
+    "target_metrics": [
+        "power_watts", "lights_on", "devices_home", "unavailable", "useful_events",
+    ],
+}
+
+
+def load_feature_config():
+    """Load feature config, creating default if missing."""
+    if os.path.isfile(FEATURE_CONFIG_PATH):
+        with open(FEATURE_CONFIG_PATH) as f:
+            return json.load(f)
+    return DEFAULT_FEATURE_CONFIG.copy()
+
+
+def save_feature_config(config):
+    """Save feature config."""
+    ensure_dirs()
+    config["last_modified"] = datetime.now().isoformat()
+    with open(FEATURE_CONFIG_PATH, "w") as f:
+        json.dump(config, f, indent=2)
+
+
+def get_feature_names(config=None):
+    """Return ordered list of feature names from config."""
+    if config is None:
+        config = load_feature_config()
+    names = []
+    tc = config.get("time_features", {})
+    if tc.get("hour_sin_cos"):
+        names.extend(["hour_sin", "hour_cos"])
+    if tc.get("dow_sin_cos"):
+        names.extend(["dow_sin", "dow_cos"])
+    if tc.get("month_sin_cos"):
+        names.extend(["month_sin", "month_cos"])
+    if tc.get("day_of_year_sin_cos"):
+        names.extend(["day_of_year_sin", "day_of_year_cos"])
+    for simple in ["is_weekend", "is_holiday", "is_night", "is_work_hours",
+                    "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct"]:
+        if tc.get(simple):
+            names.append(simple)
+
+    for key in config.get("weather_features", {}):
+        if config["weather_features"][key]:
+            names.append(f"weather_{key}")
+
+    for key in config.get("home_features", {}):
+        if config["home_features"][key]:
+            names.append(key)
+
+    for key in config.get("lag_features", {}):
+        if config["lag_features"][key]:
+            names.append(key)
+
+    for key in config.get("interaction_features", {}):
+        if config["interaction_features"][key]:
+            names.append(key)
+
+    return names
+
+
+def build_feature_vector(snapshot, config=None, prev_snapshot=None, rolling_stats=None):
+    """Build a feature vector (dict) from a snapshot using the feature config.
+
+    Returns dict of feature_name -> float value.
+    """
+    if config is None:
+        config = load_feature_config()
+
+    features = {}
+    tf = snapshot.get("time_features", {})
+    tc = config.get("time_features", {})
+
+    # Time features
+    if tc.get("hour_sin_cos"):
+        features["hour_sin"] = tf.get("hour_sin", 0)
+        features["hour_cos"] = tf.get("hour_cos", 0)
+    if tc.get("dow_sin_cos"):
+        features["dow_sin"] = tf.get("dow_sin", 0)
+        features["dow_cos"] = tf.get("dow_cos", 0)
+    if tc.get("month_sin_cos"):
+        features["month_sin"] = tf.get("month_sin", 0)
+        features["month_cos"] = tf.get("month_cos", 0)
+    if tc.get("day_of_year_sin_cos"):
+        features["day_of_year_sin"] = tf.get("day_of_year_sin", 0)
+        features["day_of_year_cos"] = tf.get("day_of_year_cos", 0)
+    for simple in ["is_weekend", "is_holiday", "is_night", "is_work_hours",
+                    "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct"]:
+        if tc.get(simple):
+            val = tf.get(simple, 0)
+            features[simple] = 1 if val is True else (0 if val is False else (val or 0))
+
+    # Weather features
+    weather = snapshot.get("weather", {})
+    for key, enabled in config.get("weather_features", {}).items():
+        if enabled:
+            features[f"weather_{key}"] = weather.get(key) or 0
+
+    # Home state features
+    hc = config.get("home_features", {})
+    if hc.get("people_home_count"):
+        features["people_home_count"] = snapshot.get("occupancy", {}).get("people_home_count",
+            len(snapshot.get("occupancy", {}).get("people_home", [])))
+    if hc.get("device_count_home"):
+        features["device_count_home"] = snapshot.get("occupancy", {}).get("device_count_home", 0)
+    if hc.get("lights_on"):
+        features["lights_on"] = snapshot.get("lights", {}).get("on", 0)
+    if hc.get("total_brightness"):
+        features["total_brightness"] = snapshot.get("lights", {}).get("total_brightness", 0)
+    if hc.get("motion_active_count"):
+        features["motion_active_count"] = snapshot.get("motion", {}).get("active_count", 0)
+    if hc.get("active_media_players"):
+        features["active_media_players"] = snapshot.get("media", {}).get("total_active", 0)
+    if hc.get("ev_battery_pct"):
+        features["ev_battery_pct"] = snapshot.get("ev", {}).get("TARS", {}).get("battery_pct", 0)
+    if hc.get("ev_is_charging"):
+        features["ev_is_charging"] = 1 if snapshot.get("ev", {}).get("TARS", {}).get("is_charging") else 0
+
+    # Lag features
+    lc = config.get("lag_features", {})
+    if lc.get("prev_snapshot_power") and prev_snapshot:
+        features["prev_snapshot_power"] = prev_snapshot.get("power", {}).get("total_watts", 0)
+    elif lc.get("prev_snapshot_power"):
+        features["prev_snapshot_power"] = 0
+    if lc.get("prev_snapshot_lights") and prev_snapshot:
+        features["prev_snapshot_lights"] = prev_snapshot.get("lights", {}).get("on", 0)
+    elif lc.get("prev_snapshot_lights"):
+        features["prev_snapshot_lights"] = 0
+    if lc.get("prev_snapshot_occupancy") and prev_snapshot:
+        features["prev_snapshot_occupancy"] = prev_snapshot.get("occupancy", {}).get("device_count_home", 0)
+    elif lc.get("prev_snapshot_occupancy"):
+        features["prev_snapshot_occupancy"] = 0
+    if lc.get("rolling_7d_power_mean"):
+        features["rolling_7d_power_mean"] = (rolling_stats or {}).get("power_mean_7d", 0)
+    if lc.get("rolling_7d_lights_mean"):
+        features["rolling_7d_lights_mean"] = (rolling_stats or {}).get("lights_mean_7d", 0)
+
+    # Interaction features
+    ic = config.get("interaction_features", {})
+    if ic.get("is_weekend_x_temp"):
+        features["is_weekend_x_temp"] = features.get("is_weekend", 0) * features.get("weather_temp_f", 0)
+    if ic.get("people_home_x_hour_sin"):
+        features["people_home_x_hour_sin"] = features.get("people_home_count", 0) * features.get("hour_sin", 0)
+    if ic.get("daylight_x_lights"):
+        features["daylight_x_lights"] = features.get("daylight_remaining_pct", 0) * features.get("lights_on", 0)
+
+    return features
+
+
+def extract_target_values(snapshot):
+    """Extract target metric values from a snapshot for training."""
+    return {
+        "power_watts": snapshot.get("power", {}).get("total_watts", 0),
+        "lights_on": snapshot.get("lights", {}).get("on", 0),
+        "devices_home": snapshot.get("occupancy", {}).get("device_count_home", 0),
+        "unavailable": snapshot.get("entities", {}).get("unavailable", 0),
+        "useful_events": snapshot.get("logbook_summary", {}).get("useful_events", 0),
+    }
+
+
+def build_training_data(snapshots, config=None):
+    """Build feature matrix and target arrays from a list of snapshots.
+
+    Returns (feature_names, X_list_of_dicts, targets_dict_of_lists).
+    """
+    if config is None:
+        config = load_feature_config()
+
+    feature_names = get_feature_names(config)
+    X = []
+    targets = {m: [] for m in config.get("target_metrics", DEFAULT_FEATURE_CONFIG["target_metrics"])}
+
+    for i, snap in enumerate(snapshots):
+        prev = snapshots[i - 1] if i > 0 else None
+        # Simple rolling stats
+        rolling = {}
+        if i >= 7:
+            recent = snapshots[max(0, i - 7):i]
+            rolling["power_mean_7d"] = sum(s.get("power", {}).get("total_watts", 0) for s in recent) / len(recent)
+            rolling["lights_mean_7d"] = sum(s.get("lights", {}).get("on", 0) for s in recent) / len(recent)
+
+        fv = build_feature_vector(snap, config, prev, rolling)
+        # Convert to ordered list matching feature_names
+        row = [fv.get(name, 0) for name in feature_names]
+        X.append(row)
+
+        tv = extract_target_values(snap)
+        for metric in targets:
+            targets[metric].append(tv.get(metric, 0))
+
+    return feature_names, X, targets
+
+
+# === sklearn ML Training Pipeline ===
+
+try:
+    import pickle
+    import numpy as np
+    from sklearn.ensemble import GradientBoostingRegressor, RandomForestClassifier, IsolationForest
+    from sklearn.metrics import mean_absolute_error, r2_score
+    HAS_SKLEARN = True
+except ImportError:
+    HAS_SKLEARN = False
+
+
+def train_continuous_model(metric_name, feature_names, X, y, model_dir):
+    """Train a GradientBoosting model for a continuous metric.
+
+    Returns training metrics dict.
+    """
+    if not HAS_SKLEARN:
+        return {"error": "sklearn not installed"}
+
+    X_arr = np.array(X, dtype=float)
+    y_arr = np.array(y, dtype=float)
+
+    if len(X_arr) < 14:
+        return {"error": f"insufficient data ({len(X_arr)} samples, need 14+)"}
+
+    # 80/20 chronological split (no shuffle — time series)
+    split = int(len(X_arr) * 0.8)
+    X_train, X_val = X_arr[:split], X_arr[split:]
+    y_train, y_val = y_arr[:split], y_arr[split:]
+
+    model = GradientBoostingRegressor(
+        n_estimators=100, max_depth=4, learning_rate=0.1,
+        min_samples_leaf=max(3, len(X_train) // 20),
+        subsample=0.8, random_state=42,
+    )
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_val)
+    mae = mean_absolute_error(y_val, y_pred)
+    r2 = r2_score(y_val, y_pred) if len(y_val) > 1 else 0.0
+
+    # Feature importance
+    importances = dict(zip(feature_names, [round(v, 4) for v in model.feature_importances_]))
+
+    # Save model
+    os.makedirs(model_dir, exist_ok=True)
+    model_path = os.path.join(model_dir, f"{metric_name}.pkl")
+    with open(model_path, "wb") as f:
+        pickle.dump(model, f)
+
+    return {
+        "metric": metric_name,
+        "mae": round(float(mae), 2),
+        "r2": round(float(r2), 4),
+        "samples_train": len(X_train),
+        "samples_val": len(X_val),
+        "feature_importance": importances,
+    }
+
+
+def train_anomaly_detector(feature_names, X, model_dir):
+    """Train IsolationForest for contextual anomaly detection."""
+    if not HAS_SKLEARN:
+        return {"error": "sklearn not installed"}
+
+    X_arr = np.array(X, dtype=float)
+    if len(X_arr) < 14:
+        return {"error": f"insufficient data ({len(X_arr)} samples)"}
+
+    model = IsolationForest(
+        n_estimators=100, contamination=0.05, random_state=42,
+    )
+    model.fit(X_arr)
+
+    os.makedirs(model_dir, exist_ok=True)
+    model_path = os.path.join(model_dir, "anomaly_detector.pkl")
+    with open(model_path, "wb") as f:
+        pickle.dump(model, f)
+
+    return {"samples": len(X_arr), "contamination": 0.05}
+
+
+def train_device_failure_model(snapshots, model_dir):
+    """Train RandomForest for device failure prediction.
+
+    Builds training data from historical snapshots: for each device that was
+    ever unavailable, creates features from each day with label = went
+    unavailable within 7 days.
+    """
+    if not HAS_SKLEARN or len(snapshots) < 14:
+        return {"error": "insufficient data or sklearn not installed"}
+
+    # Find all devices that were ever unavailable
+    all_devices = set()
+    for snap in snapshots:
+        for eid in snap.get("entities", {}).get("unavailable_list", []):
+            all_devices.add(eid)
+
+    if not all_devices:
+        return {"error": "no device outage data"}
+
+    X = []
+    y = []
+    domain_map = {"sensor": 0, "switch": 1, "light": 2, "binary_sensor": 3,
+                  "device_tracker": 4, "lock": 5, "climate": 6}
+
+    for device_id in all_devices:
+        for i in range(len(snapshots) - 7):
+            # Features: outage history up to this point
+            history = snapshots[:i + 1]
+            outage_7d = sum(1 for s in history[-7:] if device_id in s.get("entities", {}).get("unavailable_list", []))
+            outage_30d = sum(1 for s in history[-30:] if device_id in s.get("entities", {}).get("unavailable_list", []))
+
+            # Days since last outage
+            days_since = 999
+            for j, s in enumerate(reversed(history)):
+                if device_id in s.get("entities", {}).get("unavailable_list", []):
+                    days_since = j
+                    break
+
+            # Battery
+            battery = -1
+            batt_data = snapshots[i].get("batteries", {}).get(device_id, {})
+            if batt_data:
+                battery = batt_data.get("level", -1) or -1
+
+            domain = device_id.split(".")[0]
+
+            features = [
+                outage_7d, outage_30d, min(days_since, 365),
+                battery, domain_map.get(domain, 7),
+            ]
+            X.append(features)
+
+            # Label: did this device go unavailable in the next 7 days?
+            future = snapshots[i + 1:i + 8]
+            went_unavailable = any(device_id in s.get("entities", {}).get("unavailable_list", []) for s in future)
+            y.append(1 if went_unavailable else 0)
+
+    if len(X) < 10 or sum(y) == 0:
+        return {"error": "insufficient failure examples"}
+
+    X_arr = np.array(X, dtype=float)
+    y_arr = np.array(y, dtype=int)
+
+    model = RandomForestClassifier(
+        n_estimators=100, max_depth=6, min_samples_leaf=3, random_state=42,
+    )
+    model.fit(X_arr, y_arr)
+
+    os.makedirs(model_dir, exist_ok=True)
+    model_path = os.path.join(model_dir, "device_failure.pkl")
+    with open(model_path, "wb") as f:
+        pickle.dump(model, f)
+
+    return {
+        "samples": len(X_arr),
+        "positive_rate": round(sum(y) / len(y), 3),
+        "feature_names": ["outage_7d", "outage_30d", "days_since_outage", "battery", "domain"],
+    }
+
+
+def predict_device_failures(snapshots, model_dir):
+    """Predict which devices are likely to fail in the next 7 days."""
+    if not HAS_SKLEARN:
+        return []
+
+    model_path = os.path.join(model_dir, "device_failure.pkl")
+    if not os.path.isfile(model_path):
+        return []
+
+    with open(model_path, "rb") as f:
+        model = pickle.load(f)
+
+    domain_map = {"sensor": 0, "switch": 1, "light": 2, "binary_sensor": 3,
+                  "device_tracker": 4, "lock": 5, "climate": 6}
+
+    # Find all devices that were ever unavailable
+    all_devices = set()
+    for snap in snapshots:
+        for eid in snap.get("entities", {}).get("unavailable_list", []):
+            all_devices.add(eid)
+
+    predictions = []
+    for device_id in all_devices:
+        outage_7d = sum(1 for s in snapshots[-7:] if device_id in s.get("entities", {}).get("unavailable_list", []))
+        outage_30d = sum(1 for s in snapshots[-30:] if device_id in s.get("entities", {}).get("unavailable_list", []))
+        days_since = 999
+        for j, s in enumerate(reversed(snapshots)):
+            if device_id in s.get("entities", {}).get("unavailable_list", []):
+                days_since = j
+                break
+        battery = -1
+        if snapshots:
+            batt_data = snapshots[-1].get("batteries", {}).get(device_id, {})
+            if batt_data:
+                battery = batt_data.get("level", -1) or -1
+        domain = device_id.split(".")[0]
+
+        features = np.array([[outage_7d, outage_30d, min(days_since, 365),
+                               battery, domain_map.get(domain, 7)]], dtype=float)
+        prob = model.predict_proba(features)[0]
+        fail_prob = prob[1] if len(prob) > 1 else 0
+
+        if fail_prob > 0.3:  # Only report if >30% chance
+            predictions.append({
+                "entity_id": device_id,
+                "failure_probability": round(float(fail_prob), 3),
+                "risk": "high" if fail_prob > 0.7 else ("medium" if fail_prob > 0.5 else "low"),
+                "outages_last_7d": outage_7d,
+                "battery": battery if battery >= 0 else None,
+            })
+
+    predictions.sort(key=lambda p: -p["failure_probability"])
+    return predictions
+
+
+def detect_contextual_anomalies(snapshot_features, model_dir):
+    """Score a snapshot for multi-dimensional anomalies using IsolationForest."""
+    if not HAS_SKLEARN:
+        return {"is_anomaly": False, "anomaly_score": 0}
+
+    model_path = os.path.join(model_dir, "anomaly_detector.pkl")
+    if not os.path.isfile(model_path):
+        return {"is_anomaly": False, "anomaly_score": 0}
+
+    with open(model_path, "rb") as f:
+        model = pickle.load(f)
+
+    X = np.array([snapshot_features], dtype=float)
+    score = float(model.decision_function(X)[0])
+    is_anomaly = model.predict(X)[0] == -1
+
+    return {
+        "is_anomaly": bool(is_anomaly),
+        "anomaly_score": round(score, 4),
+        "severity": "high" if score < -0.3 else ("medium" if score < -0.1 else "low"),
+    }
+
+
+def train_all_models(days=90):
+    """Train all sklearn models from intra-day snapshots.
+
+    Returns training results dict.
+    """
+    if not HAS_SKLEARN:
+        print("sklearn not installed, skipping ML training")
+        return {"error": "sklearn not installed"}
+
+    # Load intra-day snapshots (or fall back to daily)
+    snapshots = load_all_intraday_snapshots(days)
+    if len(snapshots) < 14:
+        # Fall back to daily snapshots
+        snapshots = load_recent_snapshots(days)
+    if len(snapshots) < 14:
+        print(f"Insufficient training data ({len(snapshots)} snapshots, need 14+)")
+        return {"error": f"insufficient data ({len(snapshots)} snapshots)"}
+
+    config = load_feature_config()
+    feature_names, X, targets = build_training_data(snapshots, config)
+
+    results = {"trained_at": datetime.now().isoformat(), "models": {}}
+
+    # Train continuous models
+    for metric in config.get("target_metrics", []):
+        if metric in targets:
+            result = train_continuous_model(metric, feature_names, X, targets[metric], MODELS_DIR)
+            results["models"][metric] = result
+            if "error" not in result:
+                print(f"  {metric}: MAE={result['mae']}, R²={result['r2']}")
+
+    # Train anomaly detector
+    anomaly_result = train_anomaly_detector(feature_names, X, MODELS_DIR)
+    results["models"]["anomaly_detector"] = anomaly_result
+
+    # Train device failure model (uses daily snapshots for longer history)
+    daily_snaps = load_recent_snapshots(days)
+    failure_result = train_device_failure_model(daily_snaps, MODELS_DIR)
+    results["models"]["device_failure"] = failure_result
+    if "error" not in failure_result:
+        print(f"  device_failure: {failure_result['samples']} samples, positive_rate={failure_result['positive_rate']}")
+
+    # Save training log
+    log_path = os.path.join(MODELS_DIR, "training_log.json")
+    with open(log_path, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Training log saved: {log_path}")
+
+    return results
+
+
+def predict_with_ml(snapshot, config=None, prev_snapshot=None, rolling_stats=None):
+    """Generate ML predictions for a snapshot using trained models.
+
+    Returns dict of metric -> predicted value, or empty if no models.
+    """
+    if not HAS_SKLEARN:
+        return {}
+
+    if config is None:
+        config = load_feature_config()
+
+    feature_names = get_feature_names(config)
+    fv = build_feature_vector(snapshot, config, prev_snapshot, rolling_stats)
+    feature_row = [fv.get(name, 0) for name in feature_names]
+
+    predictions = {}
+    for metric in config.get("target_metrics", []):
+        model_path = os.path.join(MODELS_DIR, f"{metric}.pkl")
+        if not os.path.isfile(model_path):
+            continue
+        with open(model_path, "rb") as f:
+            model = pickle.load(f)
+        X = np.array([feature_row], dtype=float)
+        pred = float(model.predict(X)[0])
+        predictions[metric] = round(pred, 1)
+
+    return predictions
+
+
+def blend_predictions(stat_pred, ml_pred, days_of_data):
+    """Blend statistical and ML predictions based on data maturity."""
+    if days_of_data < 14 or ml_pred is None:
+        return stat_pred
+
+    if days_of_data < 60:
+        ml_weight = 0.3
+    elif days_of_data < 90:
+        ml_weight = 0.5
+    else:
+        ml_weight = 0.7
+
+    stat_weight = 1.0 - ml_weight
+    return round(stat_pred * stat_weight + ml_pred * ml_weight, 1)
+
+
+def count_days_of_data():
+    """Count how many days of snapshot data exist."""
+    if not os.path.isdir(DAILY_DIR):
+        return 0
+    return len([f for f in os.listdir(DAILY_DIR) if f.endswith(".json")])
+
+
+def fetch_ha_states():
+    """Fetch all entity states from HA REST API."""
+    if not HA_TOKEN:
+        return []
+    try:
+        req = urllib.request.Request(
+            f"{HA_URL}/api/states",
+            headers={"Authorization": f"Bearer {HA_TOKEN}"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        return []
+
+
+def load_logbook():
+    """Load current logbook from synced JSON file."""
+    if not os.path.isfile(LOGBOOK_PATH):
+        return []
+    try:
+        with open(LOGBOOK_PATH) as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def aggregate_intraday_to_daily(date_str):
+    """Aggregate intra-day snapshots into daily summary curves and stats.
+
+    Returns a dict with intraday_curves, daily_aggregates, derived_features,
+    and batteries_snapshot. Returns None if no intra-day data exists.
+    """
+    intraday = load_intraday_snapshots(date_str)
+    if not intraday:
+        return None
+
+    # Build curves from intra-day snapshots
+    power_curve = [s.get("power", {}).get("total_watts", 0) for s in intraday]
+    occ_curve = [s.get("occupancy", {}).get("people_home_count",
+        len(s.get("occupancy", {}).get("people_home", []))) for s in intraday]
+    lights_curve = [s.get("lights", {}).get("on", 0) for s in intraday]
+    motion_curve = [s.get("motion", {}).get("active_count", 0) for s in intraday]
+
+    # Daily aggregates
+    power_vals = [v for v in power_curve if v > 0] or [0]
+    lights_vals = lights_curve or [0]
+
+    daily_agg = {
+        "power_mean": round(statistics.mean(power_vals), 1),
+        "power_max": round(max(power_vals), 1),
+        "power_min": round(min(power_vals), 1),
+        "power_std": round(statistics.stdev(power_vals), 1) if len(power_vals) >= 2 else 0,
+        "lights_mean": round(statistics.mean(lights_vals), 1),
+        "lights_max": max(lights_vals),
+        "occupancy_mean_people": round(statistics.mean(occ_curve), 1) if occ_curve else 0,
+        "total_snapshots": len(intraday),
+    }
+
+    # Find peak power hour
+    if power_curve:
+        peak_idx = power_curve.index(max(power_curve))
+        daily_agg["peak_power_hour"] = intraday[peak_idx].get("hour", peak_idx * 4)
+
+    # Battery drain rates from first and last snapshot
+    batteries_snapshot = {}
+    if len(intraday) >= 2:
+        first_batt = intraday[0].get("batteries", {})
+        last_batt = intraday[-1].get("batteries", {})
+        for eid, data in last_batt.items():
+            level = data.get("level")
+            if level is None:
+                continue
+            first_level = first_batt.get(eid, {}).get("level")
+            if first_level is not None and first_level > 0:
+                drain = first_level - level
+                drain_rate = drain  # per day (these are same-day measurements)
+                days_to_empty = round(level / drain_rate, 1) if drain_rate > 0 else 999
+                batteries_snapshot[eid] = {
+                    "level": level,
+                    "drain_rate_per_day": round(drain_rate, 2),
+                    "days_to_empty": days_to_empty,
+                }
+
+    # Derived features
+    total_people = sum(occ_curve) if occ_curve else 1
+    avg_people = total_people / len(occ_curve) if occ_curve else 1
+    avg_power = daily_agg["power_mean"]
+    derived = {
+        "watts_per_person_home": round(avg_power / max(avg_people, 0.5), 1),
+    }
+
+    # EV miles driven (range delta)
+    if len(intraday) >= 2:
+        first_ev = intraday[0].get("ev", {}).get("TARS", {})
+        last_ev = intraday[-1].get("ev", {}).get("TARS", {})
+        first_range = first_ev.get("range_miles", 0) or 0
+        last_range = last_ev.get("range_miles", 0) or 0
+        if first_range > 0 and last_range > 0:
+            derived["ev_miles_driven"] = round(abs(first_range - last_range), 1)
+
+    return {
+        "intraday_curves": {
+            "power_curve": power_curve,
+            "occupancy_curve": occ_curve,
+            "lights_curve": lights_curve,
+            "motion_events_curve": motion_curve,
+        },
+        "daily_aggregates": daily_agg,
+        "derived_features": derived,
+        "batteries_snapshot": batteries_snapshot,
+    }
+
+
+def build_snapshot(date_str=None):
+    """Build a complete daily snapshot from all sources."""
+    if date_str is None:
+        date_str = datetime.now().strftime("%Y-%m-%d")
+
+    snapshot = build_empty_snapshot(date_str)
+
+    # HA entities
+    states = fetch_ha_states()
+    if states:
+        extract_entities_summary(snapshot, states)
+        extract_power(snapshot, states)
+        extract_occupancy(snapshot, states)
+        extract_climate(snapshot, states)
+        extract_lights(snapshot, states)
+        extract_locks(snapshot, states)
+        extract_motion(snapshot, states)
+        extract_automations(snapshot, states)
+        extract_ev(snapshot, states)
+
+    # Weather
+    weather_raw = fetch_weather()
+    snapshot["weather"] = parse_weather(weather_raw)
+
+    # Calendar
+    snapshot["calendar_events"] = fetch_calendar_events()
+
+    # Logbook
+    entries = load_logbook()
+    snapshot["logbook_summary"] = summarize_logbook(entries)
+
+    # Intra-day aggregation (if intra-day snapshots exist for this date)
+    intraday_agg = aggregate_intraday_to_daily(date_str)
+    if intraday_agg:
+        snapshot["intraday_curves"] = intraday_agg["intraday_curves"]
+        snapshot["daily_aggregates"] = intraday_agg["daily_aggregates"]
+        snapshot["derived_features"] = intraday_agg["derived_features"]
+        snapshot["batteries_snapshot"] = intraday_agg["batteries_snapshot"]
+
+    return snapshot
+
+
+def save_snapshot(snapshot):
+    """Save snapshot to daily directory."""
+    ensure_dirs()
+    path = os.path.join(DAILY_DIR, f"{snapshot['date']}.json")
+    with open(path, "w") as f:
+        json.dump(snapshot, f, indent=2)
+    return path
+
+
+def load_snapshot(date_str):
+    """Load a previously saved snapshot."""
+    path = os.path.join(DAILY_DIR, f"{date_str}.json")
+    if not os.path.isfile(path):
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def load_recent_snapshots(days=30):
+    """Load up to N days of recent snapshots."""
+    snapshots = []
+    today = datetime.now()
+    for i in range(days):
+        date_str = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        snap = load_snapshot(date_str)
+        if snap:
+            snapshots.append(snap)
+    return snapshots
+
+
+def compute_baselines(snapshots):
+    """Compute per-day-of-week baselines from historical snapshots."""
+    by_day = {}
+    for snap in snapshots:
+        dow = snap.get("day_of_week", "Unknown")
+        by_day.setdefault(dow, []).append(snap)
+
+    baselines = {}
+    for dow, snaps in by_day.items():
+        metrics = {
+            "power_watts": [s["power"]["total_watts"] for s in snaps],
+            "lights_on": [s["lights"]["on"] for s in snaps],
+            "lights_off": [s["lights"]["off"] for s in snaps],
+            "devices_home": [s["occupancy"]["device_count_home"] for s in snaps],
+            "unavailable": [s["entities"]["unavailable"] for s in snaps],
+            "useful_events": [s["logbook_summary"].get("useful_events", 0) for s in snaps],
+        }
+
+        baseline = {"sample_count": len(snaps)}
+        for metric_name, values in metrics.items():
+            if len(values) >= 2:
+                baseline[metric_name] = {
+                    "mean": statistics.mean(values),
+                    "stddev": statistics.stdev(values),
+                    "min": min(values),
+                    "max": max(values),
+                }
+            elif len(values) == 1:
+                baseline[metric_name] = {
+                    "mean": values[0],
+                    "stddev": 0,
+                    "min": values[0],
+                    "max": values[0],
+                }
+        baselines[dow] = baseline
+
+    return baselines
+
+
+def save_baselines(baselines):
+    ensure_dirs()
+    with open(BASELINES_PATH, "w") as f:
+        json.dump(baselines, f, indent=2)
+
+
+def load_baselines():
+    if not os.path.isfile(BASELINES_PATH):
+        return {}
+    with open(BASELINES_PATH) as f:
+        return json.load(f)
+
+
+def compute_device_reliability(snapshots):
+    """Compute reliability score per device from historical snapshots.
+
+    Score = 100 * (days_available / total_days). Tracks trend direction.
+    Only reports devices that were unavailable at least once.
+    """
+    device_outages = {}
+    total_days = len(snapshots)
+    if total_days == 0:
+        return {}
+
+    for snap in snapshots:
+        unavail_list = snap.get("entities", {}).get("unavailable_list", [])
+        for eid in unavail_list:
+            device_outages.setdefault(eid, []).append(snap["date"])
+
+    scores = {}
+    for eid, outage_dates in device_outages.items():
+        outage_days = len(outage_dates)
+        score = round(100 * (1 - outage_days / total_days))
+        mid = total_days // 2
+        early_dates = set(s["date"] for s in snapshots[:mid])
+        late_dates = set(s["date"] for s in snapshots[mid:])
+        early_outages = len([d for d in outage_dates if d in early_dates])
+        late_outages = len([d for d in outage_dates if d in late_dates])
+        if late_outages > early_outages:
+            trend = "degrading"
+        elif late_outages < early_outages:
+            trend = "improving"
+        else:
+            trend = "stable"
+
+        scores[eid] = {
+            "score": score,
+            "outage_days": outage_days,
+            "total_days": total_days,
+            "trend": trend,
+            "last_outage": max(outage_dates),
+        }
+
+    return scores
+
+
+def pearson_r(x, y):
+    """Compute Pearson correlation coefficient between two sequences."""
+    n = len(x)
+    if n < 3 or n != len(y):
+        return 0.0
+    mean_x = sum(x) / n
+    mean_y = sum(y) / n
+    num = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, y))
+    den_x = math.sqrt(sum((xi - mean_x) ** 2 for xi in x))
+    den_y = math.sqrt(sum((yi - mean_y) ** 2 for yi in y))
+    if den_x == 0 or den_y == 0:
+        return 0.0
+    return num / (den_x * den_y)
+
+
+def cross_correlate(snapshots, min_r=0.5):
+    """Find significant correlations between all tracked metrics."""
+    if len(snapshots) < 5:
+        return []
+
+    series = {}
+    for snap in snapshots:
+        series.setdefault("weather_temp", []).append(snap.get("weather", {}).get("temp_f") or 0)
+        series.setdefault("calendar_count", []).append(len(snap.get("calendar_events", [])))
+        series.setdefault("is_weekend", []).append(1 if snap.get("is_weekend") else 0)
+        series.setdefault("power_watts", []).append(snap["power"]["total_watts"])
+        series.setdefault("lights_on", []).append(snap["lights"]["on"])
+        series.setdefault("devices_home", []).append(snap["occupancy"]["device_count_home"])
+        series.setdefault("unavailable", []).append(snap["entities"]["unavailable"])
+        series.setdefault("useful_events", []).append(snap["logbook_summary"].get("useful_events", 0))
+        ev = snap.get("ev", {}).get("TARS", {})
+        series.setdefault("ev_battery", []).append(ev.get("battery_pct", 0))
+        series.setdefault("ev_power", []).append(ev.get("charger_power_kw", 0))
+
+    keys = list(series.keys())
+    results = []
+    for i in range(len(keys)):
+        for j in range(i + 1, len(keys)):
+            r = pearson_r(series[keys[i]], series[keys[j]])
+            if abs(r) >= min_r:
+                strength = "strong" if abs(r) >= 0.8 else "moderate"
+                direction = "positive" if r > 0 else "negative"
+                results.append({
+                    "x": keys[i],
+                    "y": keys[j],
+                    "r": round(r, 3),
+                    "strength": strength,
+                    "direction": direction,
+                    "description": f"{keys[i]} ↔ {keys[j]}: r={r:.2f} ({strength} {direction})",
+                })
+
+    results.sort(key=lambda c: -abs(c["r"]))
+    return results
+
+
+def save_correlations(correlations):
+    ensure_dirs()
+    with open(CORRELATIONS_PATH, "w") as f:
+        json.dump(correlations, f, indent=2)
+
+
+ANOMALY_THRESHOLD = 2.0  # z-score above which we flag anomaly
+
+
+def detect_anomalies(snapshot, baselines):
+    """Detect z-score anomalies vs day-of-week baseline."""
+    dow = snapshot.get("day_of_week", "Unknown")
+    baseline = baselines.get(dow, {})
+    if not baseline:
+        return []
+
+    current_values = {
+        "power_watts": snapshot["power"]["total_watts"],
+        "lights_on": snapshot["lights"]["on"],
+        "devices_home": snapshot["occupancy"]["device_count_home"],
+        "unavailable": snapshot["entities"]["unavailable"],
+        "useful_events": snapshot["logbook_summary"].get("useful_events", 0),
+    }
+
+    anomalies = []
+    for metric, current in current_values.items():
+        bl = baseline.get(metric, {})
+        mean = bl.get("mean")
+        stddev = bl.get("stddev")
+        if mean is None or stddev is None or stddev == 0:
+            continue
+        z = abs(current - mean) / stddev
+        if z > ANOMALY_THRESHOLD:
+            direction = "above" if current > mean else "below"
+            anomalies.append({
+                "metric": metric,
+                "current": current,
+                "mean": mean,
+                "stddev": stddev,
+                "z_score": round(z, 2),
+                "direction": direction,
+                "description": f"{metric} is {z:.1f}σ {direction} normal ({current} vs {mean:.0f}±{stddev:.0f})",
+            })
+
+    return anomalies
+
+
+def generate_predictions(target_date, baselines, correlations=None, weather_forecast=None,
+                         ml_predictions=None, device_failures=None, contextual_anomalies=None):
+    """Generate predictions for a target date with optional ML blending."""
+    dt = datetime.strptime(target_date, "%Y-%m-%d")
+    dow = dt.strftime("%A")
+    baseline = baselines.get(dow, {})
+    days = count_days_of_data()
+
+    predictions = {
+        "target_date": target_date,
+        "day_of_week": dow,
+        "generated_at": datetime.now().isoformat(),
+        "prediction_method": "blended" if ml_predictions else "statistical",
+        "days_of_data": days,
+    }
+
+    metrics = ["power_watts", "lights_on", "devices_home", "unavailable", "useful_events"]
+
+    for metric in metrics:
+        bl = baseline.get(metric, {})
+        mean = bl.get("mean", 0)
+        stddev = bl.get("stddev", 0)
+        sample_count = baseline.get("sample_count", 0)
+
+        stat_predicted = mean
+        adjustments = []
+
+        if weather_forecast and correlations:
+            temp = weather_forecast.get("temp_f")
+            if temp is not None:
+                for corr in correlations:
+                    if corr["x"] == "weather_temp" and corr["y"] == metric:
+                        temp_deviation = (temp - 72) / 30
+                        adjustment = stat_predicted * temp_deviation * abs(corr["r"]) * 0.2
+                        stat_predicted += adjustment
+                        adjustments.append(f"weather({temp}°F): {'+' if adjustment > 0 else ''}{adjustment:.0f}")
+
+        # Blend with ML prediction if available
+        ml_val = ml_predictions.get(metric) if ml_predictions else None
+        if ml_val is not None:
+            predicted = blend_predictions(stat_predicted, ml_val, days)
+            adjustments.append(f"ml_blend(weight={0.3 if days < 60 else (0.5 if days < 90 else 0.7)}): {ml_val:.1f}")
+        else:
+            predicted = stat_predicted
+
+        if sample_count >= 7:
+            confidence = "high"
+        elif sample_count >= 3:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        predictions[metric] = {
+            "predicted": round(predicted, 1),
+            "baseline_mean": mean,
+            "baseline_stddev": stddev,
+            "confidence": confidence,
+            "adjustments": adjustments,
+        }
+
+    # Attach device failure predictions
+    if device_failures:
+        predictions["device_failures"] = device_failures
+
+    # Attach contextual anomaly result
+    if contextual_anomalies:
+        predictions["contextual_anomalies"] = contextual_anomalies
+
+    return predictions
+
+
+def save_predictions(predictions):
+    ensure_dirs()
+    with open(PREDICTIONS_PATH, "w") as f:
+        json.dump(predictions, f, indent=2)
+
+
+def load_predictions():
+    if not os.path.isfile(PREDICTIONS_PATH):
+        return {}
+    with open(PREDICTIONS_PATH) as f:
+        return json.load(f)
+
+
+# Mapping from prediction metric to snapshot path
+METRIC_TO_ACTUAL = {
+    "power_watts": lambda s: s["power"]["total_watts"],
+    "lights_on": lambda s: s["lights"]["on"],
+    "devices_home": lambda s: s["occupancy"]["device_count_home"],
+    "unavailable": lambda s: s["entities"]["unavailable"],
+    "useful_events": lambda s: s["logbook_summary"].get("useful_events", 0),
+}
+
+
+def score_prediction(metric, predictions, actual_snapshot):
+    """Score a single prediction against actual data.
+
+    Accuracy = max(0, 100 - |error| / stddev * 25).
+    """
+    pred_data = predictions.get(metric, {})
+    predicted = pred_data.get("predicted", 0)
+    stddev = pred_data.get("baseline_stddev", 1) or 1
+
+    actual_fn = METRIC_TO_ACTUAL.get(metric)
+    if actual_fn is None:
+        return {"accuracy": 0, "error": None}
+    actual = actual_fn(actual_snapshot)
+
+    error = abs(predicted - actual)
+    sigma_error = error / stddev if stddev > 0 else error
+    accuracy = max(0, round(100 - sigma_error * 25))
+
+    return {
+        "accuracy": accuracy,
+        "predicted": predicted,
+        "actual": actual,
+        "error": round(error, 1),
+        "sigma_error": round(sigma_error, 2),
+    }
+
+
+def score_all_predictions(predictions, actual_snapshot):
+    """Score all predictions and return overall accuracy with method tracking."""
+    metrics = ["power_watts", "lights_on", "devices_home", "unavailable", "useful_events"]
+    scores = {}
+    accuracies = []
+    for metric in metrics:
+        result = score_prediction(metric, predictions, actual_snapshot)
+        scores[metric] = result
+        if result["accuracy"] is not None:
+            accuracies.append(result["accuracy"])
+
+    overall = round(statistics.mean(accuracies)) if accuracies else 0
+    return {
+        "date": predictions.get("target_date", ""),
+        "overall": overall,
+        "prediction_method": predictions.get("prediction_method", "statistical"),
+        "days_of_data": predictions.get("days_of_data", 0),
+        "metrics": scores,
+    }
+
+
+def accuracy_trend(history):
+    """Determine if accuracy is improving, degrading, or stable."""
+    scores = history.get("scores", [])
+    if len(scores) < 3:
+        return "insufficient_data"
+    recent = [s["overall"] for s in scores[-3:]]
+    earlier = [s["overall"] for s in scores[-6:-3]] if len(scores) >= 6 else [s["overall"] for s in scores[:3]]
+    recent_avg = statistics.mean(recent)
+    earlier_avg = statistics.mean(earlier)
+    if recent_avg > earlier_avg + 3:
+        return "improving"
+    elif recent_avg < earlier_avg - 3:
+        return "degrading"
+    return "stable"
+
+
+def update_accuracy_history(new_score):
+    """Append score to accuracy history and save."""
+    ensure_dirs()
+    if os.path.isfile(ACCURACY_PATH):
+        with open(ACCURACY_PATH) as f:
+            history = json.load(f)
+    else:
+        history = {"scores": []}
+    history["scores"].append(new_score)
+    history["scores"] = history["scores"][-90:]
+    history["trend"] = accuracy_trend(history)
+    with open(ACCURACY_PATH, "w") as f:
+        json.dump(history, f, indent=2)
+    return history
+
+
+def strip_think_tags(text):
+    """Strip <think>...</think> blocks from deepseek-r1 output."""
+    import re
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+
+def ollama_chat(prompt, timeout=60):
+    """Send prompt to local Ollama and return response."""
+    payload = json.dumps({
+        "model": OLLAMA_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+    }).encode()
+    req = urllib.request.Request(
+        OLLAMA_URL, data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            result = json.loads(resp.read())
+        return result.get("message", {}).get("content", "")
+    except Exception:
+        return ""
+
+
+def generate_insight_report(snapshot, anomalies, predictions, reliability, correlations, accuracy_history):
+    """Generate natural language insight report via Ollama."""
+    context = {
+        "date": snapshot["date"],
+        "day": snapshot["day_of_week"],
+        "weather": snapshot.get("weather", {}),
+        "power_watts": snapshot["power"]["total_watts"],
+        "lights_on": snapshot["lights"]["on"],
+        "people_home": snapshot["occupancy"]["people_home"],
+        "devices_home": snapshot["occupancy"]["device_count_home"],
+        "ev": snapshot.get("ev", {}),
+        "anomalies": [a["description"] for a in anomalies],
+        "predictions_tomorrow": {k: v for k, v in predictions.items() if isinstance(v, dict) and "predicted" in v},
+        "degrading_devices": [eid for eid, data in reliability.items() if data.get("trend") == "degrading"],
+        "top_correlations": [c["description"] for c in (correlations or [])[:5]],
+        "accuracy_trend": accuracy_history.get("trend", "unknown"),
+        "recent_accuracy": [s["overall"] for s in accuracy_history.get("scores", [])[-7:]],
+    }
+
+    prompt = f"""You are a home intelligence analyst. Analyze this smart home data and provide insights.
+
+DATA:
+{json.dumps(context, indent=2)}
+
+Provide a concise report with these sections:
+1. TODAY'S SUMMARY (2-3 sentences: what happened, any anomalies)
+2. PREDICTIONS (what to expect tomorrow, with confidence)
+3. DEVICE HEALTH (any degrading devices, recommended actions)
+4. PATTERNS DISCOVERED (interesting correlations)
+5. SELF-ASSESSMENT (how accurate have predictions been, what's improving)
+
+Rules:
+- Be specific: use actual numbers and device names
+- If there are no anomalies, say so briefly
+- Predictions should state confidence level
+- Device health should suggest specific actions
+- Keep total output under 300 words
+"""
+    return strip_think_tags(ollama_chat(prompt, timeout=90))
+
+
+def generate_brief_line(snapshot, anomalies, predictions, accuracy_history):
+    """Generate a single-line intelligence summary for telegram-brief."""
+    parts = []
+    if anomalies:
+        parts.append(f"{len(anomalies)} anomalies")
+    else:
+        parts.append("normal")
+    scores = accuracy_history.get("scores", [])
+    if scores:
+        parts.append(f"accuracy:{scores[-1]['overall']}%")
+    preds = {k: v for k, v in predictions.items() if isinstance(v, dict) and "predicted" in v}
+    if preds.get("power_watts"):
+        parts.append(f"tmrw power:{preds['power_watts']['predicted']:.0f}W")
+    return f"Intelligence: {' | '.join(parts)}"
+
+
+def cmd_snapshot_intraday():
+    """Collect and save an intra-day snapshot."""
+    snapshot = build_intraday_snapshot()
+    path = save_intraday_snapshot(snapshot)
+    entities = snapshot.get("entities", {}).get("total", 0)
+    hour = snapshot.get("hour", "?")
+    print(f"Intraday snapshot saved: {path} ({entities} entities, hour={hour})")
+    return snapshot
+
+
+def cmd_snapshot():
+    """Collect and save today's snapshot."""
+    snapshot = build_snapshot()
+    path = save_snapshot(snapshot)
+    print(f"Snapshot saved: {path} ({snapshot['entities']['total']} entities)")
+    return snapshot
+
+
+def cmd_analyze():
+    """Run full analysis on latest data, including ML contextual anomaly detection."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    snapshot = load_snapshot(today) or build_snapshot()
+
+    recent = load_recent_snapshots(30)
+    baselines = compute_baselines(recent)
+    save_baselines(baselines)
+
+    anomalies = detect_anomalies(snapshot, baselines)
+
+    reliability = compute_device_reliability(recent)
+
+    correlations = cross_correlate(recent)
+    save_correlations(correlations)
+
+    # ML contextual anomaly detection
+    ctx_anomaly = None
+    if HAS_SKLEARN and count_days_of_data() >= 14:
+        config = load_feature_config()
+        fv = build_feature_vector(snapshot, config)
+        feature_names = get_feature_names(config)
+        features_list = [fv.get(name, 0) for name in feature_names]
+        ctx_anomaly = detect_contextual_anomalies(features_list, MODELS_DIR)
+        if ctx_anomaly.get("is_anomaly"):
+            anomalies.append({
+                "metric": "contextual",
+                "description": f"ML anomaly detected (score: {ctx_anomaly['anomaly_score']}, severity: {ctx_anomaly['severity']})",
+                "z_score": abs(ctx_anomaly["anomaly_score"]) * 5,
+                "source": "isolation_forest",
+            })
+
+    print(f"Analysis complete: {len(anomalies)} anomalies, {len(correlations)} correlations")
+    if anomalies:
+        for a in anomalies:
+            print(f"  ! {a['description']}")
+    return anomalies, correlations, reliability
+
+
+def cmd_predict():
+    """Generate predictions for tomorrow with ML blending."""
+    baselines = load_baselines()
+    correlations = json.load(open(CORRELATIONS_PATH)) if os.path.isfile(CORRELATIONS_PATH) else []
+    weather = parse_weather(fetch_weather())
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # ML predictions (if models exist and enough data)
+    ml_preds = None
+    device_failures = None
+    ctx_anomalies = None
+    days = count_days_of_data()
+
+    if HAS_SKLEARN and days >= 14:
+        # Build a synthetic snapshot for tomorrow using baselines
+        tomorrow_snap = build_empty_snapshot(tomorrow)
+        dow = datetime.strptime(tomorrow, "%Y-%m-%d").strftime("%A")
+        bl = baselines.get(dow, {})
+        tomorrow_snap["power"]["total_watts"] = bl.get("power_watts", {}).get("mean", 0)
+        tomorrow_snap["lights"]["on"] = bl.get("lights_on", {}).get("mean", 0)
+        tomorrow_snap["occupancy"]["device_count_home"] = bl.get("devices_home", {}).get("mean", 0)
+        if weather:
+            tomorrow_snap["weather"] = weather
+        tomorrow_snap["time_features"] = build_time_features(
+            f"{tomorrow}T12:00:00", None, tomorrow)
+        tomorrow_snap["media"] = {"total_active": 0}
+        tomorrow_snap["motion"] = {"active_count": 0}
+        tomorrow_snap["ev"] = {}
+
+        ml_preds = predict_with_ml(tomorrow_snap)
+        if ml_preds:
+            print(f"ML predictions available ({len(ml_preds)} metrics)")
+
+        # Device failure predictions
+        recent = load_recent_snapshots(90)
+        device_failures = predict_device_failures(recent, MODELS_DIR)
+        if device_failures:
+            print(f"Device failure warnings: {len(device_failures)}")
+            for df in device_failures[:3]:
+                print(f"  ! {df['entity_id']}: {df['failure_probability']:.0%} ({df['risk']})")
+
+        # Contextual anomaly detection on today's snapshot
+        today = datetime.now().strftime("%Y-%m-%d")
+        today_snap = load_snapshot(today)
+        if today_snap:
+            config = load_feature_config()
+            fv = build_feature_vector(today_snap, config)
+            feature_names = get_feature_names(config)
+            features_list = [fv.get(name, 0) for name in feature_names]
+            ctx_anomalies = detect_contextual_anomalies(features_list, MODELS_DIR)
+            if ctx_anomalies.get("is_anomaly"):
+                print(f"  ! Contextual anomaly detected (score: {ctx_anomalies['anomaly_score']}, severity: {ctx_anomalies['severity']})")
+
+    predictions = generate_predictions(
+        tomorrow, baselines, correlations, weather,
+        ml_predictions=ml_preds, device_failures=device_failures,
+        contextual_anomalies=ctx_anomalies,
+    )
+    save_predictions(predictions)
+    print(f"Predictions for {tomorrow} ({predictions.get('prediction_method', 'statistical')}):")
+    for k, v in predictions.items():
+        if isinstance(v, dict) and "predicted" in v:
+            print(f"  {k}: {v['predicted']} ({v['confidence']} confidence)")
+    return predictions
+
+
+def cmd_score():
+    """Score yesterday's predictions against actual data."""
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    predictions = load_predictions()
+    actual = load_snapshot(yesterday)
+    if not actual:
+        print(f"No snapshot for {yesterday}, cannot score.")
+        return None
+    if predictions.get("target_date") != yesterday:
+        print(f"No predictions for {yesterday}.")
+        return None
+    result = score_all_predictions(predictions, actual)
+    history = update_accuracy_history(result)
+    print(f"Accuracy for {yesterday}: {result['overall']}% (trend: {history['trend']})")
+    for metric, data in result.get("metrics", {}).items():
+        print(f"  {metric}: predicted={data['predicted']}, actual={data['actual']}, accuracy={data['accuracy']}%")
+    return result
+
+
+def cmd_report(dry_run=False):
+    """Generate full Ollama insight report."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    snapshot = load_snapshot(today)
+    if not snapshot:
+        snapshot = build_snapshot()
+        save_snapshot(snapshot)
+
+    recent = load_recent_snapshots(30)
+    baselines = compute_baselines(recent)
+    anomalies = detect_anomalies(snapshot, baselines)
+    reliability = compute_device_reliability(recent)
+    correlations = json.load(open(CORRELATIONS_PATH)) if os.path.isfile(CORRELATIONS_PATH) else []
+    predictions = load_predictions()
+    accuracy = json.load(open(ACCURACY_PATH)) if os.path.isfile(ACCURACY_PATH) else {"scores": []}
+
+    report = generate_insight_report(snapshot, anomalies, predictions, reliability, correlations, accuracy)
+    if dry_run:
+        print(report)
+    else:
+        ensure_dirs()
+        path = os.path.join(INSIGHTS_DIR, f"{today}.json")
+        with open(path, "w") as f:
+            json.dump({"date": today, "report": report}, f, indent=2)
+        print(f"Report saved: {path}")
+    return report
+
+
+def cmd_retrain():
+    """Retrain all sklearn ML models."""
+    print("Retraining ML models...")
+    results = train_all_models(days=90)
+    if "error" in results:
+        print(f"Training failed: {results['error']}")
+    else:
+        model_count = len([m for m in results.get("models", {}).values() if "error" not in m])
+        print(f"Training complete: {model_count} models trained")
+    return results
+
+
+# ── Meta-Learning Loop ──────────────────────────────────────────────
+
+META_LEARNING_PROMPT = """You are a data scientist analyzing a home automation prediction system.
+Your job is to find patterns in prediction errors and suggest improvements.
+
+## Current System Performance (last 7 days)
+{accuracy_data}
+
+## Feature Importance (from current sklearn models)
+{feature_importance}
+
+## Current Feature Configuration
+{feature_config}
+
+## Available Data Fields (from daily snapshots)
+{available_fields}
+
+## Known Correlations
+{correlations}
+
+## Previous Suggestions and Outcomes
+{previous_suggestions}
+
+## Task
+Analyze the prediction accuracy data and suggest specific improvements.
+
+For each suggestion, provide:
+1. "action": "enable_feature" | "disable_feature" | "add_interaction" | "adjust_hyperparameter"
+2. "target": the specific feature or parameter name
+3. "reason": evidence from the accuracy data (cite specific numbers)
+4. "expected_impact": which metric should improve and by roughly how much
+5. "confidence": "high" | "medium" | "low"
+
+Rules:
+- Maximum 3 suggestions per analysis
+- Only suggest changes with clear evidence from the data
+- Do NOT suggest changes to safety-critical features
+- Prefer enabling existing disabled features over creating new ones
+- If accuracy is already >85%, focus on the weakest metric only
+
+Output as a JSON array of suggestion objects. Example:
+[{{"action": "enable_feature", "target": "is_weekend_x_temp", "reason": "weekend power predictions off by 15%", "expected_impact": "power_watts MAE -5%", "confidence": "medium"}}]
+"""
+
+MAX_META_CHANGES_PER_WEEK = 3
+
+
+def parse_suggestions(llm_response):
+    """Parse JSON suggestion array from LLM response.
+
+    Handles deepseek-r1 <think>...</think> blocks by stripping them first.
+    Returns list of suggestion dicts, or empty list on parse failure.
+    """
+    import re
+    text = llm_response
+
+    # Strip <think>...</think> blocks (deepseek-r1 reasoning)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+    # Find JSON array in response
+    match = re.search(r"\[.*\]", text, flags=re.DOTALL)
+    if not match:
+        return []
+
+    try:
+        suggestions = json.loads(match.group())
+        if not isinstance(suggestions, list):
+            return []
+        # Validate required fields
+        valid = []
+        for s in suggestions[:MAX_META_CHANGES_PER_WEEK]:
+            if isinstance(s, dict) and "action" in s and "target" in s:
+                valid.append(s)
+        return valid
+    except (json.JSONDecodeError, ValueError):
+        return []
+
+
+def apply_suggestion_to_config(suggestion, config):
+    """Apply a single suggestion to a feature config (in-place).
+
+    Returns True if applied, False if not applicable.
+    """
+    import copy
+    action = suggestion.get("action")
+    target = suggestion.get("target")
+
+    if action == "enable_feature":
+        # Check interaction_features (only toggleable features)
+        if target in config.get("interaction_features", {}):
+            config["interaction_features"][target] = True
+            return True
+        # Check lag_features
+        if target in config.get("lag_features", {}):
+            config["lag_features"][target] = True
+            return True
+    elif action == "disable_feature":
+        if target in config.get("interaction_features", {}):
+            config["interaction_features"][target] = False
+            return True
+        if target in config.get("lag_features", {}):
+            config["lag_features"][target] = False
+            return True
+    elif action == "add_interaction":
+        if "interaction_features" in config:
+            config["interaction_features"][target] = True
+            return True
+
+    return False
+
+
+def validate_suggestion(suggestion, snapshots, config):
+    """Validate a suggestion by retraining with modified config and comparing accuracy.
+
+    Returns (improvement_pct, modified_config) or (None, None) on failure.
+    """
+    if not HAS_SKLEARN or len(snapshots) < 14:
+        return None, None
+
+    import copy
+    modified_config = copy.deepcopy(config)
+    if not apply_suggestion_to_config(suggestion, modified_config):
+        return None, None
+
+    # Build training data with both configs
+    orig_names, orig_X, orig_targets = build_training_data(snapshots, config)
+    mod_names, mod_X, mod_targets = build_training_data(snapshots, modified_config)
+
+    if len(orig_X) < 14 or len(mod_X) < 14:
+        return None, None
+
+    # Train and evaluate on the primary metric (power_watts)
+    metric = "power_watts"
+    if metric not in orig_targets or metric not in mod_targets:
+        return None, None
+
+    import tempfile, shutil
+    tmpdir_orig = tempfile.mkdtemp()
+    tmpdir_mod = tempfile.mkdtemp()
+    try:
+        orig_result = train_continuous_model(metric, orig_names, orig_X, orig_targets[metric], tmpdir_orig)
+        mod_result = train_continuous_model(metric, mod_names, mod_X, mod_targets[metric], tmpdir_mod)
+
+        if "error" in orig_result or "error" in mod_result:
+            return None, None
+
+        # Compare MAE (lower is better)
+        orig_mae = orig_result["mae"]
+        mod_mae = mod_result["mae"]
+        if orig_mae == 0:
+            return None, None
+
+        improvement_pct = ((orig_mae - mod_mae) / orig_mae) * 100
+        return round(improvement_pct, 2), modified_config
+    finally:
+        shutil.rmtree(tmpdir_orig, ignore_errors=True)
+        shutil.rmtree(tmpdir_mod, ignore_errors=True)
+
+
+def load_applied_suggestions():
+    """Load history of applied meta-learning suggestions."""
+    path = os.path.join(META_DIR, "applied.json")
+    if os.path.isfile(path):
+        with open(path) as f:
+            return json.load(f)
+    return {"applied": [], "total_applied": 0}
+
+
+def save_applied_suggestions(history):
+    """Save meta-learning applied suggestions history."""
+    os.makedirs(META_DIR, exist_ok=True)
+    path = os.path.join(META_DIR, "applied.json")
+    with open(path, "w") as f:
+        json.dump(history, f, indent=2)
+
+
+def run_meta_learning():
+    """Run weekly meta-learning analysis and auto-apply guardrailed suggestions."""
+    if not HAS_SKLEARN:
+        print("sklearn not installed, skipping meta-learning")
+        return {"error": "sklearn not installed"}
+
+    days = count_days_of_data()
+    if days < 14:
+        print(f"Insufficient data for meta-learning ({days} days, need 14+)")
+        return {"error": f"insufficient data ({days} days)"}
+
+    # Gather context
+    accuracy_history = {}
+    if os.path.isfile(ACCURACY_PATH):
+        with open(ACCURACY_PATH) as f:
+            accuracy_history = json.load(f)
+    recent_scores = accuracy_history.get("scores", [])[-7:]
+
+    # Feature importance from training log
+    feature_importance = {}
+    training_log_path = os.path.join(MODELS_DIR, "training_log.json")
+    if os.path.isfile(training_log_path):
+        with open(training_log_path) as f:
+            training_log = json.load(f)
+        for model_name, model_data in training_log.get("models", {}).items():
+            if isinstance(model_data, dict) and "feature_importance" in model_data:
+                # Top 10 features by importance
+                fi = model_data["feature_importance"]
+                top = sorted(fi.items(), key=lambda x: -x[1])[:10]
+                feature_importance[model_name] = dict(top)
+
+    config = load_feature_config()
+    correlations = []
+    if os.path.isfile(CORRELATIONS_PATH):
+        with open(CORRELATIONS_PATH) as f:
+            correlations = json.load(f)
+
+    applied_history = load_applied_suggestions()
+
+    # Available fields from a sample snapshot
+    available_fields = list(DEFAULT_FEATURE_CONFIG.get("interaction_features", {}).keys())
+
+    # Build prompt
+    prompt = META_LEARNING_PROMPT.format(
+        accuracy_data=json.dumps(recent_scores, indent=2) if recent_scores else "No accuracy data yet",
+        feature_importance=json.dumps(feature_importance, indent=2) if feature_importance else "No models trained yet",
+        feature_config=json.dumps(config, indent=2),
+        available_fields=json.dumps(available_fields),
+        correlations=json.dumps(correlations[:10], indent=2) if correlations else "No correlations yet",
+        previous_suggestions=json.dumps(applied_history.get("applied", [])[-5:], indent=2),
+    )
+
+    print("Querying LLM for meta-learning analysis...")
+    response = ollama_chat(prompt, timeout=120)
+    if not response:
+        print("LLM returned empty response")
+        return {"error": "empty LLM response"}
+
+    suggestions = parse_suggestions(response)
+    print(f"Parsed {len(suggestions)} suggestions from LLM")
+
+    # Validate and apply
+    snapshots = load_all_intraday_snapshots(90)
+    if len(snapshots) < 14:
+        snapshots = load_recent_snapshots(90)
+
+    results = []
+    applied_count = 0
+    for suggestion in suggestions:
+        if applied_count >= MAX_META_CHANGES_PER_WEEK:
+            results.append({"suggestion": suggestion, "applied": False, "reason": "weekly limit reached"})
+            continue
+
+        improvement, modified_config = validate_suggestion(suggestion, snapshots, config)
+        if improvement is None:
+            results.append({"suggestion": suggestion, "applied": False, "reason": "validation failed"})
+            continue
+
+        if improvement >= 2.0:
+            save_feature_config(modified_config)
+            config = modified_config  # Use updated config for next suggestion
+            applied_count += 1
+            results.append({
+                "suggestion": suggestion,
+                "applied": True,
+                "improvement": improvement,
+            })
+            print(f"  Applied: {suggestion.get('action')} {suggestion.get('target')} (+{improvement:.1f}%)")
+        else:
+            results.append({
+                "suggestion": suggestion,
+                "applied": False,
+                "reason": f"improvement {improvement:.1f}% < 2% threshold",
+                "accuracy_delta": improvement,
+            })
+            print(f"  Rejected: {suggestion.get('target')} ({improvement:+.1f}%, need >=2%)")
+
+    # Save weekly report
+    week_str = datetime.now().strftime("%Y-W%W")
+    weekly_report = {
+        "week": week_str,
+        "generated_at": datetime.now().isoformat(),
+        "suggestions": results,
+        "applied_count": applied_count,
+        "accuracy_context": recent_scores,
+    }
+    weekly_dir = os.path.join(META_DIR, "weekly")
+    os.makedirs(weekly_dir, exist_ok=True)
+    with open(os.path.join(weekly_dir, f"{week_str}.json"), "w") as f:
+        json.dump(weekly_report, f, indent=2)
+
+    # Update applied history
+    for r in results:
+        if r.get("applied"):
+            applied_history["applied"].append({
+                "date": datetime.now().isoformat(),
+                "suggestion": r["suggestion"],
+                "improvement": r["improvement"],
+            })
+    applied_history["total_applied"] = len(applied_history["applied"])
+    save_applied_suggestions(applied_history)
+
+    # Retrain with updated config if changes were applied
+    if applied_count > 0:
+        print(f"Retraining models with {applied_count} config changes...")
+        train_all_models(days=90)
+
+    print(f"Meta-learning complete: {applied_count}/{len(suggestions)} suggestions applied")
+    return weekly_report
+
+
+def cmd_meta_learn():
+    """Run meta-learning analysis (weekly)."""
+    return run_meta_learning()
+
+
+def cmd_brief():
+    """Print one-liner for telegram-brief integration."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    snapshot = load_snapshot(today) or build_snapshot()
+    baselines = load_baselines()
+    anomalies = detect_anomalies(snapshot, baselines)
+    predictions = load_predictions()
+    accuracy = json.load(open(ACCURACY_PATH)) if os.path.isfile(ACCURACY_PATH) else {"scores": []}
+    print(generate_brief_line(snapshot, anomalies, predictions, accuracy))
+
+
+def main():
+    args = sys.argv[1:]
+    dry_run = "--dry-run" in args
+    ensure_dirs()
+
+    if "--snapshot-intraday" in args:
+        cmd_snapshot_intraday()
+    elif "--snapshot" in args:
+        cmd_snapshot()
+    elif "--analyze" in args:
+        cmd_analyze()
+    elif "--predict" in args:
+        cmd_predict()
+    elif "--score" in args:
+        cmd_score()
+    elif "--retrain" in args:
+        cmd_retrain()
+    elif "--meta-learn" in args:
+        cmd_meta_learn()
+    elif "--report" in args:
+        cmd_report(dry_run=dry_run)
+    elif "--brief" in args:
+        cmd_brief()
+    elif "--full" in args:
+        cmd_snapshot()
+        cmd_score()
+        cmd_analyze()
+        cmd_predict()
+        cmd_report(dry_run=dry_run)
+    else:
+        print(__doc__)
+
+
+if __name__ == "__main__":
+    main()

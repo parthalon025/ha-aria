@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "ha-intelligence"
+version = "3.0.0"
+description = "Home Assistant intelligence engine with ML prediction and anomaly detection"
+requires-python = ">=3.12"
+dependencies = [
+    "scikit-learn>=1.8.0",
+    "numpy>=2.4.0",
+    "holidays>=0.40",
+]
+
+[project.scripts]
+ha-intelligence = "ha_intelligence.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
