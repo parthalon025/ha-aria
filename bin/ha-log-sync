@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Sync Home Assistant logbook data to local JSON files.
+# Runs via cron every 15 minutes.
+#
+# Uses the HA REST API /api/logbook endpoint instead of file-based log sync,
+# since HAOS 2026.2 doesn't write home-assistant.log by default.
+#
+# Prerequisites:
+#   - HA_URL and HA_TOKEN in ~/.env
+#   - ~/ha-logs/ directory exists
+#
+# Usage:
+#   ha-log-sync              # Sync last 1h of logbook entries
+#   ha-log-sync --rotate     # Rotate current data to dated file (run daily)
+#   ha-log-sync --full       # Sync last 24h (for backfill)
+
+set -euo pipefail
+
+source "$HOME/.env"
+
+LOCAL_DIR="$HOME/ha-logs"
+CURRENT="$LOCAL_DIR/current.json"
+HA_URL="${HA_URL:-http://192.168.1.35:8123}"
+
+mkdir -p "$LOCAL_DIR"
+
+case "${1:-sync}" in
+    --rotate)
+        # Daily rotation: copy current to dated file, keep 30 days
+        if [[ -f "$CURRENT" ]]; then
+            DATE=$(date +%Y-%m-%d)
+            cp "$CURRENT" "$LOCAL_DIR/$DATE.json"
+            # Compress files older than 3 days
+            find "$LOCAL_DIR" -name "*.json" -not -name "current.json" -mtime +3 -exec gzip -q {} \; 2>/dev/null || true
+            # Remove files older than 30 days
+            find "$LOCAL_DIR" -name "*.json.gz" -mtime +30 -delete 2>/dev/null || true
+        fi
+        ;;
+    --full)
+        # Full 24h backfill
+        PERIOD=$(date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%SZ)
+        curl -sf -H "Authorization: Bearer $HA_TOKEN" \
+            "$HA_URL/api/logbook/$PERIOD" \
+            -o "$CURRENT" 2>/dev/null || true
+        ;;
+    *)
+        # Sync last hour of logbook (default, runs every 15 min)
+        PERIOD=$(date -u -d "1 hour ago" +%Y-%m-%dT%H:%M:%SZ)
+        TEMP="$LOCAL_DIR/.sync-tmp.json"
+        curl -sf -H "Authorization: Bearer $HA_TOKEN" \
+            "$HA_URL/api/logbook/$PERIOD" \
+            -o "$TEMP" 2>/dev/null || exit 0
+
+        # Merge with existing current.json (deduplicate by entity_id+when)
+        if [[ -f "$CURRENT" ]]; then
+            python3 -c "
+import json, sys
+existing = json.load(open('$CURRENT')) if True else []
+new = json.load(open('$TEMP'))
+# Deduplicate by (entity_id, when)
+seen = set()
+merged = []
+for entry in existing + new:
+    key = (entry.get('entity_id', ''), entry.get('when', ''))
+    if key not in seen:
+        seen.add(key)
+        merged.append(entry)
+# Sort by timestamp
+merged.sort(key=lambda x: x.get('when', ''))
+# Keep last 24h only
+from datetime import datetime, timedelta, timezone
+cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+merged = [e for e in merged if e.get('when', '') >= cutoff]
+json.dump(merged[-50000:], open('$CURRENT', 'w'))
+" 2>/dev/null || cp "$TEMP" "$CURRENT"
+        else
+            cp "$TEMP" "$CURRENT"
+        fi
+        rm -f "$TEMP"
+        ;;
+esac

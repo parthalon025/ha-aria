@@ -1,0 +1,10 @@
+[Unit]
+Description=ARIA — weekly correlations Sun 03:15
+
+[Timer]
+OnCalendar=Sun *-*-* 03:15:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

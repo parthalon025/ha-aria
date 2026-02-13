@@ -1,0 +1,10 @@
+[Unit]
+Description=ARIA — weekly automation suggestions Sun 04:30
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

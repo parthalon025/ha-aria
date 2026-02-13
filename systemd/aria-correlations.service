@@ -1,0 +1,12 @@
+[Unit]
+Description=ARIA — weekly entity correlations
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/justin/Documents/projects/ha-intelligence-hub
+ExecStart=/bin/bash -c '. ~/.env && exec /home/justin/Documents/projects/ha-intelligence-hub/.venv/bin/aria correlations'
+StandardOutput=append:/home/justin/.local/log/aria.log
+StandardError=append:/home/justin/.local/log/aria.log
+MemoryHigh=3G
+MemoryMax=4G

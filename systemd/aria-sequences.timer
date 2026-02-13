@@ -1,0 +1,10 @@
+[Unit]
+Description=ARIA — weekly sequences Sun 03:45
+
+[Timer]
+OnCalendar=Sun *-*-* 03:45:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

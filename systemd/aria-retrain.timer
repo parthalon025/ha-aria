@@ -1,0 +1,10 @@
+[Unit]
+Description=ARIA — weekly retrain Sun 02:00
+
+[Timer]
+OnCalendar=Sun *-*-* 02:00:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,23 @@
+[Unit]
+Description=ARIA — Adaptive Residence Intelligence Architecture
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/justin/Documents/projects/ha-intelligence-hub
+ExecStart=/bin/bash -c '. ~/.env && exec /home/justin/Documents/projects/ha-intelligence-hub/.venv/bin/aria serve --port 8001'
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=300
+TimeoutStopSec=15
+StandardOutput=journal
+StandardError=journal
+
+# Resource limits
+MemoryMax=2G
+CPUQuota=50%
+
+[Install]
+WantedBy=default.target
