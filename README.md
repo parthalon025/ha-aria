@@ -70,7 +70,7 @@ ARIA watches, learns, and predicts — **entirely on your local hardware.** No c
 
 ### See
 
-- **11-page interactive dashboard** — Preact SPA with live WebSocket updates
+- **12-page interactive dashboard** — Preact SPA with live WebSocket updates
 - **Real-time activity monitor** — 15-minute windowed analysis of every state change
 - **Predictions vs actuals** — track how well ARIA's models perform over time
 
@@ -143,7 +143,7 @@ flowchart TB
     end
 
     subgraph Dash ["Dashboard — Preact SPA"]
-        D1["11 interactive pages"]
+        D1["12 interactive pages"]
         D2["Live WebSocket updates"]
     end
 
@@ -178,22 +178,33 @@ flowchart LR
 
 ## Dashboard
 
-The dashboard ships with 11 pages covering the full intelligence pipeline:
+The dashboard ships with 12 pages covering the full intelligence pipeline:
 
 | Page | What You See |
 |------|-------------|
 | **Home** | 3-lane pipeline flowchart with live status chips and journey progress |
-| **Intelligence** | Baselines, predictions vs actuals, trends, correlations, LLM insights |
 | **Discovery** | Every entity, device, and area HA knows about |
-| **Activity** | Real-time event stream with 15-minute windowed analytics |
-| **Patterns** | Recurring event sequences detected from your logbook |
+| **Capabilities** | Detected home capabilities (lighting, climate, presence, etc.) |
+| **Data Curation** | Entity-level include/exclude tiering for noise control |
+| **Intelligence** | Baselines, predictions vs actuals, trends, correlations, LLM insights |
 | **Predictions** | ML model outputs with confidence scores |
+| **Patterns** | Recurring event sequences detected from your logbook |
 | **Shadow Mode** | Prediction accuracy, high-confidence disagreements, pipeline stage |
 | **Automations** | LLM-suggested HA automation YAML from detected patterns |
-| **Data Curation** | Entity-level include/exclude tiering for noise control |
 | **Settings** | Tunable parameters — retraining schedules, thresholds, model config |
+| **Guide** | Interactive onboarding — how ARIA learns, what each page does, FAQ |
 
-> **Screenshots coming soon** — to preview the dashboard locally, run `aria serve` and open `http://localhost:8001`.
+<div align="center">
+
+| Home | Guide |
+|:---:|:---:|
+| ![Home](docs/screenshots/aria-ss-home.png) | ![Guide](docs/screenshots/aria-ss-guide.png) |
+
+| Intelligence | Shadow Mode |
+|:---:|:---:|
+| ![Intelligence](docs/screenshots/aria-ss-intelligence.png) | ![Shadow Mode](docs/screenshots/aria-ss-shadow.png) |
+
+</div>
 
 ## CLI Reference
 
@@ -229,7 +240,7 @@ The dashboard ships with 11 pages covering the full intelligence pipeline:
 |:---|:---|
 | **Tests** | 683 (677 passing, CI-enforced) |
 | **Code** | 14,451 lines across 63 Python files |
-| **Dashboard** | 37 JSX components across 11 pages |
+| **Dashboard** | 37 JSX components across 12 pages |
 | **Hub modules** | 8 registered (discovery, ML, patterns, shadow, orchestrator, data quality, intelligence, activity) |
 | **CI** | Lint → Test (Python 3.12 + 3.13) → Dashboard build → Codecov |
 

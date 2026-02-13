@@ -14,6 +14,7 @@ import Intelligence from './pages/Intelligence.jsx';
 import Shadow from './pages/Shadow.jsx';
 import Settings from './pages/Settings.jsx';
 import DataCuration from './pages/DataCuration.jsx';
+import Guide from './pages/Guide.jsx';
 
 /**
  * Custom hash-based history for preact-router.
@@ -110,6 +111,7 @@ export default function App() {
               <Shadow path="/shadow" />
               <Settings path="/settings" />
               <DataCuration path="/data-curation" />
+              <Guide path="/guide" />
             </Router>
           </ErrorBoundary>
         </div>

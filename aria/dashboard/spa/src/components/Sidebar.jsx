@@ -1,17 +1,24 @@
 import { useState, useEffect } from 'preact/hooks';
 import { wsConnected, wsMessage } from '../store.js';
+import AriaLogo from './AriaLogo.jsx';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Home', icon: GridIcon },
-  { path: '/intelligence', label: 'Intelligence', icon: BrainIcon },
+  // Data Collection
+  { section: 'Data Collection' },
   { path: '/discovery', label: 'Discovery', icon: SearchIcon },
   { path: '/capabilities', label: 'Capabilities', icon: ZapIcon },
+  { path: '/data-curation', label: 'Data Curation', icon: FilterIcon },
+  // Learning
+  { section: 'Learning' },
+  { path: '/intelligence', label: 'Intelligence', icon: BrainIcon },
   { path: '/predictions', label: 'Predictions', icon: TrendingUpIcon },
   { path: '/patterns', label: 'Patterns', icon: LayersIcon },
-  { path: '/automations', label: 'Automations', icon: SettingsIcon },
+  // Actions
+  { section: 'Actions' },
   { path: '/shadow', label: 'Shadow Mode', icon: EyeIcon },
+  { path: '/automations', label: 'Automations', icon: SettingsIcon },
   { path: '/settings', label: 'Settings', icon: SlidersIcon },
-  { path: '/data-curation', label: 'Data Curation', icon: FilterIcon },
 ];
 
 // Simple inline SVG icons
@@ -134,12 +141,20 @@ export default function Sidebar() {
       <nav class="hidden md:flex fixed left-0 top-0 bottom-0 w-60 bg-gray-900 flex-col z-30">
         {/* Brand */}
         <div class="px-5 py-5">
-          <h1 class="text-lg font-bold text-white">ARIA</h1>
+          <AriaLogo className="w-28" color="#22d3ee" />
+          <p class="text-[10px] text-gray-500 mt-1.5 tracking-wide">Adaptive Residence Intelligence</p>
         </div>
 
         {/* Nav links */}
-        <div class="flex-1 px-3 space-y-1">
-          {NAV_ITEMS.map((item) => {
+        <div class="flex-1 px-3 space-y-0.5 overflow-y-auto">
+          {NAV_ITEMS.map((item, i) => {
+            if (item.section) {
+              return (
+                <div key={item.section} class={`px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600 ${i > 0 ? 'border-t border-gray-800 mt-2' : ''}`}>
+                  {item.section}
+                </div>
+              );
+            }
             const active = currentPath === item.path;
             return (
               <a
@@ -158,9 +173,27 @@ export default function Sidebar() {
           })}
         </div>
 
-        {/* Footer: WS status */}
-        <div class="px-5 py-4 border-t border-gray-800">
-          <div class="flex items-center gap-2 text-xs text-gray-500">
+        {/* Footer: Guide link + About + WS status */}
+        <div class="px-3 py-3 border-t border-gray-800 space-y-2">
+          <a
+            href="#/guide"
+            class={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              currentPath === '/guide'
+                ? 'bg-gray-800 text-white'
+                : 'text-cyan-400 hover:bg-gray-800 hover:text-cyan-300'
+            }`}
+          >
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+            </svg>
+            How to Use ARIA
+          </a>
+          <div class="px-3 text-[10px] text-gray-600 leading-relaxed">
+            <p class="font-semibold text-gray-500">ARIA v1.0.0</p>
+            <p class="mt-0.5">Local ML + real-time monitoring for Home Assistant. No cloud required.</p>
+          </div>
+          <div class="flex items-center gap-2 px-3 text-xs text-gray-500">
             <span
               class={`inline-block w-2 h-2 rounded-full ${
                 connected ? 'bg-green-500' : 'bg-red-500'
@@ -174,7 +207,7 @@ export default function Sidebar() {
       {/* Mobile bottom tab bar */}
       <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 z-30">
         <div class="flex justify-around items-center h-14">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => !item.section).map((item) => {
             const active = currentPath === item.path;
             return (
               <a

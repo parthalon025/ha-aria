@@ -4,6 +4,7 @@ import useComputed from '../hooks/useComputed.js';
 import { fetchJson } from '../api.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
+import AriaLogo from '../components/AriaLogo.jsx';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -467,7 +468,7 @@ export default function Home() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Pipeline Dashboard</h1>
+          <AriaLogo className="w-24 mb-1" color="#1f2937" />
           <p class="text-sm text-gray-500">Live system overview — data flow, module health, and your next steps.</p>
         </div>
         <LoadingState type="full" />
@@ -479,7 +480,7 @@ export default function Home() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Pipeline Dashboard</h1>
+          <AriaLogo className="w-24 mb-1" color="#1f2937" />
           <p class="text-sm text-gray-500">Live system overview — data flow, module health, and your next steps.</p>
         </div>
         <ErrorState
@@ -494,7 +495,7 @@ export default function Home() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Pipeline Dashboard</h1>
+          <AriaLogo className="w-24 mb-1" color="#1f2937" />
           <p class="text-sm text-gray-500">Live system overview — data flow, module health, and your next steps.</p>
         </div>
         <ErrorState error={fetchError} />
@@ -505,12 +506,7 @@ export default function Home() {
   return (
     <div class="space-y-6">
       <div>
-        <pre class="text-xs leading-none text-gray-800 font-bold mb-2">{`   ████╗    ██████╗    ██╗    ████╗
-  ██╔═██╗   ██╔══██╗   ██║   ██╔═██╗
- ██╔╝ ██║   ██████╔╝   ██║  ██╔╝ ██║
- ████████║   ██╔══██╗   ██║  ████████║
- ██╔╝ ╚██║   ██║  ██║   ██║  ██╔╝ ╚██║
- ╚═╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝  ╚═╝   ╚═╝`}</pre>
+        <AriaLogo className="w-24 mb-1" color="#1f2937" />
         <p class="text-sm text-gray-500">Live system overview — data flow, module health, and your next steps.</p>
       </div>
 
