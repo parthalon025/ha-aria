@@ -1,5 +1,188 @@
 @import "tailwindcss";
 
+/* ── Theme tokens ── */
+:root {
+  /* Surfaces */
+  --bg-base: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-raised: #f1f5f9;
+  --bg-inset: #e2e8f0;
+
+  /* Borders */
+  --border-primary: #cbd5e1;
+  --border-subtle: #e2e8f0;
+  --border-accent: #22d3ee;
+
+  /* Text */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-inverse: #f8fafc;
+
+  /* Accent (cyan from logo) */
+  --accent: #22d3ee;
+  --accent-dim: #0e7490;
+  --accent-glow: rgba(34, 211, 238, 0.15);
+  --accent-text: #0f172a;
+
+  /* Status */
+  --status-healthy: #22c55e;
+  --status-warning: #f59e0b;
+  --status-error: #ef4444;
+  --status-waiting: #94a3b8;
+
+  /* Ambient */
+  --grid-line: rgba(15, 23, 42, 0.04);
+  --scan-line: rgba(34, 211, 238, 0.06);
+  --glow-spread: rgba(34, 211, 238, 0.08);
+
+  /* Typography */
+  --font-mono: ui-monospace, 'Cascadia Code', 'Fira Code', 'Menlo', monospace;
+
+  /* Shape */
+  --radius: 2px;
+  --radius-lg: 4px;
+}
+
+[data-theme="dark"] {
+  --bg-base: #0b1120;
+  --bg-surface: #111827;
+  --bg-surface-raised: #1a2332;
+  --bg-inset: #0f172a;
+
+  --border-primary: #2a3545;
+  --border-subtle: #1e293b;
+  --border-accent: #22d3ee;
+
+  --text-primary: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --text-inverse: #0f172a;
+
+  --accent: #22d3ee;
+  --accent-dim: #06b6d4;
+  --accent-glow: rgba(34, 211, 238, 0.12);
+  --accent-text: #0f172a;
+
+  --status-healthy: #4ade80;
+  --status-warning: #fbbf24;
+  --status-error: #f87171;
+  --status-waiting: #6b7280;
+
+  --grid-line: rgba(34, 211, 238, 0.03);
+  --scan-line: rgba(34, 211, 238, 0.04);
+  --glow-spread: rgba(34, 211, 238, 0.06);
+}
+
+/* ── Global theme-aware base styles ── */
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Monospace data class — apply to any element showing numeric/data values */
+.data-mono {
+  font-family: var(--font-mono);
+}
+
+/* Theme-aware card base */
+.t-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+.t-card:hover {
+  border-color: var(--border-primary);
+}
+.t-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--accent-glow);
+  border-color: var(--accent);
+}
+
+/* Theme-aware section header with scan line */
+.t-section-header {
+  position: relative;
+  overflow: hidden;
+}
+.t-section-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: scan-sweep 4s ease-in-out infinite;
+}
+
+/* Status indicator styles */
+.t-status {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: var(--radius);
+}
+.t-status-healthy { color: var(--status-healthy); border-left: 2px solid var(--status-healthy); }
+.t-status-warning { color: var(--status-warning); border-left: 2px solid var(--status-warning); }
+.t-status-error   { color: var(--status-error);   border-left: 2px solid var(--status-error); }
+.t-status-waiting { color: var(--status-waiting); border-left: 2px solid var(--status-waiting); }
+
+/* Button base */
+.t-btn {
+  border-radius: var(--radius);
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+.t-btn:active {
+  transform: scale(0.97);
+}
+.t-btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.t-btn-primary:hover {
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+.t-btn-secondary {
+  background: var(--bg-surface-raised);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+.t-btn-secondary:hover {
+  border-color: var(--border-primary);
+  color: var(--text-primary);
+}
+
+/* Input base */
+.t-input {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease;
+}
+.t-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* Callout / info box */
+.t-callout {
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+}
+
 /* ── Pipeline dashboard animations ── */
 @keyframes dash-flow {
   to { stroke-dashoffset: -20; }
