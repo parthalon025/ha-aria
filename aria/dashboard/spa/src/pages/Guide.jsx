@@ -8,109 +8,91 @@ const JOURNEY_STEPS = [
   {
     day: 'Day 1',
     title: 'Collecting',
-    desc: "ARIA connects to Home Assistant and starts watching. Every light switch, door sensor, thermostat change, and motion event gets recorded. Zero configuration.",
+    desc: "Connects to Home Assistant and starts watching. Every light switch, door sensor, thermostat change, and motion event gets recorded. Zero configuration.",
   },
   {
-    day: 'Days 2–3',
+    day: 'Days 2\u20133',
     title: 'Baselines',
-    desc: 'After 24 hours, ARIA knows what "normal" looks like. It builds hourly averages for every metric — lights on at 8pm, power draw at noon, motion patterns.',
+    desc: 'After 24 hours, ARIA knows what "normal" looks like. Builds hourly averages for every metric \u2014 lights on at 8pm, power draw at noon, motion patterns.',
   },
   {
-    day: 'Days 3–7',
+    day: 'Days 3\u20137',
     title: 'ML Training',
-    desc: 'Six ML algorithms start training — predicting which room activates next, when devices turn on, energy patterns. Models improve with every snapshot.',
+    desc: 'Six ML algorithms start training \u2014 predicting which room activates next, when devices turn on, energy patterns. Models improve with every snapshot.',
   },
   {
     day: 'Week 2+',
     title: 'Shadow Mode',
-    desc: 'ARIA predicts silently and scores itself. "What I predicted" vs "what happened." Accuracy climbs daily. Nothing changes in your home yet.',
+    desc: 'Predicts silently and scores itself. "What I predicted" vs "what happened." Accuracy climbs daily. Nothing changes in your home yet.',
   },
   {
     day: 'When ready',
     title: 'Suggestions',
-    desc: 'Once accuracy gates pass, ARIA generates automation YAML. You review and approve each one. Nothing runs without your sign-off.',
+    desc: 'Once accuracy gates pass, generates automation YAML. You review and approve each one. Nothing runs without your sign-off.',
   },
 ];
 
 const PAGE_GUIDE = [
-  {
-    title: 'Home',
-    path: '/',
-    desc: 'Live pipeline flowchart — data flow, module health, status chips. The "YOU" cards show if anything needs attention.',
-  },
-  {
-    title: 'Discovery',
-    path: '/discovery',
-    desc: 'Every entity, device, and area HA knows about. Search and filter. Unavailable devices are flagged.',
-  },
-  {
-    title: 'Capabilities',
-    path: '/capabilities',
-    desc: 'Detected capabilities — lighting control, climate, presence detection. Helps ARIA scope which automations fit your setup.',
-  },
-  {
-    title: 'Data Curation',
-    path: '/data-curation',
-    desc: 'Include or exclude entities from analysis. Filter out noisy sensors that confuse the models.',
-  },
-  {
-    title: 'Intelligence',
-    path: '/intelligence',
-    desc: 'Baselines, predictions vs actuals, 30-day trends, correlations, LLM daily insights. The core learning view.',
-  },
-  {
-    title: 'Predictions',
-    path: '/predictions',
-    desc: 'ML model outputs with confidence scores. Green = high, yellow = moderate, red = low. Improves daily.',
-  },
-  {
-    title: 'Patterns',
-    path: '/patterns',
-    desc: 'Recurring event sequences — "weekdays 6:30am: kitchen light, coffee maker, bathroom light." Basis for automation suggestions.',
-  },
-  {
-    title: 'Shadow Mode',
-    path: '/shadow',
-    desc: 'Prediction accuracy, high-confidence disagreements, pipeline stage progression: backtest, shadow, suggest, autonomous.',
-  },
-  {
-    title: 'Automations',
-    path: '/automations',
-    desc: 'Ready-to-use YAML generated from detected patterns. Review, approve, or reject. ARIA never acts without permission.',
-  },
-  {
-    title: 'Settings',
-    path: '/settings',
-    desc: 'Engine parameters — confidence thresholds, retraining schedules, feature weights. Defaults work well.',
-  },
+  { title: 'Home', path: '/', desc: 'Live pipeline flowchart \u2014 data flow, module health, status chips.' },
+  { title: 'Discovery', path: '/discovery', desc: 'Every entity, device, and area HA knows about. Unavailable devices flagged.' },
+  { title: 'Capabilities', path: '/capabilities', desc: 'Detected capabilities \u2014 lighting, climate, presence. Scopes automations to your setup.' },
+  { title: 'Data Curation', path: '/data-curation', desc: 'Include or exclude entities. Filter noisy sensors that confuse models.' },
+  { title: 'Intelligence', path: '/intelligence', desc: 'Baselines, predictions vs actuals, trends, correlations, daily LLM insights.' },
+  { title: 'Predictions', path: '/predictions', desc: 'ML outputs with confidence scores. Green/yellow/red. Improves daily.' },
+  { title: 'Patterns', path: '/patterns', desc: 'Recurring event sequences \u2014 basis for automation suggestions.' },
+  { title: 'Shadow Mode', path: '/shadow', desc: 'Accuracy tracking, disagreements, pipeline stage progression.' },
+  { title: 'Automations', path: '/automations', desc: 'Ready-to-use YAML from detected patterns. Review, approve, or reject.' },
+  { title: 'Settings', path: '/settings', desc: 'Engine parameters \u2014 thresholds, schedules, weights. Defaults work well.' },
 ];
 
 const FAQ = [
   {
     q: 'Does ARIA send my data anywhere?',
-    a: 'No. Everything runs locally — scikit-learn for ML, optionally Ollama for LLM. Zero data leaves your network.',
+    a: 'No. scikit-learn for ML, optionally Ollama for LLM. Zero data leaves your network.',
   },
   {
-    q: 'Will ARIA change my Home Assistant setup?',
-    a: 'Never without permission. ARIA only reads from HA. Automation suggestions require manual review and approval.',
+    q: 'Will it change my HA setup?',
+    a: 'Never without permission. Read-only from HA. Suggestions require manual approval.',
   },
   {
     q: "How long until it's useful?",
-    a: "Baselines within 24 hours. Patterns in 2\u20133 days. ML predictions after a week. Solid automation suggestions within 2\u20133 weeks.",
+    a: 'Baselines within 24h. Patterns in 2\u20133 days. ML predictions after a week. Solid suggestions in 2\u20133 weeks.',
   },
   {
     q: 'Why does everything show "Blocked"?',
-    a: 'Normal for the first few days. Each module waits for upstream data \u2014 ML Training waits for snapshots, Patterns waits for logbook history. The Home page shows exactly what\u2019s needed.',
+    a: 'Normal for the first few days. Each module waits for upstream data. Home page shows exactly what\u2019s needed.',
   },
   {
-    q: 'What does "Shadow Mode" mean?',
-    a: 'ARIA makes predictions silently and compares them to reality. Like a co-pilot building a track record. It never acts until accuracy gates are met and you approve.',
+    q: 'What is Shadow Mode?',
+    a: 'Silent predictions compared to reality. Like a co-pilot building a track record before acting.',
   },
   {
     q: 'Do I need to configure anything?',
-    a: 'No. Auto-discovers devices, classifies entities, builds models. Data Curation lets you fine-tune if you want, but defaults work.',
+    a: 'No. Auto-discovers devices, classifies entities, builds models. Data Curation lets you fine-tune if needed.',
   },
 ];
+
+const CONCEPTS = [
+  { term: 'Entity', def: 'Anything HA tracks \u2014 light, sensor, lock, motion detector.' },
+  { term: 'Baseline', def: 'Hourly averages of "normal." Flags when something is unusual for that time of day.' },
+  { term: 'Shadow Prediction', def: 'Silent prediction scored against reality. Builds track record before action.' },
+  { term: 'Pipeline', def: 'Data path: collection \u2192 learning \u2192 action. Each stage gates the next.' },
+  { term: 'Curation', def: 'Choosing which entities ARIA watches. Filters noise so models learn clean signals.' },
+  { term: 'Accuracy Gate', def: 'Quality checkpoint. No suggestions until predictions hit minimum accuracy.' },
+];
+
+// ---------------------------------------------------------------------------
+// Shared styles
+// ---------------------------------------------------------------------------
+
+const DARK = '#111827';
+const DARK_CARD = '#1a2332';
+const DARK_BORDER = '#2a3545';
+const CYAN = '#22d3ee';
+const CYAN_DIM = '#0e7490';
+const TEXT_PRIMARY = '#e5e7eb';
+const TEXT_SECONDARY = '#9ca3af';
+const TEXT_DIM = '#6b7280';
 
 // ---------------------------------------------------------------------------
 // Components
@@ -118,56 +100,71 @@ const FAQ = [
 
 function HeroSection() {
   return (
-    <div class="relative rounded-md px-6 py-8 mb-8 overflow-hidden" style="background: #111827">
-      {/* Scan line effect */}
+    <div class="relative rounded-md px-6 py-8 mb-6 overflow-hidden" style={`background: ${DARK}`}>
       <div class="absolute inset-0 pointer-events-none" style="opacity: 0.04">
-        <div class="animate-scan-line" style="width: 100%; height: 2px; background: #22d3ee" />
+        <div class="animate-scan-line" style={`width: 100%; height: 2px; background: ${CYAN}`} />
       </div>
 
       <div class="relative">
-        <AriaLogo className="w-36 mb-3 animate-fade-in" color="#22d3ee" />
-        <p class="text-xs font-medium mb-4 animate-fade-in delay-100" style="color: #67e8f9; letter-spacing: 0.08em">
-          ADAPTIVE RESIDENCE INTELLIGENCE ARCHITECTURE<span class="animate-blink" style="color: #22d3ee">_</span>
+        <AriaLogo className="w-36 mb-3 animate-fade-in" color={CYAN} />
+        <p class="text-xs font-medium mb-4 animate-fade-in delay-100" style={`color: #67e8f9; letter-spacing: 0.08em`}>
+          ADAPTIVE RESIDENCE INTELLIGENCE ARCHITECTURE<span class="animate-blink" style={`color: ${CYAN}`}>_</span>
         </p>
-        <p class="text-lg font-semibold leading-snug mb-3 animate-fade-in delay-200" style="color: #e5e7eb">
+        <p class="text-lg font-semibold leading-snug mb-3 animate-fade-in delay-200" style={`color: ${TEXT_PRIMARY}`}>
           Your home generates 22,000+ events every day.{' '}
-          <span style="color: #22d3ee">ARIA learns what they mean.</span>
+          <span style={`color: ${CYAN}`}>ARIA learns what they mean.</span>
         </p>
-        <p class="text-sm leading-relaxed animate-fade-in delay-300" style="color: #6b7280">
-          Watches Home Assistant, learns household patterns, generates automation
-          suggestions. Local ML. No cloud. No subscriptions.
+        <p class="text-sm leading-relaxed animate-fade-in delay-300" style={`color: ${TEXT_DIM}`}>
+          Local ML. No cloud. No subscriptions. Watches Home Assistant, learns patterns, generates automation suggestions.
         </p>
       </div>
     </div>
   );
 }
 
+function PrivacyNote() {
+  return (
+    <div
+      class="rounded-md px-4 py-3 mb-6 animate-fade-in-up delay-400"
+      style={`background: ${DARK_CARD}; border-left: 3px solid ${CYAN}`}
+    >
+      <p class="text-sm" style={`color: ${TEXT_SECONDARY}`}>
+        <span class="font-semibold" style={`color: ${CYAN}`}>Fully local.</span>{' '}
+        ML via scikit-learn, optional LLM via Ollama. No API calls, no telemetry, no cloud accounts.
+      </p>
+    </div>
+  );
+}
+
 function JourneyTimeline() {
   return (
-    <div class="mb-10">
-      <h2 class="text-base font-semibold text-gray-900 mb-4 animate-fade-in-up">How ARIA Learns</h2>
+    <div class="rounded-md mb-6 overflow-hidden" style={`background: ${DARK_CARD}`}>
+      <div class="px-5 pt-4 pb-2">
+        <h2 class="text-sm font-bold uppercase tracking-wider animate-fade-in-up" style={`color: ${CYAN}; letter-spacing: 0.06em`}>
+          How ARIA Learns
+        </h2>
+      </div>
 
-      <div class="relative">
-        {/* Connecting line */}
-        <div class="hidden sm:block absolute w-px animate-grow-width delay-200" style="left: 0.75rem; top: 1rem; bottom: 1rem; background: #d1d5db; width: 1px" />
-
-        <div class="space-y-4 stagger-children">
+      <div class="px-5 pb-4">
+        <div class="space-y-0 stagger-children">
           {JOURNEY_STEPS.map((step, i) => (
-            <div key={i} class="relative flex gap-4 items-start">
-              {/* Timeline dot */}
+            <div
+              key={i}
+              class="flex gap-4 items-start py-3"
+              style={i < JOURNEY_STEPS.length - 1 ? `border-bottom: 1px solid ${DARK_BORDER}` : ''}
+            >
               <div
-                class="hidden sm:flex shrink-0 w-6 h-6 items-center justify-center rounded-sm text-xs font-bold"
-                style="background: #22d3ee; color: #111827; z-index: 10; margin-top: 2px"
+                class="shrink-0 w-6 h-6 flex items-center justify-center rounded-sm text-xs font-bold"
+                style={`background: ${CYAN}; color: ${DARK}`}
               >
                 {i + 1}
               </div>
-              {/* Card */}
-              <div class="flex-1 border-l-2 sm:border-l-0 pl-4 sm:pl-0" style="border-color: #22d3ee">
-                <div class="flex items-baseline gap-2 mb-1">
-                  <span class="text-xs font-mono font-medium" style="color: #22d3ee">{step.day}</span>
-                  <h3 class="text-sm font-semibold text-gray-900">{step.title}</h3>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-baseline gap-2 mb-0.5">
+                  <span class="text-xs font-mono" style={`color: ${CYAN_DIM}`}>{step.day}</span>
+                  <span class="text-sm font-semibold" style={`color: ${TEXT_PRIMARY}`}>{step.title}</span>
                 </div>
-                <p class="text-sm text-gray-600 leading-relaxed">{step.desc}</p>
+                <p class="text-sm leading-relaxed" style={`color: ${TEXT_DIM}`}>{step.desc}</p>
               </div>
             </div>
           ))}
@@ -177,20 +174,48 @@ function JourneyTimeline() {
   );
 }
 
+function KeyConcepts() {
+  return (
+    <div class="rounded-md mb-6 overflow-hidden" style={`background: ${DARK_CARD}`}>
+      <div class="px-5 pt-4 pb-2">
+        <h2 class="text-sm font-bold uppercase tracking-wider animate-fade-in-up" style={`color: ${CYAN}; letter-spacing: 0.06em`}>
+          Key Concepts
+        </h2>
+      </div>
+
+      <div class="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-children">
+        {CONCEPTS.map((c, i) => (
+          <div key={i} class="rounded-sm px-3 py-2.5" style={`background: ${DARK}; border: 1px solid ${DARK_BORDER}`}>
+            <h3 class="text-sm font-bold mb-0.5" style={`color: ${CYAN}`}>{c.term}</h3>
+            <p class="text-xs leading-relaxed" style={`color: ${TEXT_DIM}`}>{c.def}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PageGuide() {
   return (
-    <div class="mb-10">
-      <h2 class="text-base font-semibold text-gray-900 mb-4 animate-fade-in-up">Pages</h2>
+    <div class="rounded-md mb-6 overflow-hidden" style={`background: ${DARK_CARD}`}>
+      <div class="px-5 pt-4 pb-2">
+        <h2 class="text-sm font-bold uppercase tracking-wider animate-fade-in-up" style={`color: ${CYAN}; letter-spacing: 0.06em`}>
+          Pages
+        </h2>
+      </div>
 
-      <div class="border border-gray-200 rounded-md divide-y divide-gray-200 stagger-children">
+      <div class="stagger-children">
         {PAGE_GUIDE.map((page, i) => (
           <a
             key={i}
             href={`#${page.path}`}
-            class="flex items-baseline gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
+            class="flex items-baseline gap-3 px-5 py-2.5 transition-colors"
+            style={`border-bottom: 1px solid ${DARK_BORDER}`}
+            onMouseEnter={(e) => { e.currentTarget.style.background = DARK; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
-            <span class="text-sm font-semibold shrink-0" style="color: #22d3ee; min-width: 6rem">{page.title}</span>
-            <span class="text-sm text-gray-600">{page.desc}</span>
+            <span class="text-sm font-semibold shrink-0" style={`color: ${CYAN}; min-width: 7rem`}>{page.title}</span>
+            <span class="text-sm" style={`color: ${TEXT_DIM}`}>{page.desc}</span>
           </a>
         ))}
       </div>
@@ -200,54 +225,25 @@ function PageGuide() {
 
 function FaqSection() {
   return (
-    <div class="mb-10">
-      <h2 class="text-base font-semibold text-gray-900 mb-4 animate-fade-in-up">FAQ</h2>
+    <div class="rounded-md mb-6 overflow-hidden" style={`background: ${DARK_CARD}`}>
+      <div class="px-5 pt-4 pb-2">
+        <h2 class="text-sm font-bold uppercase tracking-wider animate-fade-in-up" style={`color: ${CYAN}; letter-spacing: 0.06em`}>
+          FAQ
+        </h2>
+      </div>
 
-      <div class="space-y-3 stagger-children">
+      <div class="px-5 pb-4 space-y-0 stagger-children">
         {FAQ.map((item, i) => (
-          <div key={i} class="border border-gray-200 rounded-md px-4 py-3">
-            <h3 class="text-sm font-semibold text-gray-900 mb-1">{item.q}</h3>
-            <p class="text-sm text-gray-600 leading-relaxed">{item.a}</p>
+          <div
+            key={i}
+            class="py-3"
+            style={i < FAQ.length - 1 ? `border-bottom: 1px solid ${DARK_BORDER}` : ''}
+          >
+            <h3 class="text-sm font-semibold mb-1" style={`color: ${TEXT_PRIMARY}`}>{item.q}</h3>
+            <p class="text-sm leading-relaxed" style={`color: ${TEXT_DIM}`}>{item.a}</p>
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function KeyConcepts() {
-  const concepts = [
-    { term: 'Entity', def: 'Anything HA tracks \u2014 light, sensor, lock, motion detector.' },
-    { term: 'Baseline', def: 'Hourly averages of "normal." Flags when something is unusual for the time of day.' },
-    { term: 'Shadow Prediction', def: 'A silent prediction scored against reality. Builds a track record before any action.' },
-    { term: 'Pipeline', def: 'Data path: collection \u2192 learning \u2192 action. Each stage gates the next.' },
-    { term: 'Curation', def: 'Choosing which entities ARIA watches. Filters noise so models learn from clean signals.' },
-    { term: 'Accuracy Gate', def: 'Quality checkpoint. No suggestions until predictions hit minimum accuracy.' },
-  ];
-
-  return (
-    <div class="mb-10">
-      <h2 class="text-base font-semibold text-gray-900 mb-4 animate-fade-in-up">Key Concepts</h2>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-children">
-        {concepts.map((c, i) => (
-          <div key={i} class="border border-gray-200 rounded-md px-4 py-3">
-            <h3 class="text-sm font-bold text-gray-900 mb-0.5">{c.term}</h3>
-            <p class="text-xs text-gray-600 leading-relaxed">{c.def}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PrivacyNote() {
-  return (
-    <div class="rounded-md px-4 py-3 mb-8 animate-fade-in-up delay-400" style="border-left: 3px solid #22d3ee; background: #f9fafb">
-      <p class="text-sm text-gray-700">
-        <span class="font-semibold">Fully local.</span>{' '}
-        ML via scikit-learn, optional LLM via Ollama. No API calls, no telemetry, no cloud accounts. Your data stays on your hardware.
-      </p>
     </div>
   );
 }
@@ -269,8 +265,8 @@ export default function Guide() {
       <div class="text-center pb-6">
         <a
           href="#/"
-          class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-md text-white transition-colors"
-          style="background: #0891b2"
+          class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-md transition-colors"
+          style={`background: ${CYAN}; color: ${DARK}`}
         >
           Go to Dashboard
         </a>
