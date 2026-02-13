@@ -6,7 +6,7 @@ results to the entity_curation table. Runs on startup and daily.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
 
 from aria.hub.core import Module, IntelligenceHub
@@ -204,7 +204,7 @@ class DataQualityModule(Module):
             try:
                 changed_dt = datetime.fromisoformat(last_changed.replace("Z", "+00:00"))
                 # Use naive UTC comparison
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc).replace(tzinfo=None)
                 changed_naive = changed_dt.replace(tzinfo=None)
                 last_changed_days_ago = (now - changed_naive).total_seconds() / 86400
             except (ValueError, TypeError):

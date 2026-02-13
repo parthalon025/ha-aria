@@ -15,6 +15,7 @@ import json
 import logging
 import pickle
 import math
+import warnings
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timedelta
@@ -24,6 +25,16 @@ from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor, I
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, r2_score
 import lightgbm as lgb
+
+# Suppress sklearn warning about feature names when using numpy arrays.
+# Our feature pipeline guarantees alignment between training and prediction —
+# the same _extract_features() dict order is used for both paths.
+warnings.filterwarnings(
+    "ignore",
+    message="X does not have valid feature names",
+    category=UserWarning,
+    module="sklearn",
+)
 
 from aria.hub.core import Module, IntelligenceHub
 

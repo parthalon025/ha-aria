@@ -5,7 +5,7 @@ config threshold usage, human override preservation, and graceful empty-data han
 """
 
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, Mock
@@ -83,7 +83,7 @@ def make_entity(
     if not friendly_name:
         friendly_name = entity_id.replace(".", " ").title()
     if last_changed is None:
-        last_changed = datetime.utcnow().isoformat()
+        last_changed = datetime.now(timezone.utc).isoformat()
     return {
         "entity_id": entity_id,
         "domain": domain,
@@ -101,7 +101,7 @@ def make_window(
 ) -> Dict[str, Any]:
     """Build an activity window dict."""
     return {
-        "window_start": datetime.utcnow().isoformat(),
+        "window_start": datetime.now(timezone.utc).isoformat(),
         "event_count": sum((by_entity or {}).values()),
         "by_domain": {},
         "by_entity": by_entity or {},
