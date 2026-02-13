@@ -4,14 +4,14 @@ import useComputed from '../hooks/useComputed.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 
-/** Type badge color by pattern type. */
-function typeBadgeColor(type) {
+/** Type badge style by pattern type. */
+function typeBadgeStyle(type) {
   switch ((type || '').toLowerCase()) {
-    case 'temporal': return 'bg-blue-100 text-blue-700';
-    case 'correlation': return 'bg-purple-100 text-purple-700';
-    case 'sequence': return 'bg-amber-100 text-amber-700';
-    case 'anomaly': return 'bg-red-100 text-red-700';
-    default: return 'bg-gray-100 text-gray-700';
+    case 'temporal': return 'background: var(--accent-glow); color: var(--accent);';
+    case 'correlation': return 'background: rgba(168,85,247,0.15); color: #a855f7;';
+    case 'sequence': return 'background: rgba(245,158,11,0.15); color: var(--status-warning);';
+    case 'anomaly': return 'background: rgba(239,68,68,0.15); color: var(--status-error);';
+    default: return 'background: var(--bg-surface-raised); color: var(--text-secondary);';
   }
 }
 
@@ -23,12 +23,12 @@ function PatternCard({ pattern }) {
   const entities = pattern.entities || [];
 
   return (
-    <div class="bg-white rounded-md shadow-sm p-5">
+    <div class="t-card" style="padding: 1.25rem;">
       {/* Header */}
       <div class="flex items-center justify-between mb-2">
-        <h3 class="text-base font-bold text-gray-900">{pattern.name || 'Unnamed pattern'}</h3>
+        <h3 class="text-base font-bold" style="color: var(--text-primary)">{pattern.name || 'Unnamed pattern'}</h3>
         {pattern.type && (
-          <span class={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${typeBadgeColor(pattern.type)}`}>
+          <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium" style={typeBadgeStyle(pattern.type)}>
             {pattern.type}
           </span>
         )}
@@ -36,37 +36,37 @@ function PatternCard({ pattern }) {
 
       {/* Description */}
       {pattern.description && (
-        <p class="text-sm text-gray-600 mb-3">{pattern.description}</p>
+        <p class="text-sm mb-3" style="color: var(--text-secondary)">{pattern.description}</p>
       )}
 
       {/* Details grid */}
       <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-3">
         {pattern.frequency && (
           <div>
-            <span class="text-gray-400">Frequency</span>
-            <div class="font-medium text-gray-700">{pattern.frequency}</div>
+            <span style="color: var(--text-tertiary)">Frequency</span>
+            <div class="font-medium" style="color: var(--text-secondary)">{pattern.frequency}</div>
           </div>
         )}
         {entities.length > 0 && (
           <div>
-            <span class="text-gray-400">Entities</span>
-            <div class="font-medium text-gray-700">{entities.length}</div>
+            <span style="color: var(--text-tertiary)">Entities</span>
+            <div class="font-medium" style="color: var(--text-secondary)">{entities.length}</div>
           </div>
         )}
         <div>
-          <span class="text-gray-400">Confidence</span>
-          <div class="font-medium text-gray-700">{pct}%</div>
+          <span style="color: var(--text-tertiary)">Confidence</span>
+          <div class="font-medium" style="color: var(--text-secondary)">{pct}%</div>
         </div>
         {pattern.time_window && (
           <div>
-            <span class="text-gray-400">Time window</span>
-            <div class="font-medium text-gray-700">{pattern.time_window}</div>
+            <span style="color: var(--text-tertiary)">Time window</span>
+            <div class="font-medium" style="color: var(--text-secondary)">{pattern.time_window}</div>
           </div>
         )}
         {pattern.support != null && (
           <div>
-            <span class="text-gray-400">Support</span>
-            <div class="font-medium text-gray-700">{Math.round(pattern.support * 100)}%</div>
+            <span style="color: var(--text-tertiary)">Support</span>
+            <div class="font-medium" style="color: var(--text-secondary)">{Math.round(pattern.support * 100)}%</div>
           </div>
         )}
       </div>
@@ -75,7 +75,7 @@ function PatternCard({ pattern }) {
       {entities.length > 0 && (
         <div class="flex flex-wrap gap-1 mb-3">
           {entities.map((eid) => (
-            <span key={eid} class="inline-block px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono text-gray-600">
+            <span key={eid} class="inline-block px-1.5 py-0.5 text-xs data-mono" style="background: var(--bg-surface-raised); border-radius: var(--radius); color: var(--text-secondary)">
               {eid}
             </span>
           ))}
@@ -87,12 +87,13 @@ function PatternCard({ pattern }) {
         <div>
           <button
             onClick={() => setExpanded(!expanded)}
-            class="text-sm text-blue-600 hover:text-blue-800 cursor-pointer"
+            class="text-sm cursor-pointer"
+            style="color: var(--accent)"
           >
             {expanded ? 'Hide raw data' : 'Show raw data'}
           </button>
           {expanded && (
-            <pre class="mt-2 bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono overflow-x-auto">
+            <pre class="mt-2 p-3 text-xs overflow-x-auto" style="background: var(--bg-inset); color: var(--text-primary); border-radius: var(--radius); font-family: var(--font-mono)">
               {JSON.stringify(pattern.raw_data, null, 2)}
             </pre>
           )}
@@ -120,8 +121,8 @@ export default function Patterns() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Patterns</h1>
-          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Patterns</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
         </div>
         <LoadingState type="cards" />
       </div>
@@ -132,8 +133,8 @@ export default function Patterns() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Patterns</h1>
-          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Patterns</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
         </div>
         <ErrorState error={error} onRetry={refetch} />
       </div>
@@ -143,21 +144,21 @@ export default function Patterns() {
   return (
     <div class="space-y-6">
       <div class="animate-fade-in-up">
-        <h1 class="text-2xl font-bold text-gray-900">Patterns</h1>
-        <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Patterns</h1>
+        <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
       </div>
 
       {/* Metadata summary */}
       {metadata && (
-        <div class="flex flex-wrap gap-3 text-sm text-gray-500 animate-fade-in-up delay-100">
+        <div class="flex flex-wrap gap-3 text-sm animate-fade-in-up delay-100" style="color: var(--text-tertiary)">
           {metadata.time_range && (
-            <span class="bg-gray-100 rounded px-2 py-1">Range: {metadata.time_range}</span>
+            <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">Range: {metadata.time_range}</span>
           )}
           {metadata.pattern_count != null && (
-            <span class="bg-gray-100 rounded px-2 py-1">{metadata.pattern_count} patterns</span>
+            <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">{metadata.pattern_count} patterns</span>
           )}
           {metadata.analyzed_at && (
-            <span class="bg-gray-100 rounded px-2 py-1">
+            <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">
               Analyzed: {new Date(metadata.analyzed_at).toLocaleString()}
             </span>
           )}
@@ -165,8 +166,8 @@ export default function Patterns() {
       )}
 
       {patterns.length === 0 ? (
-        <div class="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 animate-fade-in-up delay-200">
-          No patterns detected yet. The pattern recognition module analyzes HA logbook sequences to find temporal, correlation, and sequence patterns. It needs several days of logbook data with meaningful device events to identify reliable patterns.
+        <div class="t-callout animate-fade-in-up delay-200" style="padding: 0.75rem;">
+          <span class="text-sm" style="color: var(--text-secondary)">No patterns detected yet. The pattern recognition module analyzes HA logbook sequences to find temporal, correlation, and sequence patterns. It needs several days of logbook data with meaningful device events to identify reliable patterns.</span>
         </div>
       ) : (
         <div class="space-y-4 stagger-children">

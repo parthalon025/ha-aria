@@ -4,29 +4,29 @@ import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 
 const STATUS_COLORS = {
-  auto_excluded: 'bg-gray-100 text-gray-600',
-  excluded: 'bg-red-100 text-red-700',
-  included: 'bg-green-100 text-green-700',
-  promoted: 'bg-blue-100 text-blue-700',
+  auto_excluded: 'background: var(--bg-surface-raised); color: var(--text-tertiary);',
+  excluded: 'background: rgba(239,68,68,0.15); color: var(--status-error);',
+  included: 'background: rgba(34,197,94,0.15); color: var(--status-healthy);',
+  promoted: 'background: var(--accent-glow); color: var(--accent);',
 };
 
 function SummaryBar({ summary }) {
   const total = summary?.total ?? 0;
   const perStatus = summary?.per_status ?? {};
   const stats = [
-    { label: 'Total', value: total, cls: 'text-gray-700' },
-    { label: 'Auto-Excluded', value: perStatus.auto_excluded ?? 0, cls: 'text-gray-500' },
-    { label: 'Excluded', value: perStatus.excluded ?? 0, cls: 'text-red-600' },
-    { label: 'Included', value: perStatus.included ?? 0, cls: 'text-green-600' },
-    { label: 'Promoted', value: perStatus.promoted ?? 0, cls: 'text-blue-600' },
+    { label: 'Total', value: total, style: 'color: var(--text-secondary)' },
+    { label: 'Auto-Excluded', value: perStatus.auto_excluded ?? 0, style: 'color: var(--text-tertiary)' },
+    { label: 'Excluded', value: perStatus.excluded ?? 0, style: 'color: var(--status-error)' },
+    { label: 'Included', value: perStatus.included ?? 0, style: 'color: var(--status-healthy)' },
+    { label: 'Promoted', value: perStatus.promoted ?? 0, style: 'color: var(--accent)' },
   ];
 
   return (
     <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
       {stats.map((s) => (
-        <div key={s.label} class="bg-white rounded-md shadow-sm p-3 text-center">
-          <div class={`text-xl font-bold ${s.cls}`}>{s.value}</div>
-          <div class="text-xs text-gray-400">{s.label}</div>
+        <div key={s.label} class="t-card" style="padding: 0.75rem; text-align: center;">
+          <div class="text-xl font-bold" style={s.style}>{s.value}</div>
+          <div class="text-xs" style="color: var(--text-tertiary)">{s.label}</div>
         </div>
       ))}
     </div>
@@ -53,16 +53,16 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
   }
 
   return (
-    <section class="bg-white rounded-md shadow-sm">
+    <section class="t-card">
       <button
         class="w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setOpen(!open)}
       >
         <div class="flex items-center gap-2">
-          <h3 class="text-sm font-bold text-gray-700">Tier {tier}: {label}</h3>
-          <span class="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5">{entities.length}</span>
+          <h3 class="text-sm font-bold" style="color: var(--text-secondary)">Tier {tier}: {label}</h3>
+          <span class="text-xs rounded-full px-2 py-0.5" style="background: var(--bg-surface-raised); color: var(--text-tertiary)">{entities.length}</span>
         </div>
-        <span class="text-gray-400 text-xs">{open ? '\u25B2' : '\u25BC'}</span>
+        <span class="text-xs" style="color: var(--text-tertiary)">{open ? '\u25B2' : '\u25BC'}</span>
       </button>
 
       {open && (
@@ -73,20 +73,21 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
               placeholder="Search entity or reason..."
               value={search}
               onInput={(e) => setSearch(e.target.value)}
-              class="w-full border border-gray-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              class="t-input w-full px-3 py-1.5 text-sm"
             />
           )}
 
           {tier <= 2 ? (
             // Grouped view for tiers 1-2
             Object.entries(grouped).map(([groupKey, items]) => (
-              <div key={groupKey} class="border border-gray-100 rounded p-3 space-y-2">
+              <div key={groupKey} class="p-3 space-y-2" style="border: 1px solid var(--border-subtle); border-radius: var(--radius)">
                 <div class="flex items-center justify-between">
-                  <span class="text-xs font-medium text-gray-600 truncate">{groupKey}</span>
+                  <span class="text-xs font-medium truncate" style="color: var(--text-secondary)">{groupKey}</span>
                   <div class="flex gap-1 flex-shrink-0">
                     {tier === 1 && (
                       <button
-                        class="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded hover:bg-green-100"
+                        class="t-btn text-xs px-2 py-0.5"
+                        style="background: rgba(34,197,94,0.1); color: var(--status-healthy); border: none;"
                         onClick={() => onBulk(items.map((e) => e.entity_id), 'included')}
                       >
                         Include All
@@ -95,13 +96,15 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
                     {tier === 2 && (
                       <>
                         <button
-                          class="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded hover:bg-green-100"
+                          class="t-btn text-xs px-2 py-0.5"
+                          style="background: rgba(34,197,94,0.1); color: var(--status-healthy); border: none;"
                           onClick={() => onBulk(items.map((e) => e.entity_id), 'included')}
                         >
                           Approve All
                         </button>
                         <button
-                          class="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded hover:bg-red-100"
+                          class="t-btn text-xs px-2 py-0.5"
+                          style="background: rgba(239,68,68,0.1); color: var(--status-error); border: none;"
                           onClick={() => onBulk(items.map((e) => e.entity_id), 'excluded')}
                         >
                           Reject All
@@ -115,7 +118,7 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
                     <EntityRow key={e.entity_id} entity={e} onOverride={onOverride} compact />
                   ))}
                   {items.length > 20 && (
-                    <p class="text-xs text-gray-400">...and {items.length - 20} more</p>
+                    <p class="text-xs" style="color: var(--text-tertiary)">...and {items.length - 20} more</p>
                   )}
                 </div>
               </div>
@@ -127,7 +130,7 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
                 <EntityRow key={e.entity_id} entity={e} onOverride={onOverride} />
               ))}
               {filtered.length > 100 && (
-                <p class="text-xs text-gray-400">Showing 100 of {filtered.length}. Use search to narrow.</p>
+                <p class="text-xs" style="color: var(--text-tertiary)">Showing 100 of {filtered.length}. Use search to narrow.</p>
               )}
             </div>
           )}
@@ -138,22 +141,23 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
 }
 
 function EntityRow({ entity, onOverride, compact }) {
-  const statusCls = STATUS_COLORS[entity.status] || 'bg-gray-100 text-gray-600';
+  const statusStyle = STATUS_COLORS[entity.status] || 'background: var(--bg-surface-raised); color: var(--text-secondary);';
 
   return (
-    <div class={`flex items-center gap-2 ${compact ? 'py-0.5' : 'py-1.5 border-b border-gray-50 last:border-0'}`}>
-      <span class="text-xs text-gray-600 truncate flex-1 font-mono">{entity.entity_id}</span>
-      <span class={`text-[10px] font-medium rounded px-1.5 py-0.5 flex-shrink-0 ${statusCls}`}>
+    <div class={`flex items-center gap-2 ${compact ? 'py-0.5' : 'py-1.5'}`} style={compact ? '' : 'border-bottom: 1px solid var(--border-subtle)'}>
+      <span class="text-xs truncate flex-1 data-mono" style="color: var(--text-secondary)">{entity.entity_id}</span>
+      <span class="text-[10px] font-medium flex-shrink-0 px-1.5 py-0.5" style={`border-radius: var(--radius); ${statusStyle}`}>
         {entity.status}
       </span>
       {entity.human_override && (
-        <span class="text-[10px] text-purple-500 flex-shrink-0">manual</span>
+        <span class="text-[10px] flex-shrink-0" style="color: var(--accent-dim)">manual</span>
       )}
       {!compact && (
         <div class="flex gap-1 flex-shrink-0">
           {entity.status !== 'included' && (
             <button
-              class="text-[10px] text-green-600 hover:underline"
+              class="text-[10px]"
+              style="color: var(--status-healthy)"
               onClick={() => onOverride(entity.entity_id, 'included')}
             >
               Include
@@ -161,7 +165,8 @@ function EntityRow({ entity, onOverride, compact }) {
           )}
           {entity.status !== 'excluded' && (
             <button
-              class="text-[10px] text-red-600 hover:underline"
+              class="text-[10px]"
+              style="color: var(--status-error)"
               onClick={() => onOverride(entity.entity_id, 'excluded')}
             >
               Exclude
@@ -224,8 +229,8 @@ export default function DataCuration() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Data Curation</h1>
-          <p class="text-sm text-gray-500">Classify entities into include/exclude tiers for the shadow engine.</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Data Curation</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">Classify entities into include/exclude tiers for the shadow engine.</p>
         </div>
         <LoadingState type="full" />
       </div>
@@ -236,8 +241,8 @@ export default function DataCuration() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Data Curation</h1>
-          <p class="text-sm text-gray-500">Classify entities into include/exclude tiers for the shadow engine.</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Data Curation</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">Classify entities into include/exclude tiers for the shadow engine.</p>
         </div>
         <ErrorState error={error} onRetry={fetchAll} />
       </div>
@@ -248,11 +253,11 @@ export default function DataCuration() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Data Curation</h1>
-          <p class="text-sm text-gray-500">Classify entities into include/exclude tiers for the shadow engine.</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Data Curation</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">Classify entities into include/exclude tiers for the shadow engine.</p>
         </div>
-        <div class="bg-gray-50 border border-gray-200 rounded-md p-4 text-sm text-gray-600">
-          No entity classifications yet. The data quality module will classify entities after discovery runs.
+        <div class="t-callout" style="padding: 1rem;">
+          <span class="text-sm" style="color: var(--text-secondary)">No entity classifications yet. The data quality module will classify entities after discovery runs.</span>
         </div>
       </div>
     );
@@ -261,8 +266,8 @@ export default function DataCuration() {
   return (
     <div class="space-y-6">
       <div class="animate-fade-in-up">
-        <h1 class="text-2xl font-bold text-gray-900">Data Curation</h1>
-        <p class="text-sm text-gray-500">Classify entities into include/exclude tiers for the shadow engine.</p>
+        <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Data Curation</h1>
+        <p class="text-sm" style="color: var(--text-tertiary)">Classify entities into include/exclude tiers for the shadow engine.</p>
       </div>
 
       <div class="animate-fade-in-up delay-100">

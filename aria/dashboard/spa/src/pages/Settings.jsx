@@ -54,14 +54,14 @@ function ParamControl({ config, onUpdate }) {
   const vtype = config.value_type;
 
   return (
-    <div class="flex flex-col sm:flex-row sm:items-center gap-2 py-3 border-b border-gray-100 last:border-0">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-2 py-3" style="border-bottom: 1px solid var(--border-subtle)">
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
-          <span class="text-sm font-medium text-gray-800">{config.label || config.key}</span>
-          {saving && <span class="text-xs text-blue-500">Saving...</span>}
+          <span class="text-sm font-medium" style="color: var(--text-secondary)">{config.label || config.key}</span>
+          {saving && <span class="text-xs" style="color: var(--accent)">Saving...</span>}
         </div>
         {config.description && (
-          <p class="text-xs text-gray-400 mt-0.5">{config.description}</p>
+          <p class="text-xs mt-0.5" style="color: var(--text-tertiary)">{config.description}</p>
         )}
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
@@ -74,21 +74,21 @@ function ParamControl({ config, onUpdate }) {
               step={config.step ?? 1}
               value={value}
               onInput={(e) => debouncedSave(e.target.value)}
-              class="w-28 accent-blue-500"
+              class="w-28"
+              style="accent-color: var(--accent)"
             />
-            <span class="text-sm font-mono text-gray-700 w-16 text-right">{value}</span>
+            <span class="text-sm w-16 text-right data-mono" style="color: var(--text-secondary)">{value}</span>
           </div>
         )}
         {vtype === 'boolean' && (
           <button
-            class={`relative w-10 h-5 rounded-full transition-colors ${
-              value === 'true' || value === '1' ? 'bg-blue-500' : 'bg-gray-300'
-            }`}
+            class="relative w-10 h-5 rounded-full transition-colors"
+            style={value === 'true' || value === '1' ? 'background: var(--accent)' : 'background: var(--bg-inset)'}
             onClick={() => debouncedSave(value === 'true' || value === '1' ? 'false' : 'true')}
           >
-            <span class={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+            <span class={`absolute top-0.5 w-4 h-4 rounded-full shadow transition-transform ${
               value === 'true' || value === '1' ? 'translate-x-5' : 'translate-x-0.5'
-            }`} />
+            }`} style="background: #fff" />
           </button>
         )}
         {vtype === 'string' && (
@@ -96,14 +96,14 @@ function ParamControl({ config, onUpdate }) {
             type="text"
             value={value}
             onInput={(e) => debouncedSave(e.target.value)}
-            class="border border-gray-300 rounded px-2 py-1 text-sm w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            class="t-input px-2 py-1 text-sm w-48"
           />
         )}
         {vtype === 'select' && (
           <select
             value={value}
             onChange={(e) => debouncedSave(e.target.value)}
-            class="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            class="t-input px-2 py-1 text-sm"
           >
             {(config.options || '').split(',').map((o) => (
               <option key={o.trim()} value={o.trim()}>{o.trim()}</option>
@@ -113,12 +113,12 @@ function ParamControl({ config, onUpdate }) {
         <button
           onClick={handleReset}
           disabled={isDefault}
-          class={`text-xs px-2 py-1 rounded ${
+          class="text-xs px-2 py-1"
+          style={`border-radius: var(--radius); ${
             isDefault
-              ? 'text-gray-300 cursor-default'
-              : 'text-blue-500 hover:bg-blue-50'
+              ? 'color: var(--text-tertiary); cursor: default;'
+              : 'color: var(--accent); cursor: pointer;'
           }`}
-          title="Reset to default"
         >
           Reset
         </button>
@@ -131,13 +131,13 @@ function CategorySection({ category, configs, onUpdate }) {
   const [open, setOpen] = useState(true);
 
   return (
-    <section class="bg-white rounded-md shadow-sm">
+    <section class="t-card">
       <button
         class="w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setOpen(!open)}
       >
-        <h3 class="text-sm font-bold text-gray-700">{category}</h3>
-        <span class="text-gray-400 text-xs">{open ? '\u25B2' : '\u25BC'} {configs.length} param{configs.length !== 1 ? 's' : ''}</span>
+        <h3 class="text-sm font-bold" style="color: var(--text-secondary)">{category}</h3>
+        <span class="text-xs" style="color: var(--text-tertiary)">{open ? '\u25B2' : '\u25BC'} {configs.length} param{configs.length !== 1 ? 's' : ''}</span>
       </button>
       {open && (
         <div class="px-4 pb-3">
@@ -172,8 +172,8 @@ export default function Settings() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
-          <p class="text-sm text-gray-500">Configure shadow engine, activity monitor, and data quality parameters.</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Settings</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">Configure shadow engine, activity monitor, and data quality parameters.</p>
         </div>
         <LoadingState type="full" />
       </div>
@@ -184,8 +184,8 @@ export default function Settings() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
-          <p class="text-sm text-gray-500">Configure shadow engine, activity monitor, and data quality parameters.</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Settings</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">Configure shadow engine, activity monitor, and data quality parameters.</p>
         </div>
         <ErrorState error={error} onRetry={fetchConfigs} />
       </div>
@@ -198,10 +198,10 @@ export default function Settings() {
   return (
     <div class="space-y-6">
       <div class="animate-fade-in-up">
-        <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
-        <p class="text-sm text-gray-500">
+        <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Settings</h1>
+        <p class="text-sm" style="color: var(--text-tertiary)">
           {configs.length} parameters across {Object.keys(groups).length} categories.
-          {modified > 0 && <span class="text-blue-500 ml-1">{modified} modified from defaults.</span>}
+          {modified > 0 && <span style="color: var(--accent)"> {modified} modified from defaults.</span>}
         </p>
       </div>
 

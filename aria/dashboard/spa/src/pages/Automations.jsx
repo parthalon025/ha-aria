@@ -5,12 +5,12 @@ import { baseUrl } from '../api.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 
-/** Status badge color classes. */
-function statusColor(status) {
+/** Status badge inline style. */
+function statusStyle(status) {
   switch ((status || '').toLowerCase()) {
-    case 'approved': return 'bg-green-100 text-green-700';
-    case 'rejected': return 'bg-red-100 text-red-700';
-    default: return 'bg-amber-100 text-amber-700'; // pending
+    case 'approved': return 'background: rgba(34,197,94,0.15); color: var(--status-healthy);';
+    case 'rejected': return 'background: rgba(239,68,68,0.15); color: var(--status-error);';
+    default: return 'background: rgba(245,158,11,0.15); color: var(--status-warning);'; // pending
   }
 }
 
@@ -19,15 +19,15 @@ function ObjectDisplay({ obj }) {
   if (!obj) return null;
 
   if (typeof obj === 'string') {
-    return <span class="text-sm text-gray-700">{obj}</span>;
+    return <span class="text-sm" style="color: var(--text-secondary)">{obj}</span>;
   }
 
   return (
-    <dl class="text-xs text-gray-600 space-y-0.5">
+    <dl class="text-xs space-y-0.5" style="color: var(--text-secondary)">
       {Object.entries(obj).map(([k, v]) => (
         <div key={k} class="flex gap-2">
-          <dt class="text-gray-400 min-w-[80px]">{k}:</dt>
-          <dd class="text-gray-700 break-all">
+          <dt class="min-w-[80px]" style="color: var(--text-tertiary)">{k}:</dt>
+          <dd class="break-all" style="color: var(--text-secondary)">
             {typeof v === 'object' ? JSON.stringify(v) : String(v)}
           </dd>
         </div>
@@ -41,37 +41,37 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
   const pct = Math.round(confidence * 100);
   const status = (suggestion.status || 'pending').toLowerCase();
 
-  const borderClass = status === 'approved'
-    ? 'border-l-4 border-green-500'
+  const borderStyle = status === 'approved'
+    ? 'border-left: 4px solid var(--status-healthy);'
     : status === 'rejected'
-      ? 'border-l-4 border-red-500 opacity-60'
+      ? 'border-left: 4px solid var(--status-error); opacity: 0.6;'
       : '';
 
   return (
-    <div class={`bg-white rounded-md shadow-sm p-5 ${borderClass}`}>
+    <div class="t-card" style={`padding: 1.25rem; ${borderStyle}`}>
       {/* Header */}
       <div class="flex items-center justify-between mb-2">
-        <h3 class="text-base font-bold text-gray-900">{suggestion.name || 'Unnamed automation'}</h3>
-        <span class={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(status)}`}>
+        <h3 class="text-base font-bold" style="color: var(--text-primary)">{suggestion.name || 'Unnamed automation'}</h3>
+        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium" style={statusStyle(status)}>
           {status}
         </span>
       </div>
 
       {/* Description */}
       {suggestion.description && (
-        <p class="text-sm text-gray-600 mb-3">{suggestion.description}</p>
+        <p class="text-sm mb-3" style="color: var(--text-secondary)">{suggestion.description}</p>
       )}
 
       {/* Confidence bar */}
       <div class="mb-4">
-        <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+        <div class="flex items-center justify-between text-xs mb-1" style="color: var(--text-tertiary)">
           <span>Confidence</span>
           <span>{pct}%</span>
         </div>
-        <div class="h-2 rounded-full bg-gray-200">
+        <div class="h-2 rounded-full" style="background: var(--bg-inset)">
           <div
-            class="h-2 rounded-full bg-blue-500 transition-all"
-            style={{ width: `${pct}%` }}
+            class="h-2 rounded-full transition-all"
+            style={`background: var(--accent); width: ${pct}%`}
           />
         </div>
       </div>
@@ -79,7 +79,7 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
       {/* Trigger */}
       {suggestion.trigger && (
         <div class="mb-3">
-          <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Trigger</h4>
+          <h4 class="text-xs font-semibold uppercase tracking-wide mb-1" style="color: var(--text-tertiary)">Trigger</h4>
           <ObjectDisplay obj={suggestion.trigger} />
         </div>
       )}
@@ -87,7 +87,7 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
       {/* Conditions */}
       {suggestion.conditions && suggestion.conditions.length > 0 && (
         <div class="mb-3">
-          <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Conditions</h4>
+          <h4 class="text-xs font-semibold uppercase tracking-wide mb-1" style="color: var(--text-tertiary)">Conditions</h4>
           <div class="space-y-1">
             {suggestion.conditions.map((cond, i) => (
               <ObjectDisplay key={i} obj={cond} />
@@ -99,7 +99,7 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
       {/* Actions */}
       {suggestion.actions && suggestion.actions.length > 0 && (
         <div class="mb-3">
-          <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Actions</h4>
+          <h4 class="text-xs font-semibold uppercase tracking-wide mb-1" style="color: var(--text-tertiary)">Actions</h4>
           <div class="space-y-1">
             {suggestion.actions.map((action, i) => (
               <ObjectDisplay key={i} obj={action} />
@@ -111,10 +111,10 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
       {/* YAML preview */}
       {suggestion.yaml && (
         <details class="mb-3">
-          <summary class="text-sm text-blue-600 hover:text-blue-800 cursor-pointer">
+          <summary class="text-sm cursor-pointer" style="color: var(--accent)">
             Show YAML
           </summary>
-          <pre class="mt-2 bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono overflow-x-auto">
+          <pre class="mt-2 p-3 text-xs overflow-x-auto" style="background: var(--bg-inset); color: var(--text-primary); border-radius: var(--radius); font-family: var(--font-mono)">
             {suggestion.yaml}
           </pre>
         </details>
@@ -126,14 +126,16 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
           <button
             onClick={() => onStatusChange(suggestion.id, 'approved')}
             disabled={updating}
-            class="px-4 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-md transition-colors"
+            class="t-btn px-4 py-1.5 text-sm font-medium disabled:opacity-50 transition-colors"
+            style="background: var(--status-healthy); color: #fff; border: none;"
           >
             Approve
           </button>
           <button
             onClick={() => onStatusChange(suggestion.id, 'rejected')}
             disabled={updating}
-            class="px-4 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-md transition-colors"
+            class="t-btn px-4 py-1.5 text-sm font-medium disabled:opacity-50 transition-colors"
+            style="background: var(--status-error); color: #fff; border: none;"
           >
             Reject
           </button>
@@ -222,8 +224,8 @@ export default function Automations() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
-          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Automations</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
         </div>
         <LoadingState type="cards" />
       </div>
@@ -234,8 +236,8 @@ export default function Automations() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
-          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Automations</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
         </div>
         <ErrorState error={error} onRetry={refetch} />
       </div>
@@ -245,21 +247,21 @@ export default function Automations() {
   return (
     <div class="space-y-6">
       <div class="animate-fade-in-up">
-        <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
-        <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Automations</h1>
+        <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
       </div>
 
       {/* Metadata summary */}
       {metadata && (
-        <div class="flex flex-wrap gap-3 text-sm text-gray-500 animate-fade-in-up delay-100">
+        <div class="flex flex-wrap gap-3 text-sm animate-fade-in-up delay-100" style="color: var(--text-tertiary)">
           {metadata.total_suggestions != null && (
-            <span class="bg-gray-100 rounded px-2 py-1">{metadata.total_suggestions} suggestions</span>
+            <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">{metadata.total_suggestions} suggestions</span>
           )}
           {metadata.model && (
-            <span class="bg-gray-100 rounded px-2 py-1">Model: {metadata.model}</span>
+            <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">Model: {metadata.model}</span>
           )}
           {metadata.generated_at && (
-            <span class="bg-gray-100 rounded px-2 py-1">
+            <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">
               Generated: {new Date(metadata.generated_at).toLocaleString()}
             </span>
           )}
@@ -272,8 +274,8 @@ export default function Automations() {
       )}
 
       {displaySuggestions.length === 0 ? (
-        <div class="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 animate-fade-in-up delay-200">
-          No automation suggestions yet. The orchestrator generates suggestions when it finds patterns with high enough confidence and matching capabilities. This requires the pattern recognition and discovery modules to have populated data first.
+        <div class="t-callout animate-fade-in-up delay-200" style="padding: 0.75rem;">
+          <span class="text-sm" style="color: var(--text-secondary)">No automation suggestions yet. The orchestrator generates suggestions when it finds patterns with high enough confidence and matching capabilities. This requires the pattern recognition and discovery modules to have populated data first.</span>
         </div>
       ) : (
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-children">

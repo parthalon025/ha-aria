@@ -31,22 +31,22 @@ function CapabilityCard({ name, capability }) {
   const hasMore = entities.length > 5;
 
   return (
-    <div class="bg-white rounded-md shadow-sm p-4">
+    <div class="t-card" style="padding: 1rem;">
       {/* Header */}
       <div class="flex items-center justify-between mb-3">
-        <h3 class="text-base font-bold text-gray-900">{humanize(name)}</h3>
-        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+        <h3 class="text-base font-bold" style="color: var(--text-primary)">{humanize(name)}</h3>
+        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium" style="background: var(--accent-glow); color: var(--accent)">
           {entityCount} {entityCount === 1 ? 'entity' : 'entities'}
         </span>
       </div>
 
       {/* Detail fields */}
       {details.length > 0 && (
-        <dl class="text-sm text-gray-600 mb-3 space-y-1">
+        <dl class="text-sm mb-3 space-y-1" style="color: var(--text-secondary)">
           {details.map(([key, val]) => (
             <div key={key} class="flex justify-between">
-              <dt class="text-gray-500">{humanize(key)}</dt>
-              <dd class="font-medium text-gray-700">{String(val)}</dd>
+              <dt style="color: var(--text-tertiary)">{humanize(key)}</dt>
+              <dd class="font-medium" style="color: var(--text-secondary)">{String(val)}</dd>
             </div>
           ))}
         </dl>
@@ -55,15 +55,16 @@ function CapabilityCard({ name, capability }) {
       {/* Entity list */}
       {entities.length > 0 && (
         <div>
-          <ul class="text-xs text-gray-500 space-y-0.5">
+          <ul class="text-xs space-y-0.5" style="color: var(--text-tertiary)">
             {visibleEntities.map((eid) => (
-              <li key={eid} class="truncate font-mono">{eid}</li>
+              <li key={eid} class="truncate data-mono">{eid}</li>
             ))}
           </ul>
           {hasMore && (
             <button
               onClick={() => setExpanded(!expanded)}
-              class="text-sm text-blue-600 hover:text-blue-800 cursor-pointer mt-1"
+              class="text-sm cursor-pointer mt-1"
+              style="color: var(--accent)"
             >
               {expanded ? 'Show less' : `Show all ${entities.length}`}
             </button>
@@ -89,8 +90,8 @@ export default function Capabilities() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Capabilities</h1>
-          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Capabilities</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
         </div>
         <LoadingState type="cards" />
       </div>
@@ -101,8 +102,8 @@ export default function Capabilities() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Capabilities</h1>
-          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Capabilities</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
         </div>
         <ErrorState error={error} onRetry={refetch} />
       </div>
@@ -112,13 +113,13 @@ export default function Capabilities() {
   return (
     <div class="space-y-6">
       <div class="animate-fade-in-up">
-        <h1 class="text-2xl font-bold text-gray-900">Capabilities</h1>
-        <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Capabilities</h1>
+        <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
       </div>
 
       {capabilities.length === 0 ? (
-        <div class="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 animate-fade-in-up delay-100">
-          No capabilities detected yet. Capabilities are identified during discovery by matching entity domains and device classes to known patterns (e.g., power monitoring, lighting, occupancy). They appear after the first successful discovery scan.
+        <div class="t-callout animate-fade-in-up delay-100" style="padding: 0.75rem;">
+          <span class="text-sm" style="color: var(--text-secondary)">No capabilities detected yet. Capabilities are identified during discovery by matching entity domains and device classes to known patterns (e.g., power monitoring, lighting, occupancy). They appear after the first successful discovery scan.</span>
         </div>
       ) : (
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-children">

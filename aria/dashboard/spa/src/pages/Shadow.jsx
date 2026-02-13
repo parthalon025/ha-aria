@@ -8,9 +8,9 @@ const STAGES = ['backtest', 'shadow', 'suggest', 'autonomous'];
 const STAGE_LABELS = ['Backtest', 'Shadow', 'Suggest', 'Autonomous'];
 
 const TYPE_COLORS = {
-  next_domain_action: 'bg-blue-100 text-blue-700',
-  room_activation: 'bg-purple-100 text-purple-700',
-  routine_trigger: 'bg-amber-100 text-amber-700',
+  next_domain_action: 'background: var(--accent-glow); color: var(--accent);',
+  room_activation: 'background: rgba(168,85,247,0.15); color: #a855f7;',
+  routine_trigger: 'background: rgba(245,158,11,0.15); color: var(--status-warning);',
 };
 const TYPE_LABELS = {
   next_domain_action: 'Domain',
@@ -18,9 +18,9 @@ const TYPE_LABELS = {
   routine_trigger: 'Routine',
 };
 const OUTCOME_COLORS = {
-  correct: 'bg-green-100 text-green-700',
-  disagreement: 'bg-amber-100 text-amber-700',
-  nothing: 'bg-gray-100 text-gray-500',
+  correct: 'background: rgba(34,197,94,0.15); color: var(--status-healthy);',
+  disagreement: 'background: rgba(245,158,11,0.15); color: var(--status-warning);',
+  nothing: 'background: var(--bg-surface-raised); color: var(--text-tertiary);',
 };
 
 // Gate thresholds — must stay in sync with PIPELINE_GATES in hub/api.py
@@ -42,57 +42,59 @@ function PipelineStage({ pipeline, onAdvance, onRetreat, advanceError }) {
 
   return (
     <section class="space-y-3">
-      <h2 class="text-lg font-bold text-gray-900">Pipeline Stage</h2>
-      <div class="bg-white rounded-md shadow-sm p-4 space-y-4">
-        <div>
-          <div class="flex justify-between text-xs text-gray-500 mb-1">
-            {STAGE_LABELS.map((label, i) => (
-              <span key={label} class={i <= idx ? 'font-bold text-blue-600' : ''}>{label}</span>
-            ))}
+      <h2 class="text-lg font-bold" style="color: var(--text-primary)">Pipeline Stage</h2>
+      <div class="t-card" style="padding: 1rem;">
+        <div class="space-y-4">
+          <div>
+            <div class="flex justify-between text-xs mb-1" style="color: var(--text-tertiary)">
+              {STAGE_LABELS.map((label, i) => (
+                <span key={label} style={i <= idx ? 'font-weight: 700; color: var(--accent)' : ''}>{label}</span>
+              ))}
+            </div>
+            <div class="h-3 rounded-full" style="background: var(--bg-inset)">
+              <div class="h-3 rounded-full transition-all" style={`background: var(--accent); width: ${pct}%`} />
+            </div>
           </div>
-          <div class="h-3 rounded-full bg-gray-200">
-            <div class="h-3 rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
+          {enteredAt && (
+            <p class="text-xs" style="color: var(--text-tertiary)">
+              In {stage} since {new Date(enteredAt).toLocaleDateString()}
+            </p>
+          )}
+          <div class="flex items-center gap-2 mt-3">
+            <button
+              onClick={onRetreat}
+              disabled={idx === 0}
+              class="t-btn t-btn-secondary text-xs px-3 py-1.5"
+            >
+              &larr; Retreat
+            </button>
+            <button
+              onClick={onAdvance}
+              disabled={idx === STAGES.length - 1}
+              class="t-btn t-btn-primary text-xs px-3 py-1.5"
+            >
+              Advance &rarr;
+            </button>
           </div>
+          {gate && (
+            <p class="text-xs" style={gateMet ? 'color: var(--status-healthy)' : 'color: var(--status-error)'}>
+              Advance to {gate.nextStage} requires &gt;{Math.round(gate.threshold * 100)}% {gate.label}
+              {' '}(current: {Math.round(gateValue * 100)}%)
+            </p>
+          )}
+          {advanceError && (
+            <p class="text-xs font-medium" style="color: var(--status-error)">{advanceError}</p>
+          )}
         </div>
-        {enteredAt && (
-          <p class="text-xs text-gray-400">
-            In {stage} since {new Date(enteredAt).toLocaleDateString()}
-          </p>
-        )}
-        <div class="flex items-center gap-2 mt-3">
-          <button
-            onClick={onRetreat}
-            disabled={idx === 0}
-            class="text-xs px-3 py-1.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
-          >
-            &larr; Retreat
-          </button>
-          <button
-            onClick={onAdvance}
-            disabled={idx === STAGES.length - 1}
-            class="text-xs px-3 py-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-30"
-          >
-            Advance &rarr;
-          </button>
-        </div>
-        {gate && (
-          <p class={`text-xs ${gateMet ? 'text-green-600' : 'text-red-500'}`}>
-            Advance to {gate.nextStage} requires &gt;{Math.round(gate.threshold * 100)}% {gate.label}
-            {' '}(current: {Math.round(gateValue * 100)}%)
-          </p>
-        )}
-        {advanceError && (
-          <p class="text-xs text-red-600 font-medium">{advanceError}</p>
-        )}
       </div>
     </section>
   );
 }
 
 function accuracyColor(pct) {
-  if (pct >= 70) return 'text-green-600';
-  if (pct >= 40) return 'text-amber-500';
-  return 'text-red-500';
+  if (pct >= 70) return 'color: var(--status-healthy)';
+  if (pct >= 40) return 'color: var(--status-warning)';
+  return 'color: var(--status-error)';
 }
 
 function AccuracySummary({ accuracy, pipeline }) {
@@ -104,7 +106,7 @@ function AccuracySummary({ accuracy, pipeline }) {
   const stage = pipeline?.current_stage || 'backtest';
 
   const stats = [
-    { label: 'Accuracy', value: `${Math.round(overall)}%`, colorClass: accuracyColor(overall) },
+    { label: 'Accuracy', value: `${Math.round(overall)}%`, colorStyle: accuracyColor(overall) },
     { label: 'Total Predictions', value: total },
     { label: 'Correct', value: correct },
     { label: 'Disagreements', value: disagree },
@@ -113,19 +115,19 @@ function AccuracySummary({ accuracy, pipeline }) {
   return (
     <section class="space-y-3">
       <div class="flex items-center gap-3">
-        <h2 class="text-lg font-bold text-gray-900">Accuracy</h2>
-        <span class="text-xs font-medium bg-blue-100 text-blue-700 rounded-full px-2.5 py-0.5 capitalize">{stage}</span>
+        <h2 class="text-lg font-bold" style="color: var(--text-primary)">Accuracy</h2>
+        <span class="text-xs font-medium rounded-full px-2.5 py-0.5 capitalize" style="background: var(--accent-glow); color: var(--accent)">{stage}</span>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((s, i) => (
-          <div key={i} class="bg-white rounded-md shadow-sm p-4">
-            <div class={`text-2xl font-bold ${s.colorClass || 'text-blue-500'}`}>{s.value}</div>
-            <div class="text-sm text-gray-500 mt-1">{s.label}</div>
+          <div key={i} class="t-card" style="padding: 1rem;">
+            <div class="text-2xl font-bold" style={s.colorStyle || 'color: var(--accent)'}>{s.value}</div>
+            <div class="text-sm mt-1" style="color: var(--text-tertiary)">{s.label}</div>
           </div>
         ))}
       </div>
       {nothing > 0 && (
-        <p class="text-xs text-gray-400 px-1">{nothing} prediction{nothing !== 1 ? 's' : ''} had no matching outcome (expired with no activity).</p>
+        <p class="text-xs px-1" style="color: var(--text-tertiary)">{nothing} prediction{nothing !== 1 ? 's' : ''} had no matching outcome (expired with no activity).</p>
       )}
     </section>
   );
@@ -135,9 +137,9 @@ function DailyTrend({ trend }) {
   if (!trend || trend.length === 0) {
     return (
       <section class="space-y-3">
-        <h2 class="text-lg font-bold text-gray-900">Daily Trend</h2>
-        <div class="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm text-gray-600">
-          Accuracy trends will appear after 24-48 hours of predictions.
+        <h2 class="text-lg font-bold" style="color: var(--text-primary)">Daily Trend</h2>
+        <div class="t-callout" style="padding: 0.75rem;">
+          <span class="text-sm" style="color: var(--text-secondary)">Accuracy trends will appear after 24-48 hours of predictions.</span>
         </div>
       </section>
     );
@@ -147,8 +149,8 @@ function DailyTrend({ trend }) {
 
   return (
     <section class="space-y-3">
-      <h2 class="text-lg font-bold text-gray-900">Daily Trend</h2>
-      <div class="bg-white rounded-md shadow-sm p-4">
+      <h2 class="text-lg font-bold" style="color: var(--text-primary)">Daily Trend</h2>
+      <div class="t-card" style="padding: 1rem;">
         <div class="flex items-end gap-1 h-20">
           {trend.map((d, i) => {
             const acc = d.accuracy ?? 0;
@@ -165,7 +167,7 @@ function DailyTrend({ trend }) {
             );
           })}
         </div>
-        <div class="flex justify-between text-[10px] text-gray-400 mt-1">
+        <div class="flex justify-between text-[10px] mt-1" style="color: var(--text-tertiary)">
           <span>{trend[0]?.date?.slice(5) || ''}</span>
           <span>{trend[trend.length - 1]?.date?.slice(5) || ''}</span>
         </div>
@@ -180,9 +182,9 @@ function PredictionFeed({ predictions }) {
   if (items.length === 0) {
     return (
       <section class="space-y-3">
-        <h2 class="text-lg font-bold text-gray-900">Recent Predictions</h2>
-        <div class="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm text-gray-600">
-          No predictions yet. The shadow engine generates predictions when state changes occur.
+        <h2 class="text-lg font-bold" style="color: var(--text-primary)">Recent Predictions</h2>
+        <div class="t-callout" style="padding: 0.75rem;">
+          <span class="text-sm" style="color: var(--text-secondary)">No predictions yet. The shadow engine generates predictions when state changes occur.</span>
         </div>
       </section>
     );
@@ -190,26 +192,26 @@ function PredictionFeed({ predictions }) {
 
   return (
     <section class="space-y-3">
-      <h2 class="text-lg font-bold text-gray-900">Recent Predictions</h2>
-      <div class="bg-white rounded-md shadow-sm divide-y divide-gray-50">
+      <h2 class="text-lg font-bold" style="color: var(--text-primary)">Recent Predictions</h2>
+      <div class="t-card" style="padding: 0;">
         {items.map((p, i) => {
-          const typeCls = TYPE_COLORS[p.prediction_type] || 'bg-gray-100 text-gray-600';
+          const typeStyle = TYPE_COLORS[p.prediction_type] || 'background: var(--bg-surface-raised); color: var(--text-secondary);';
           const typeLabel = TYPE_LABELS[p.prediction_type] || p.prediction_type;
-          const outcomeCls = p.outcome ? OUTCOME_COLORS[p.outcome] : null;
+          const outcomeStyle = p.outcome ? OUTCOME_COLORS[p.outcome] : null;
           const conf = p.confidence ?? 0;
 
           return (
-            <div key={i} class="flex items-center gap-3 px-4 py-2.5">
-              <span class="text-xs text-gray-400 w-14 flex-shrink-0">{relativeTime(p.timestamp)}</span>
-              <span class={`text-xs font-medium rounded px-1.5 py-0.5 flex-shrink-0 ${typeCls}`}>{typeLabel}</span>
-              <span class="text-sm text-gray-700 flex-1 truncate">{p.predicted_value || '\u2014'}</span>
+            <div key={i} class="flex items-center gap-3 px-4 py-2.5" style={i > 0 ? 'border-top: 1px solid var(--border-subtle)' : ''}>
+              <span class="text-xs w-14 flex-shrink-0" style="color: var(--text-tertiary)">{relativeTime(p.timestamp)}</span>
+              <span class="text-xs font-medium flex-shrink-0 px-1.5 py-0.5" style={`border-radius: var(--radius); ${typeStyle}`}>{typeLabel}</span>
+              <span class="text-sm flex-1 truncate" style="color: var(--text-secondary)">{p.predicted_value || '\u2014'}</span>
               <div class="w-16 flex-shrink-0">
-                <div class="h-1.5 bg-gray-100 rounded-full">
-                  <div class="h-1.5 rounded-full bg-blue-400" style={{ width: `${Math.round(conf * 100)}%` }} />
+                <div class="h-1.5 rounded-full" style="background: var(--bg-inset)">
+                  <div class="h-1.5 rounded-full" style={`background: var(--accent-dim); width: ${Math.round(conf * 100)}%`} />
                 </div>
               </div>
-              {outcomeCls && (
-                <span class={`text-xs font-medium rounded px-1.5 py-0.5 flex-shrink-0 capitalize ${outcomeCls}`}>{p.outcome}</span>
+              {outcomeStyle && (
+                <span class="text-xs font-medium flex-shrink-0 capitalize px-1.5 py-0.5" style={`border-radius: var(--radius); ${outcomeStyle}`}>{p.outcome}</span>
               )}
             </div>
           );
@@ -225,9 +227,9 @@ function DisagreementsPanel({ disagreements }) {
   if (items.length === 0) {
     return (
       <section class="space-y-3">
-        <h2 class="text-lg font-bold text-gray-900">Top Disagreements</h2>
-        <div class="bg-green-50 border border-green-200 rounded-md p-3 text-sm text-green-700">
-          No disagreements recorded yet.
+        <h2 class="text-lg font-bold" style="color: var(--text-primary)">Top Disagreements</h2>
+        <div class="t-callout" style="padding: 0.75rem;">
+          <span class="text-sm" style="color: var(--status-healthy)">No disagreements recorded yet.</span>
         </div>
       </section>
     );
@@ -235,27 +237,27 @@ function DisagreementsPanel({ disagreements }) {
 
   return (
     <section class="space-y-3">
-      <h2 class="text-lg font-bold text-gray-900">Top Disagreements</h2>
-      <p class="text-xs text-gray-400">High-confidence wrong predictions — the most informative for learning.</p>
+      <h2 class="text-lg font-bold" style="color: var(--text-primary)">Top Disagreements</h2>
+      <p class="text-xs" style="color: var(--text-tertiary)">High-confidence wrong predictions — the most informative for learning.</p>
       <div class="space-y-2">
         {items.map((d, i) => {
-          const typeCls = TYPE_COLORS[d.prediction_type] || 'bg-gray-100 text-gray-600';
+          const typeStyle = TYPE_COLORS[d.prediction_type] || 'background: var(--bg-surface-raised); color: var(--text-secondary);';
           const typeLabel = TYPE_LABELS[d.prediction_type] || d.prediction_type;
           const conf = d.confidence ?? 0;
 
           return (
-            <div key={i} class="bg-white rounded-md shadow-sm p-3 border-l-4 border-amber-500 space-y-1">
+            <div key={i} class="t-card p-3 space-y-1" style="border-left: 4px solid var(--status-warning);">
               <div class="flex items-center gap-2">
-                <span class="text-lg font-bold text-amber-500">{Math.round(conf * 100)}%</span>
-                <span class={`text-xs font-medium rounded px-1.5 py-0.5 ${typeCls}`}>{typeLabel}</span>
-                <span class="text-xs text-gray-400 ml-auto">{relativeTime(d.timestamp)}</span>
+                <span class="text-lg font-bold" style="color: var(--status-warning)">{Math.round(conf * 100)}%</span>
+                <span class="text-xs font-medium px-1.5 py-0.5" style={`border-radius: var(--radius); ${typeStyle}`}>{typeLabel}</span>
+                <span class="text-xs ml-auto" style="color: var(--text-tertiary)">{relativeTime(d.timestamp)}</span>
               </div>
-              <div class="text-sm text-gray-700">
-                <span class="text-gray-500">Predicted:</span> {d.predicted_value || '\u2014'}
+              <div class="text-sm" style="color: var(--text-secondary)">
+                <span style="color: var(--text-tertiary)">Predicted:</span> {d.predicted_value || '\u2014'}
               </div>
               {d.actual_value && (
-                <div class="text-sm text-gray-700">
-                  <span class="text-gray-500">Actual:</span> {d.actual_value}
+                <div class="text-sm" style="color: var(--text-secondary)">
+                  <span style="color: var(--text-tertiary)">Actual:</span> {d.actual_value}
                 </div>
               )}
             </div>
@@ -347,8 +349,8 @@ export default function Shadow() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Shadow Mode</h1>
-          <p class="text-sm text-gray-500">Prediction accuracy, pipeline progress, and learning insights.</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Shadow Mode</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">Prediction accuracy, pipeline progress, and learning insights.</p>
         </div>
         <LoadingState type="full" />
       </div>
@@ -359,8 +361,8 @@ export default function Shadow() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Shadow Mode</h1>
-          <p class="text-sm text-gray-500">Prediction accuracy, pipeline progress, and learning insights.</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Shadow Mode</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">Prediction accuracy, pipeline progress, and learning insights.</p>
         </div>
         <ErrorState error={error} onRetry={fetchAll} />
       </div>
@@ -370,8 +372,8 @@ export default function Shadow() {
   return (
     <div class="space-y-8">
       <div class="animate-fade-in-up">
-        <h1 class="text-2xl font-bold text-gray-900">Shadow Mode</h1>
-        <p class="text-sm text-gray-500">Prediction accuracy, pipeline progress, and learning insights.</p>
+        <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Shadow Mode</h1>
+        <p class="text-sm" style="color: var(--text-tertiary)">Prediction accuracy, pipeline progress, and learning insights.</p>
       </div>
 
       <div class="animate-fade-in-up delay-100">

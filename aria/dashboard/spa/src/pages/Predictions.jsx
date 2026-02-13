@@ -5,11 +5,11 @@ import StatusBadge from '../components/StatusBadge.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 
-/** Return badge color classes based on confidence threshold. */
+/** Return inline style string based on confidence threshold. */
 function confidenceColor(confidence) {
-  if (confidence >= 0.7) return 'bg-green-100 text-green-700';
-  if (confidence >= 0.4) return 'bg-amber-100 text-amber-700';
-  return 'bg-red-100 text-red-700';
+  if (confidence >= 0.7) return 'background: rgba(34,197,94,0.15); color: var(--status-healthy);';
+  if (confidence >= 0.4) return 'background: rgba(245,158,11,0.15); color: var(--status-warning);';
+  return 'background: rgba(239,68,68,0.15); color: var(--status-error);';
 }
 
 function PredictionCard({ prediction }) {
@@ -19,23 +19,23 @@ function PredictionCard({ prediction }) {
   const pct = Math.round(confidence * 100);
 
   return (
-    <div class="bg-white rounded-md shadow-sm p-4">
+    <div class="t-card" style="padding: 1rem;">
       {/* Header */}
       <div class="flex items-center justify-between mb-3">
-        <h3 class="text-sm font-bold text-gray-900 truncate mr-2 font-mono">
+        <h3 class="text-sm font-bold truncate mr-2 data-mono" style="color: var(--text-primary)">
           {prediction.entity_id}
         </h3>
-        <span class={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${confidenceColor(confidence)}`}>
+        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap" style={confidenceColor(confidence)}>
           {pct}%
         </span>
       </div>
 
       {/* Predicted value */}
       <div class="flex items-center gap-2 mb-3">
-        <span class="text-xs text-gray-500">Predicted:</span>
+        <span class="text-xs" style="color: var(--text-tertiary)">Predicted:</span>
         <StatusBadge state={String(prediction.predicted_value ?? '')} />
         {prediction.current_value != null && (
-          <span class="text-xs text-gray-400 ml-2">
+          <span class="text-xs ml-2" style="color: var(--text-tertiary)">
             current: {prediction.current_value}
           </span>
         )}
@@ -43,25 +43,25 @@ function PredictionCard({ prediction }) {
 
       {/* Confidence bar */}
       <div class="mb-3">
-        <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+        <div class="flex items-center justify-between text-xs mb-1" style="color: var(--text-tertiary)">
           <span>Confidence</span>
           <span>{pct}%</span>
         </div>
-        <div class="h-2 rounded-full bg-gray-200">
+        <div class="h-2 rounded-full" style="background: var(--bg-inset)">
           <div
-            class="h-2 rounded-full bg-blue-500 transition-all"
-            style={{ width: `${pct}%` }}
+            class="h-2 rounded-full transition-all"
+            style={`background: var(--accent); width: ${pct}%`}
           />
         </div>
       </div>
 
       {/* Model info */}
-      <div class="text-xs text-gray-400 space-y-0.5">
+      <div class="text-xs space-y-0.5" style="color: var(--text-tertiary)">
         {prediction.model && (
-          <div>Model: <span class="text-gray-600">{prediction.model}</span></div>
+          <div>Model: <span style="color: var(--text-secondary)">{prediction.model}</span></div>
         )}
         {prediction.prediction_time && (
-          <div>Time: <span class="text-gray-600">{new Date(prediction.prediction_time).toLocaleString()}</span></div>
+          <div>Time: <span style="color: var(--text-secondary)">{new Date(prediction.prediction_time).toLocaleString()}</span></div>
         )}
       </div>
 
@@ -70,12 +70,13 @@ function PredictionCard({ prediction }) {
         <div class="mt-3">
           <button
             onClick={() => setExpanded(!expanded)}
-            class="text-sm text-blue-600 hover:text-blue-800 cursor-pointer"
+            class="text-sm cursor-pointer"
+            style="color: var(--accent)"
           >
             {expanded ? 'Hide details' : 'Show details'}
           </button>
           {expanded && (
-            <pre class="mt-2 bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono overflow-x-auto">
+            <pre class="mt-2 p-3 text-xs overflow-x-auto" style="background: var(--bg-inset); color: var(--text-primary); border-radius: var(--radius); font-family: var(--font-mono)">
               {JSON.stringify(prediction.features, null, 2)}
             </pre>
           )}
@@ -103,8 +104,8 @@ export default function Predictions() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Predictions</h1>
-          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Predictions</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
         </div>
         <LoadingState type="cards" />
       </div>
@@ -115,8 +116,8 @@ export default function Predictions() {
     return (
       <div class="space-y-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Predictions</h1>
-          <p class="text-sm text-gray-500">{pageSubtitle}</p>
+          <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Predictions</h1>
+          <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
         </div>
         <ErrorState error={error} onRetry={refetch} />
       </div>
@@ -126,21 +127,21 @@ export default function Predictions() {
   return (
     <div class="space-y-6">
       <div class="animate-fade-in-up">
-        <h1 class="text-2xl font-bold text-gray-900">Predictions</h1>
-        <p class="text-sm text-gray-500">{pageSubtitle}</p>
+        <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Predictions</h1>
+        <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
       </div>
 
       {/* Metadata summary */}
       {metadata && (
-        <div class="flex flex-wrap gap-3 text-sm text-gray-500 animate-fade-in-up delay-100">
+        <div class="flex flex-wrap gap-3 text-sm animate-fade-in-up delay-100" style="color: var(--text-tertiary)">
           {metadata.model_version && (
-            <span class="bg-gray-100 rounded px-2 py-1">v{metadata.model_version}</span>
+            <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">v{metadata.model_version}</span>
           )}
           {metadata.features_used != null && (
-            <span class="bg-gray-100 rounded px-2 py-1">{metadata.features_used} features</span>
+            <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">{metadata.features_used} features</span>
           )}
           {metadata.generated_at && (
-            <span class="bg-gray-100 rounded px-2 py-1">
+            <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">
               Generated: {new Date(metadata.generated_at).toLocaleString()}
             </span>
           )}
@@ -148,8 +149,8 @@ export default function Predictions() {
       )}
 
       {predictions.length === 0 ? (
-        <div class="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 animate-fade-in-up delay-200">
-          No entity-level predictions yet. The ML engine trains models after 14+ days of data, then predicts individual entity states. Until then, aggregate predictions are available on the Intelligence page.
+        <div class="t-callout animate-fade-in-up delay-200" style="padding: 0.75rem;">
+          <span class="text-sm" style="color: var(--text-secondary)">No entity-level predictions yet. The ML engine trains models after 14+ days of data, then predicts individual entity states. Until then, aggregate predictions are available on the Intelligence page.</span>
         </div>
       ) : (
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
