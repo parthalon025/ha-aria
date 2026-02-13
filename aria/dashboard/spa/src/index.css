@@ -183,6 +183,53 @@ body {
   color: var(--text-secondary);
 }
 
+/* ── New ambient animations ── */
+
+@keyframes scan-sweep {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+@keyframes grid-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes border-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes data-stream {
+  0% { transform: translateY(8px); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateY(-8px); opacity: 0; }
+}
+
+@keyframes data-refresh-flash {
+  0% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  50% { box-shadow: 0 0 0 3px var(--accent-glow); }
+  100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+}
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes btn-press {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+
+@keyframes filter-underline {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
 /* ── Pipeline dashboard animations ── */
 @keyframes dash-flow {
   to { stroke-dashoffset: -20; }
@@ -269,6 +316,39 @@ body {
 .stagger-children > *:nth-child(9) { animation-delay: 0.45s; }
 .stagger-children > *:nth-child(10) { animation-delay: 0.5s; }
 
+.animate-scan-sweep { animation: scan-sweep 4s ease-in-out infinite; }
+.animate-grid-pulse { animation: grid-pulse 8s ease-in-out infinite; }
+.animate-border-shimmer {
+  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+  background-size: 200% 100%;
+  animation: border-shimmer 3s ease-in-out infinite;
+}
+.animate-data-stream { animation: data-stream 1.5s ease-in-out infinite; }
+.animate-data-refresh { animation: data-refresh-flash 0.3s ease-out; }
+.animate-page-enter { animation: page-enter 0.25s ease-out both; }
+
+/* ── Responsive motion rules ── */
+@media (max-width: 767px) {
+  .animate-scan-sweep,
+  .animate-grid-pulse,
+  .animate-border-shimmer,
+  .animate-data-stream,
+  .animate-scan-line,
+  .animate-pulse-cyan {
+    animation: none;
+  }
+  .t-section-header::after {
+    animation: none;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) and (orientation: portrait) {
+  .animate-grid-pulse,
+  .animate-border-shimmer {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-dash-flow,
   .animate-fade-in-up,
@@ -278,11 +358,20 @@ body {
   .animate-pulse-cyan,
   .animate-scan-line,
   .animate-blink,
-  .animate-grow-width {
+  .animate-grow-width,
+  .animate-scan-sweep,
+  .animate-grid-pulse,
+  .animate-border-shimmer,
+  .animate-data-stream,
+  .animate-data-refresh,
+  .animate-page-enter {
     animation: none;
   }
   .stagger-children > * {
     opacity: 1;
+    animation: none;
+  }
+  .t-section-header::after {
     animation: none;
   }
 }
