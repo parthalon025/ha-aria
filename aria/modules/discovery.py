@@ -36,7 +36,7 @@ class DiscoveryModule(Module):
         super().__init__("discovery", hub)
         self.ha_url = ha_url
         self.ha_token = ha_token
-        self.discover_script = Path(__file__).parent.parent / "bin" / "discover.py"
+        self.discover_script = Path(__file__).parent.parent.parent / "bin" / "discover.py"
 
         if not self.discover_script.exists():
             raise FileNotFoundError(f"Discovery script not found: {self.discover_script}")

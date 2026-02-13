@@ -6,6 +6,12 @@ import unittest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
 
+try:
+    import prophet  # noqa: F401
+    HAS_PROPHET = True
+except ImportError:
+    HAS_PROPHET = False
+
 
 def _make_daily_snapshots(n_days=30, base_power=200, weekly_pattern=True):
     """Generate synthetic daily snapshots for testing."""
@@ -58,6 +64,7 @@ class TestProphetMetricExtraction(unittest.TestCase):
         self.assertIsNone(result)
 
 
+@unittest.skipUnless(HAS_PROPHET, "prophet not installed")
 class TestProphetForecaster(unittest.TestCase):
     """Test Prophet training and prediction with real Prophet."""
 
@@ -116,6 +123,7 @@ class TestProphetForecaster(unittest.TestCase):
         self.assertIsNone(result)
 
 
+@unittest.skipUnless(HAS_PROPHET, "prophet not installed")
 class TestProphetConvenienceFunctions(unittest.TestCase):
     """Test the module-level convenience functions."""
 

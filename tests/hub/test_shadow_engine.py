@@ -51,7 +51,13 @@ class MockHub:
         self.cache.get_accuracy_stats = AsyncMock(return_value={})
 
         # Phase 2: Config store + curation mocks (return fallbacks by default)
-        self.cache.get_config_value = AsyncMock(return_value=None)
+        # IMPORTANT: use side_effect to respect the fallback parameter,
+        # otherwise get_config_value returns None which causes
+        # _resolution_loop to call asyncio.sleep(None) → TypeError →
+        # infinite non-yielding loop that blocks the event loop and leaks memory.
+        async def _config_fallback(key, fallback=None):
+            return fallback
+        self.cache.get_config_value = AsyncMock(side_effect=_config_fallback)
         self.cache.get_included_entity_ids = AsyncMock(return_value=set())
 
         self.logger = Mock()

@@ -163,7 +163,7 @@ class ShadowEngine(Module):
         # Check cooldown before generating predictions (config with constant fallback)
         cooldown = await self.hub.cache.get_config_value(
             "shadow.prediction_cooldown_s", PREDICTION_COOLDOWN_S
-        )
+        ) or PREDICTION_COOLDOWN_S
         if self._last_prediction_time:
             elapsed = (now - self._last_prediction_time).total_seconds()
             if elapsed < cooldown:
@@ -434,7 +434,7 @@ class ShadowEngine(Module):
         # Phase 2: read min confidence from config store (constant as fallback)
         min_conf = await self.hub.cache.get_config_value(
             "shadow.min_confidence", MIN_CONFIDENCE
-        )
+        ) or MIN_CONFIDENCE
 
         # 1. Next domain action prediction
         domain_pred = await self._predict_next_domain(context)
@@ -470,7 +470,7 @@ class ShadowEngine(Module):
         # Phase 2: read window from config store (constant as fallback)
         window_s = await self.hub.cache.get_config_value(
             "shadow.default_window_seconds", DEFAULT_WINDOW_SECONDS
-        )
+        ) or DEFAULT_WINDOW_SECONDS
 
         # Try activity_summary event_predictions (frequency-based)
         summary = await self.hub.get_cache(CACHE_ACTIVITY_SUMMARY)
@@ -708,7 +708,7 @@ class ShadowEngine(Module):
                 # Phase 2: read interval from config store (constant as fallback)
                 interval = await self.hub.cache.get_config_value(
                     "shadow.resolution_interval_s", RESOLUTION_INTERVAL_S
-                )
+                ) or RESOLUTION_INTERVAL_S
                 await asyncio.sleep(interval)
                 await self._resolve_expired_predictions()
             except asyncio.CancelledError:

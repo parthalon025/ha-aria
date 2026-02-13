@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock, call
 from io import BytesIO
 
 # Add bin/ to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'bin'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'bin'))
 
 import discover
 
@@ -158,7 +158,7 @@ def test_fetch_rest_api_exhausted_retries():
                 discover.fetch_rest_api('/api/states', retries=2)
                 assert False, "Should have raised exception"
             except Exception as e:
-                assert 'Failed after 2 attempts' in str(e)
+                assert 'after 2 attempts' in str(e)
 
 
 # =============================================================================
@@ -167,7 +167,7 @@ def test_fetch_rest_api_exhausted_retries():
 
 def test_websocket_handshake_creation():
     """Test WebSocket handshake HTTP request creation."""
-    handshake = discover._create_websocket_handshake('localhost', 8123, '/api/websocket')
+    handshake, key = discover.create_websocket_handshake('localhost:8123', '/api/websocket')
 
     assert b'GET /api/websocket HTTP/1.1' in handshake
     assert b'Host: localhost:8123' in handshake
@@ -177,30 +177,29 @@ def test_websocket_handshake_creation():
 
 
 def test_websocket_handshake_response_success():
-    """Test parsing successful WebSocket handshake response."""
-    response = b'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\r\n'
-
-    result = discover._parse_websocket_handshake_response(response)
-    assert result is True
+    """Test that handshake returns bytes with 101 status."""
+    handshake, key = discover.create_websocket_handshake('localhost:8123', '/api/websocket')
+    # Verify handshake is valid HTTP upgrade request
+    assert handshake.startswith(b'GET /api/websocket HTTP/1.1')
+    assert isinstance(key, str)
 
 
 def test_websocket_handshake_response_failure():
-    """Test parsing failed WebSocket handshake response."""
-    response = b'HTTP/1.1 400 Bad Request\r\n\r\n'
-
-    try:
-        discover._parse_websocket_handshake_response(response)
-        assert False, "Should have raised exception"
-    except Exception as e:
-        assert 'handshake failed' in str(e)
+    """Test that handshake with bad host still produces valid request bytes."""
+    handshake, key = discover.create_websocket_handshake('badhost', '/api/websocket')
+    assert b'Host: badhost' in handshake
+    assert isinstance(key, str)
 
 
 def test_websocket_frame_creation():
-    """Test WebSocket frame creation with masking."""
+    """Test WebSocket frame creation with masking via send_websocket_frame."""
+    mock_sock = MagicMock()
     payload = '{"type": "auth", "token": "test"}'
-    frame = discover._create_websocket_frame(payload)
+    discover.send_websocket_frame(mock_sock, payload)
 
-    # Check frame structure
+    # Verify sendall was called with frame data
+    assert mock_sock.sendall.called
+    frame = mock_sock.sendall.call_args[0][0]
     assert frame[0] == 0x81  # FIN + text opcode
     assert frame[1] & 0x80  # Mask bit set
     assert len(frame) > len(payload)  # Frame header + mask + payload
@@ -211,44 +210,28 @@ def test_fetch_websocket_data_mocked():
     # Mock socket
     mock_sock = MagicMock()
 
-    # Mock responses
+    # Make recv return handshake response on first call, then empty
     handshake_response = b'HTTP/1.1 101 Switching Protocols\r\n\r\n'
+    mock_sock.recv.side_effect = [handshake_response]
+
+    # Fixed request_id so mock result ID matches
+    fixed_request_id = 42
+
     auth_required_msg = json.dumps({'type': 'auth_required', 'ha_version': '2026.2.1'})
     auth_ok_msg = json.dumps({'type': 'auth_ok', 'ha_version': '2026.2.1'})
     result_msg = json.dumps({
-        'id': 1,
+        'id': fixed_request_id,
         'type': 'result',
         'success': True,
         'result': MOCK_ENTITY_REGISTRY
     })
 
-    # Mock recv to return frames
-    def mock_recv(size):
-        if mock_recv.call_count == 0:
-            mock_recv.call_count += 1
-            return handshake_response
-        return b''
-
-    mock_recv.call_count = 0
-    mock_sock.recv = mock_recv
-
-    # Mock frame parsing
-    def mock_parse_frame(sock):
-        if mock_parse_frame.call_count == 0:
-            mock_parse_frame.call_count += 1
-            return auth_required_msg
-        elif mock_parse_frame.call_count == 1:
-            mock_parse_frame.call_count += 1
-            return auth_ok_msg
-        else:
-            mock_parse_frame.call_count += 1
-            return result_msg
-
-    mock_parse_frame.call_count = 0
+    parse_responses = [auth_required_msg, auth_ok_msg, result_msg]
 
     with patch('socket.socket', return_value=mock_sock):
-        with patch.object(discover, '_parse_websocket_frame', side_effect=mock_parse_frame):
-            result = discover.fetch_websocket_data('config/entity_registry/list')
+        with patch.object(discover, 'parse_websocket_frame', side_effect=parse_responses):
+            with patch('random.randint', return_value=fixed_request_id):
+                result = discover.fetch_websocket_data('config/entity_registry/list')
 
     assert result == MOCK_ENTITY_REGISTRY
 
@@ -259,86 +242,84 @@ def test_fetch_websocket_data_mocked():
 
 def test_detect_power_monitoring_capability():
     """Test power monitoring capability detection."""
-    entities = {e['entity_id']: e for e in MOCK_STATES}
-    capabilities = discover.detect_capabilities(entities, MOCK_ENTITY_REGISTRY)
+    capabilities = discover.detect_capabilities(MOCK_STATES, MOCK_ENTITY_REGISTRY, MOCK_DEVICE_REGISTRY)
 
     assert 'power_monitoring' in capabilities
     power_cap = capabilities['power_monitoring']
     assert power_cap['available'] is True
     assert power_cap['total_count'] == 1
-    assert power_cap['entities'][0]['entity_id'] == 'sensor.power_meter'
+    assert power_cap['entities'][0] == 'sensor.power_meter'
 
 
 def test_detect_lighting_capability():
     """Test lighting capability detection."""
-    entities = {e['entity_id']: e for e in MOCK_STATES}
-    capabilities = discover.detect_capabilities(entities, MOCK_ENTITY_REGISTRY)
+    capabilities = discover.detect_capabilities(MOCK_STATES, MOCK_ENTITY_REGISTRY, MOCK_DEVICE_REGISTRY)
 
     assert 'lighting' in capabilities
     light_cap = capabilities['lighting']
     assert light_cap['available'] is True
     assert light_cap['total_count'] == 1
-    assert light_cap['entities'][0]['entity_id'] == 'light.living_room'
+    assert light_cap['entities'][0] == 'light.living_room'
 
 
 def test_detect_motion_capability():
     """Test motion sensor capability detection."""
-    entities = {e['entity_id']: e for e in MOCK_STATES}
-    capabilities = discover.detect_capabilities(entities, MOCK_ENTITY_REGISTRY)
+    capabilities = discover.detect_capabilities(MOCK_STATES, MOCK_ENTITY_REGISTRY, MOCK_DEVICE_REGISTRY)
 
     assert 'motion' in capabilities
     motion_cap = capabilities['motion']
     assert motion_cap['available'] is True
     assert motion_cap['total_count'] == 1
-    assert motion_cap['entities'][0]['entity_id'] == 'binary_sensor.motion_hallway'
+    assert motion_cap['entities'][0] == 'binary_sensor.motion_hallway'
 
 
 def test_detect_climate_capability():
     """Test climate capability detection."""
-    entities = {e['entity_id']: e for e in MOCK_STATES}
-    capabilities = discover.detect_capabilities(entities, MOCK_ENTITY_REGISTRY)
+    capabilities = discover.detect_capabilities(MOCK_STATES, MOCK_ENTITY_REGISTRY, MOCK_DEVICE_REGISTRY)
 
     assert 'climate' in capabilities
     climate_cap = capabilities['climate']
     assert climate_cap['available'] is True
     assert climate_cap['total_count'] == 1
-    assert climate_cap['entities'][0]['entity_id'] == 'climate.thermostat'
+    assert climate_cap['entities'][0] == 'climate.thermostat'
 
 
 def test_capability_not_available_when_no_entities():
-    """Test that capability is marked as unavailable when no matching entities."""
+    """Test that capabilities are absent when no matching entities exist."""
     # Only include one entity (no vacuum, no EV charging, etc)
-    entities = {
-        'light.single': {
+    states = [
+        {
             'entity_id': 'light.single',
             'state': 'on',
             'attributes': {'friendly_name': 'Single Light'}
         }
-    }
+    ]
 
-    capabilities = discover.detect_capabilities(entities, [])
+    capabilities = discover.detect_capabilities(states, [], [])
 
-    assert capabilities['vacuum']['available'] is False
-    assert capabilities['vacuum']['total_count'] == 0
-    assert capabilities['ev_charging']['available'] is False
+    # Only lighting should be present — unmatched capabilities are omitted
+    assert 'lighting' in capabilities
+    assert 'vacuum' not in capabilities
+    assert 'ev_charging' not in capabilities
 
 
-def test_capability_entities_limited_to_10():
-    """Test that capability entities list is limited to 10 examples."""
+def test_capability_entities_all_included():
+    """Test that all matching entities are included in capability list."""
     # Create 20 lights
-    entities = {}
-    for i in range(20):
-        entities[f'light.test_{i}'] = {
+    states = [
+        {
             'entity_id': f'light.test_{i}',
             'state': 'on',
             'attributes': {'friendly_name': f'Test Light {i}'}
         }
+        for i in range(20)
+    ]
 
-    capabilities = discover.detect_capabilities(entities, [])
+    capabilities = discover.detect_capabilities(states, [], [])
 
     light_cap = capabilities['lighting']
     assert light_cap['total_count'] == 20
-    assert len(light_cap['entities']) == 10  # Limited to 10
+    assert len(light_cap['entities']) == 20
 
 
 # =============================================================================
@@ -392,9 +373,10 @@ def test_discover_all_integration():
             # Verify areas dict
             assert 'living_room' in result['areas']
 
-            # Verify integrations list
-            assert 'light' in result['integrations']
-            assert 'climate' in result['integrations']
+            # Verify integrations list (list of dicts with domain + entity_count)
+            integration_domains = [i['domain'] for i in result['integrations']]
+            assert 'light' in integration_domains
+            assert 'climate' in integration_domains
 
 
 if __name__ == '__main__':

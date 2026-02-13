@@ -12,7 +12,7 @@ Adaptive intelligence platform for Home Assistant — real-time activity monitor
 
 ## Running
 
-**Service:** `ha-intelligence-hub.service` (user systemd, enabled, Restart=always)
+**Service:** `ha-intelligence-hub.service` (user systemd, currently disabled)
 **API:** `http://127.0.0.1:8001` (localhost only)
 **Dashboard:** `http://127.0.0.1:8001/ui/`
 **WebSocket:** `ws://127.0.0.1:8001/ws` (real-time cache updates to dashboard)
