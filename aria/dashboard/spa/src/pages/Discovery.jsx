@@ -287,7 +287,7 @@ export default function Discovery() {
 
   return (
     <div class="space-y-6">
-      <div>
+      <div class="animate-fade-in-up">
         <h1 class="text-2xl font-bold text-gray-900">Discovery</h1>
         <p class="text-sm text-gray-500">{pageSubtitle}</p>
       </div>
@@ -296,12 +296,12 @@ export default function Discovery() {
       {stats ? <StatsGrid items={stats} /> : <LoadingState type="stats" />}
 
       {/* Domain Breakdown */}
-      <section>
+      <section class="animate-fade-in-up delay-100">
         <div class="mb-4">
           <h2 class="text-lg font-semibold text-gray-900">Domain Breakdown</h2>
           <p class="text-sm text-gray-500">How your entities are distributed across HA domains. Larger bars = more entities in that domain.</p>
         </div>
-        <div class="bg-white rounded-lg shadow-sm p-4">
+        <div class="bg-white rounded-md shadow-sm p-4">
           <DomainChart data={domainBreakdown} total={entityArray.length} />
         </div>
       </section>
@@ -315,7 +315,7 @@ export default function Discovery() {
           </div>
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {areaCounts.map((a) => (
-              <div key={a.area_id} class="bg-white rounded-lg shadow-sm p-4">
+              <div key={a.area_id} class="bg-white rounded-md shadow-sm p-4">
                 <div class="font-semibold text-gray-900 text-sm truncate" title={a.name}>{a.name}</div>
                 <div class="text-sm text-gray-400 mt-1">{a.count} entities</div>
               </div>

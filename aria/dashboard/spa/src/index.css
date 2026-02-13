@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Pipeline dashboard animations */
+/* ── Pipeline dashboard animations ── */
 @keyframes dash-flow {
   to { stroke-dashoffset: -20; }
 }
@@ -8,9 +8,32 @@
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
 @keyframes pulse-amber {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+@keyframes pulse-cyan {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(34, 211, 238, 0); }
+}
+@keyframes scan-line {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(100%); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes grow-width {
+  from { width: 0; }
 }
 
 .animate-dash-flow {
@@ -19,18 +42,64 @@
 .animate-fade-in-up {
   animation: fade-in-up 0.4s ease-out both;
 }
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out both;
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.3s ease-out both;
+}
 .animate-pulse-amber {
   animation: pulse-amber 2s ease-in-out infinite;
+}
+.animate-pulse-cyan {
+  animation: pulse-cyan 2s ease-in-out infinite;
+}
+.animate-scan-line {
+  animation: scan-line 3s linear infinite;
+}
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+.animate-grow-width {
+  animation: grow-width 0.8s ease-out both;
 }
 
 .delay-100 { animation-delay: 0.1s; }
 .delay-200 { animation-delay: 0.2s; }
 .delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
+.delay-600 { animation-delay: 0.6s; }
+.delay-700 { animation-delay: 0.7s; }
+.delay-800 { animation-delay: 0.8s; }
+
+/* Stagger children — apply to parent, children get sequential delays */
+.stagger-children > * { opacity: 0; animation: fade-in-up 0.4s ease-out forwards; }
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.4s; }
+.stagger-children > *:nth-child(9) { animation-delay: 0.45s; }
+.stagger-children > *:nth-child(10) { animation-delay: 0.5s; }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-dash-flow,
   .animate-fade-in-up,
-  .animate-pulse-amber {
+  .animate-fade-in,
+  .animate-slide-in-left,
+  .animate-pulse-amber,
+  .animate-pulse-cyan,
+  .animate-scan-line,
+  .animate-blink,
+  .animate-grow-width {
+    animation: none;
+  }
+  .stagger-children > * {
+    opacity: 1;
     animation: none;
   }
 }

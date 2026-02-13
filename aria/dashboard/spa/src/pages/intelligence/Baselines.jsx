@@ -21,7 +21,7 @@ export function Baselines({ baselines }) {
       title="Baselines"
       subtitle="This is 'normal' for each day of the week. The system flags deviations from these averages. More samples = tighter predictions."
     >
-      <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
+      <div class="bg-white rounded-md shadow-sm overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-gray-200 text-left text-xs text-gray-500 uppercase">

@@ -70,7 +70,7 @@ export default function DataTable({
   const hasLast = page < totalPages - 1;
 
   return (
-    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+    <div class="bg-white rounded-md shadow-sm overflow-hidden">
       {/* Toolbar: search + filters */}
       <div class="px-4 py-3 border-b border-gray-100">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3">

@@ -48,7 +48,7 @@ export function Callout({ children, color }) {
     gray: 'bg-gray-50 border-gray-200 text-gray-600',
   };
   return (
-    <div class={`border rounded-lg p-3 text-sm ${colors[color || 'blue']}`}>
+    <div class={`border rounded-md p-3 text-sm ${colors[color || 'blue']}`}>
       {children}
     </div>
   );
@@ -70,13 +70,13 @@ export const DOMAIN_LABELS = {
 };
 
 export const EVENT_ICONS = {
-  arrive: '\u{1F3E0}', depart: '\u{1F44B}', person: '\u{1F464}',
-  unlock: '\u{1F513}', lock: '\u{1F512}',
-  motion: '\u{1F6B6}', clear: '\u00B7',
-  door: '\u{1F6AA}', window: '\u{1FA9F}',
-  light_on: '\u{1F4A1}', light_off: '\u00B7',
-  switch: '\u26A1', sensor: '\u{1F4E1}',
-  media: '\u{1F3B5}', climate: '\u{1F321}\uFE0F', cover: '\u{1FA9F}',
+  arrive: '\u25B6', depart: '\u25C0', person: '\u25CF',
+  unlock: '\u25CB', lock: '\u25CF',
+  motion: '\u25B8', clear: '\u00B7',
+  door: '\u25A0', window: '\u25A1',
+  light_on: '\u25CF', light_off: '\u00B7',
+  switch: '\u25C6', sensor: '\u25B8',
+  media: '\u25B6', climate: '\u223F', cover: '\u25A1',
   default: '\u00B7',
 };
 

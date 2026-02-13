@@ -151,7 +151,7 @@ export function ActivitySection({ activity }) {
         {/* Status bar */}
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Occupancy */}
-          <div class={`bg-white rounded-lg shadow-sm p-4 ${occ.anyone_home ? 'border-l-4 border-green-400' : 'border-l-4 border-gray-200'}`}>
+          <div class={`bg-white rounded-md shadow-sm p-4 ${occ.anyone_home ? 'border-l-4 border-green-400' : 'border-l-4 border-gray-200'}`}>
             <div class={`text-2xl font-bold ${occ.anyone_home ? 'text-green-600' : 'text-gray-400'}`}>
               {occ.anyone_home ? 'Home' : 'Away'}
             </div>
@@ -173,7 +173,7 @@ export function ActivitySection({ activity }) {
           </div>
 
           {/* Current window */}
-          <div class="bg-white rounded-lg shadow-sm p-4">
+          <div class="bg-white rounded-md shadow-sm p-4">
             <div class="text-2xl font-bold text-blue-500">
               {rate.current != null ? rate.current : '\u2014'}
             </div>
@@ -189,7 +189,7 @@ export function ActivitySection({ activity }) {
           </div>
 
           {/* Today total */}
-          <div class="bg-white rounded-lg shadow-sm p-4">
+          <div class="bg-white rounded-md shadow-sm p-4">
             <div class="text-2xl font-bold text-blue-500">
               {eventsToday != null ? eventsToday : '\u2014'}
             </div>
@@ -197,7 +197,7 @@ export function ActivitySection({ activity }) {
           </div>
 
           {/* Snapshots */}
-          <div class="bg-white rounded-lg shadow-sm p-4">
+          <div class="bg-white rounded-md shadow-sm p-4">
             <div class="text-2xl font-bold text-blue-500">
               {snap.today_count != null ? `${snap.today_count}/${snap.daily_cap}` : '\u2014'}
             </div>
@@ -215,7 +215,7 @@ export function ActivitySection({ activity }) {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 
           {/* Recent Activity -- 2/3 width */}
-          <div class="md:col-span-2 bg-white rounded-lg shadow-sm p-4">
+          <div class="md:col-span-2 bg-white rounded-md shadow-sm p-4">
             <div class="text-xs font-bold text-gray-500 uppercase mb-2">What Just Happened</div>
             {recentEvents.length === 0 ? (
               <p class="text-sm text-gray-400">Waiting for state changes...</p>
@@ -242,7 +242,7 @@ export function ActivitySection({ activity }) {
           </div>
 
           {/* Domain breakdown -- 1/3 width */}
-          <div class="bg-white rounded-lg shadow-sm p-4">
+          <div class="bg-white rounded-md shadow-sm p-4">
             <div class="text-xs font-bold text-gray-500 uppercase mb-2">Active Domains (1h)</div>
             {Object.keys(domains).length === 0 ? (
               <p class="text-sm text-gray-400">No activity yet.</p>
@@ -273,7 +273,7 @@ export function ActivitySection({ activity }) {
 
         {/* Detected Patterns */}
         {patterns.length > 0 && (
-          <div class="bg-white rounded-lg shadow-sm p-4">
+          <div class="bg-white rounded-md shadow-sm p-4">
             <div class="text-xs font-bold text-gray-500 uppercase mb-2">Detected Patterns (24h)</div>
             <p class="text-xs text-gray-400 mb-2">Recurring event sequences that suggest routines or automations.</p>
             <div class="space-y-1.5">
@@ -297,7 +297,7 @@ export function ActivitySection({ activity }) {
         )}
 
         {/* Timeline */}
-        <div class="bg-white rounded-lg shadow-sm p-4">
+        <div class="bg-white rounded-md shadow-sm p-4">
           <ActivityTimeline windows={windows} />
           {windows.length === 0 && (
             <p class="text-sm text-gray-400">Timeline will appear after the first 15-minute window.</p>
@@ -306,7 +306,7 @@ export function ActivitySection({ activity }) {
 
         {/* Snapshot Log */}
         {snap.log_today && snap.log_today.length > 0 && (
-          <details class="bg-white rounded-lg shadow-sm">
+          <details class="bg-white rounded-md shadow-sm">
             <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
               Snapshot Log \u2014 {snap.log_today.length} adaptive snapshot{snap.log_today.length !== 1 ? 's' : ''} today
             </summary>

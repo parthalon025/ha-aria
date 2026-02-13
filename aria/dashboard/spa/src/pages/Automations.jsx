@@ -48,7 +48,7 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
       : '';
 
   return (
-    <div class={`bg-white rounded-lg shadow-sm p-5 ${borderClass}`}>
+    <div class={`bg-white rounded-md shadow-sm p-5 ${borderClass}`}>
       {/* Header */}
       <div class="flex items-center justify-between mb-2">
         <h3 class="text-base font-bold text-gray-900">{suggestion.name || 'Unnamed automation'}</h3>
@@ -244,14 +244,14 @@ export default function Automations() {
 
   return (
     <div class="space-y-6">
-      <div>
+      <div class="animate-fade-in-up">
         <h1 class="text-2xl font-bold text-gray-900">Automations</h1>
         <p class="text-sm text-gray-500">{pageSubtitle}</p>
       </div>
 
       {/* Metadata summary */}
       {metadata && (
-        <div class="flex flex-wrap gap-3 text-sm text-gray-500">
+        <div class="flex flex-wrap gap-3 text-sm text-gray-500 animate-fade-in-up delay-100">
           {metadata.total_suggestions != null && (
             <span class="bg-gray-100 rounded px-2 py-1">{metadata.total_suggestions} suggestions</span>
           )}
@@ -272,11 +272,11 @@ export default function Automations() {
       )}
 
       {displaySuggestions.length === 0 ? (
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+        <div class="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 animate-fade-in-up delay-200">
           No automation suggestions yet. The orchestrator generates suggestions when it finds patterns with high enough confidence and matching capabilities. This requires the pattern recognition and discovery modules to have populated data first.
         </div>
       ) : (
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-children">
           {displaySuggestions.map((sug, i) => (
             <AutomationCard
               key={sug.id || i}

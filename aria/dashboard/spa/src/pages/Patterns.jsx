@@ -23,7 +23,7 @@ function PatternCard({ pattern }) {
   const entities = pattern.entities || [];
 
   return (
-    <div class="bg-white rounded-lg shadow-sm p-5">
+    <div class="bg-white rounded-md shadow-sm p-5">
       {/* Header */}
       <div class="flex items-center justify-between mb-2">
         <h3 class="text-base font-bold text-gray-900">{pattern.name || 'Unnamed pattern'}</h3>
@@ -142,14 +142,14 @@ export default function Patterns() {
 
   return (
     <div class="space-y-6">
-      <div>
+      <div class="animate-fade-in-up">
         <h1 class="text-2xl font-bold text-gray-900">Patterns</h1>
         <p class="text-sm text-gray-500">{pageSubtitle}</p>
       </div>
 
       {/* Metadata summary */}
       {metadata && (
-        <div class="flex flex-wrap gap-3 text-sm text-gray-500">
+        <div class="flex flex-wrap gap-3 text-sm text-gray-500 animate-fade-in-up delay-100">
           {metadata.time_range && (
             <span class="bg-gray-100 rounded px-2 py-1">Range: {metadata.time_range}</span>
           )}
@@ -165,11 +165,11 @@ export default function Patterns() {
       )}
 
       {patterns.length === 0 ? (
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+        <div class="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 animate-fade-in-up delay-200">
           No patterns detected yet. The pattern recognition module analyzes HA logbook sequences to find temporal, correlation, and sequence patterns. It needs several days of logbook data with meaningful device events to identify reliable patterns.
         </div>
       ) : (
-        <div class="space-y-4">
+        <div class="space-y-4 stagger-children">
           {patterns.map((pat, i) => (
             <PatternCard key={pat.name || i} pattern={pat} />
           ))}

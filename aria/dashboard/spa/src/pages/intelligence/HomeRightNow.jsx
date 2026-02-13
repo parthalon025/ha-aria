@@ -34,7 +34,7 @@ export function HomeRightNow({ intraday, baselines }) {
     <Section title="Home Right Now" subtitle={subtitle}>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         {items.map((item, i) => (
-          <div key={i} class={`bg-white rounded-lg shadow-sm p-4 ${item.warning ? 'border-2 border-amber-500' : ''}`}>
+          <div key={i} class={`bg-white rounded-md shadow-sm p-4 ${item.warning ? 'border-2 border-amber-500' : ''}`}>
             <div class={`text-2xl font-bold ${item.warning ? 'text-amber-500' : 'text-blue-500'}`}>
               {item.value}
             </div>

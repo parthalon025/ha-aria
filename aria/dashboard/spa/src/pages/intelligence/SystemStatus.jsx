@@ -17,7 +17,7 @@ export function SystemStatus({ runLog, mlModels, metaLearning }) {
     >
       <div class="space-y-4">
         {/* Run Log */}
-        <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
+        <div class="bg-white rounded-md shadow-sm overflow-x-auto">
           <div class="px-4 py-2 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase">Run Log</div>
           {(!runLog || runLog.length === 0) ? (
             <div class="px-4 py-3 text-sm text-gray-400">No runs recorded yet.</div>
@@ -49,7 +49,7 @@ export function SystemStatus({ runLog, mlModels, metaLearning }) {
         </div>
 
         {/* ML Models */}
-        <div class="bg-white rounded-lg shadow-sm p-4">
+        <div class="bg-white rounded-md shadow-sm p-4">
           <div class="text-xs font-bold text-gray-500 uppercase mb-2">ML Models</div>
           {(!mlModels || mlModels.count === 0) ? (
             <p class="text-sm text-gray-400">ML models activate after 14 days of data. Until then, predictions use statistical baselines only.</p>
@@ -80,7 +80,7 @@ export function SystemStatus({ runLog, mlModels, metaLearning }) {
         </div>
 
         {/* Meta-Learning */}
-        <div class="bg-white rounded-lg shadow-sm p-4">
+        <div class="bg-white rounded-md shadow-sm p-4">
           <div class="text-xs font-bold text-gray-500 uppercase mb-2">Meta-Learning</div>
           {(!metaLearning || metaLearning.applied_count === 0) ? (
             <p class="text-sm text-gray-400">Meta-learning reviews model performance weekly and auto-tunes feature selection. Activates after the first training cycle.</p>

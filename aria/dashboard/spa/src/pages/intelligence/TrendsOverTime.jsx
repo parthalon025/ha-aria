@@ -69,7 +69,7 @@ export function TrendsOverTime({ trendData, intradayTrend }) {
       subtitle="Spot when something changed \u2014 a new device, a routine shift, or a problem building. Each bar is one day."
     >
       {trendNote && <Callout color="amber">{trendNote}</Callout>}
-      <div class="bg-white rounded-lg shadow-sm p-4 space-y-4">
+      <div class="bg-white rounded-md shadow-sm p-4 space-y-4">
         {hasTrend && (
           <div class="space-y-3">
             <div class="text-xs font-bold text-gray-500 uppercase">Daily</div>

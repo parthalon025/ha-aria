@@ -43,7 +43,7 @@ function PipelineStage({ pipeline, onAdvance, onRetreat, advanceError }) {
   return (
     <section class="space-y-3">
       <h2 class="text-lg font-bold text-gray-900">Pipeline Stage</h2>
-      <div class="bg-white rounded-lg shadow-sm p-4 space-y-4">
+      <div class="bg-white rounded-md shadow-sm p-4 space-y-4">
         <div>
           <div class="flex justify-between text-xs text-gray-500 mb-1">
             {STAGE_LABELS.map((label, i) => (
@@ -118,7 +118,7 @@ function AccuracySummary({ accuracy, pipeline }) {
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((s, i) => (
-          <div key={i} class="bg-white rounded-lg shadow-sm p-4">
+          <div key={i} class="bg-white rounded-md shadow-sm p-4">
             <div class={`text-2xl font-bold ${s.colorClass || 'text-blue-500'}`}>{s.value}</div>
             <div class="text-sm text-gray-500 mt-1">{s.label}</div>
           </div>
@@ -136,7 +136,7 @@ function DailyTrend({ trend }) {
     return (
       <section class="space-y-3">
         <h2 class="text-lg font-bold text-gray-900">Daily Trend</h2>
-        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-600">
+        <div class="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm text-gray-600">
           Accuracy trends will appear after 24-48 hours of predictions.
         </div>
       </section>
@@ -148,7 +148,7 @@ function DailyTrend({ trend }) {
   return (
     <section class="space-y-3">
       <h2 class="text-lg font-bold text-gray-900">Daily Trend</h2>
-      <div class="bg-white rounded-lg shadow-sm p-4">
+      <div class="bg-white rounded-md shadow-sm p-4">
         <div class="flex items-end gap-1 h-20">
           {trend.map((d, i) => {
             const acc = d.accuracy ?? 0;
@@ -181,7 +181,7 @@ function PredictionFeed({ predictions }) {
     return (
       <section class="space-y-3">
         <h2 class="text-lg font-bold text-gray-900">Recent Predictions</h2>
-        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-600">
+        <div class="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm text-gray-600">
           No predictions yet. The shadow engine generates predictions when state changes occur.
         </div>
       </section>
@@ -191,7 +191,7 @@ function PredictionFeed({ predictions }) {
   return (
     <section class="space-y-3">
       <h2 class="text-lg font-bold text-gray-900">Recent Predictions</h2>
-      <div class="bg-white rounded-lg shadow-sm divide-y divide-gray-50">
+      <div class="bg-white rounded-md shadow-sm divide-y divide-gray-50">
         {items.map((p, i) => {
           const typeCls = TYPE_COLORS[p.prediction_type] || 'bg-gray-100 text-gray-600';
           const typeLabel = TYPE_LABELS[p.prediction_type] || p.prediction_type;
@@ -226,7 +226,7 @@ function DisagreementsPanel({ disagreements }) {
     return (
       <section class="space-y-3">
         <h2 class="text-lg font-bold text-gray-900">Top Disagreements</h2>
-        <div class="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
+        <div class="bg-green-50 border border-green-200 rounded-md p-3 text-sm text-green-700">
           No disagreements recorded yet.
         </div>
       </section>
@@ -244,7 +244,7 @@ function DisagreementsPanel({ disagreements }) {
           const conf = d.confidence ?? 0;
 
           return (
-            <div key={i} class="bg-white rounded-lg shadow-sm p-3 border-l-4 border-amber-500 space-y-1">
+            <div key={i} class="bg-white rounded-md shadow-sm p-3 border-l-4 border-amber-500 space-y-1">
               <div class="flex items-center gap-2">
                 <span class="text-lg font-bold text-amber-500">{Math.round(conf * 100)}%</span>
                 <span class={`text-xs font-medium rounded px-1.5 py-0.5 ${typeCls}`}>{typeLabel}</span>
@@ -369,15 +369,21 @@ export default function Shadow() {
 
   return (
     <div class="space-y-8">
-      <div>
+      <div class="animate-fade-in-up">
         <h1 class="text-2xl font-bold text-gray-900">Shadow Mode</h1>
         <p class="text-sm text-gray-500">Prediction accuracy, pipeline progress, and learning insights.</p>
       </div>
 
-      <PipelineStage pipeline={pipeline} onAdvance={handleAdvance} onRetreat={handleRetreat} advanceError={advanceError} />
-      <AccuracySummary accuracy={accuracy} pipeline={pipeline} />
-      <DailyTrend trend={accuracy?.daily_trend} />
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="animate-fade-in-up delay-100">
+        <PipelineStage pipeline={pipeline} onAdvance={handleAdvance} onRetreat={handleRetreat} advanceError={advanceError} />
+      </div>
+      <div class="animate-fade-in-up delay-200">
+        <AccuracySummary accuracy={accuracy} pipeline={pipeline} />
+      </div>
+      <div class="animate-fade-in-up delay-300">
+        <DailyTrend trend={accuracy?.daily_trend} />
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in-up delay-400">
         <PredictionFeed predictions={predictions} />
         <DisagreementsPanel disagreements={disagreements} />
       </div>

@@ -10,7 +10,7 @@ export default function StatsGrid({ items }) {
       {items.map((item, i) => (
         <div
           key={i}
-          class={`bg-white rounded-lg shadow-sm p-4 ${
+          class={`bg-white rounded-md shadow-sm p-4 ${
             item.warning ? 'border-2 border-amber-500' : ''
           }`}
         >

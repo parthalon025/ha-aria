@@ -17,22 +17,41 @@ const STATUS = {
   BLOCKED: { label: 'Blocked', bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-500' },
 };
 
+// Inline SVG icons for pipeline nodes (monochrome, matches sidebar style)
+const SvgIcon = ({ d, children }) => (
+  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    {d ? <path d={d} /> : children}
+  </svg>
+);
+
+const NodeIcons = {
+  discovery: () => <SvgIcon><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></SvgIcon>,
+  activity_monitor: () => <SvgIcon><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></SvgIcon>,
+  data_quality: () => <SvgIcon><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></SvgIcon>,
+  intelligence: () => <SvgIcon><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z" /><line x1="9" y1="21" x2="15" y2="21" /></SvgIcon>,
+  ml_engine: () => <SvgIcon><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></SvgIcon>,
+  pattern_recognition: () => <SvgIcon><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></SvgIcon>,
+  shadow_engine: () => <SvgIcon><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></SvgIcon>,
+  orchestrator: () => <SvgIcon><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></SvgIcon>,
+  pipeline_gates: () => <SvgIcon><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /><line x1="15" y1="3" x2="15" y2="21" /></SvgIcon>,
+};
+
 const NODE_META = {
-  discovery:           { icon: '\uD83D\uDD0D', label: 'Discovery',        lane: 0 },
-  activity_monitor:    { icon: '\uD83D\uDCE1', label: 'Activity Monitor', lane: 0 },
-  data_quality:        { icon: '\uD83C\uDFAF', label: 'Data Curation',    lane: 0 },
-  intelligence:        { icon: '\uD83E\uDDE0', label: 'Intelligence',     lane: 1 },
-  ml_engine:           { icon: '\uD83D\uDCCA', label: 'ML Engine',        lane: 1 },
-  pattern_recognition: { icon: '\uD83D\uDD17', label: 'Patterns',         lane: 1 },
-  shadow_engine:       { icon: '\uD83D\uDC7B', label: 'Shadow Engine',    lane: 2 },
-  orchestrator:        { icon: '\u26A1',        label: 'Orchestrator',     lane: 2 },
-  pipeline_gates:      { icon: '\uD83D\uDEA6', label: 'Pipeline Gates',   lane: 2 },
+  discovery:           { icon: NodeIcons.discovery,           label: 'Discovery',        lane: 0 },
+  activity_monitor:    { icon: NodeIcons.activity_monitor,    label: 'Activity Monitor', lane: 0 },
+  data_quality:        { icon: NodeIcons.data_quality,        label: 'Data Curation',    lane: 0 },
+  intelligence:        { icon: NodeIcons.intelligence,        label: 'Intelligence',     lane: 1 },
+  ml_engine:           { icon: NodeIcons.ml_engine,           label: 'ML Engine',        lane: 1 },
+  pattern_recognition: { icon: NodeIcons.pattern_recognition, label: 'Patterns',         lane: 1 },
+  shadow_engine:       { icon: NodeIcons.shadow_engine,       label: 'Shadow Engine',    lane: 2 },
+  orchestrator:        { icon: NodeIcons.orchestrator,        label: 'Orchestrator',     lane: 2 },
+  pipeline_gates:      { icon: NodeIcons.pipeline_gates,      label: 'Pipeline Gates',   lane: 2 },
 };
 
 const LANES = [
-  { title: 'Data Collection', subtitle: 'What feeds the system', color: 'border-emerald-400' },
-  { title: 'Learning',        subtitle: 'How the system learns', color: 'border-violet-400' },
-  { title: 'Actions',         subtitle: 'What the system produces', color: 'border-amber-400' },
+  { title: 'Data Collection', subtitle: 'What feeds the system', color: 'border-cyan-400' },
+  { title: 'Learning',        subtitle: 'How the system learns', color: 'border-cyan-500' },
+  { title: 'Actions',         subtitle: 'What the system produces', color: 'border-cyan-600' },
 ];
 
 const PHASES = ['collecting', 'baselines', 'ml-training', 'ml-active'];
@@ -192,10 +211,11 @@ function PipelineNode({ nodeId, status, stat, link }) {
   const meta = NODE_META[nodeId];
   if (!meta) return null;
 
+  const isHealthy = status === STATUS.HEALTHY;
   const inner = (
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-md transition-shadow">
+    <div class={`bg-white rounded-md shadow-sm border border-gray-200 p-3 hover:shadow-md transition-shadow${isHealthy ? ' animate-pulse-cyan' : ''}`}>
       <div class="flex items-center gap-2 mb-1">
-        <span class="text-lg">{meta.icon}</span>
+        <span class="text-gray-500">{typeof meta.icon === 'function' ? <meta.icon /> : meta.icon}</span>
         <span class="text-sm font-medium text-gray-900">{meta.label}</span>
       </div>
       <StatusChip status={status} />
@@ -211,7 +231,7 @@ function PipelineNode({ nodeId, status, stat, link }) {
 
 function YouNode({ title, guidance, linkHref, linkLabel }) {
   return (
-    <div class="border-2 border-dashed border-blue-300 rounded-lg p-3 bg-blue-50/50">
+    <div class="border-2 border-dashed border-blue-300 rounded-md p-3 bg-blue-50/50">
       <div class="flex items-center gap-2 mb-1">
         <span class="text-xs font-bold bg-blue-600 text-white rounded px-1.5 py-0.5">YOU</span>
         <span class="text-sm font-medium text-gray-900">{title}</span>
@@ -235,7 +255,7 @@ function JourneyProgress({ maturity, shadowStage }) {
   const activeIdx = PHASES.indexOf(phase);
 
   return (
-    <section class="bg-white rounded-lg shadow-sm p-4 animate-fade-in-up">
+    <section class="bg-white rounded-md shadow-sm p-4 animate-fade-in-up">
       <h2 class="text-sm font-semibold text-gray-900 mb-3">System Maturity</h2>
       <div class="flex items-center gap-1 mb-2">
         {PHASES.map((p, i) => {
@@ -279,7 +299,7 @@ function RightNowStrip({ activity, intraday }) {
   const powerW = latest ? (latest.power_watts ?? null) : null;
 
   return (
-    <section class="bg-white rounded-lg shadow-sm p-3 animate-fade-in-up delay-100">
+    <section class="bg-white rounded-md shadow-sm p-3 animate-fade-in-up delay-100">
       <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
         <div class="flex items-center gap-1.5">
           <span class="text-gray-500">Occupancy</span>

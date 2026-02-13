@@ -16,7 +16,7 @@ export function Configuration({ config }) {
       title="Configuration"
       subtitle="Current engine settings. Edit ~/ha-logs/intelligence/feature_config.json to change."
     >
-      <details class="bg-white rounded-lg shadow-sm">
+      <details class="bg-white rounded-md shadow-sm">
         <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
           Show configuration details
         </summary>

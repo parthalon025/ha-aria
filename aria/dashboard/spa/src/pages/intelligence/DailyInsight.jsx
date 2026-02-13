@@ -19,7 +19,7 @@ export function DailyInsight({ insight }) {
       title="Daily Insight"
       subtitle="AI analysis of what happened yesterday and what to watch for. Generated nightly from your full data set."
     >
-      <div class="bg-white rounded-lg shadow-sm p-4">
+      <div class="bg-white rounded-md shadow-sm p-4">
         <span class="inline-block bg-gray-100 rounded px-2 py-0.5 text-xs text-gray-500 mb-3">{insight.date}</span>
         <div class="prose prose-sm max-w-none text-gray-700 space-y-2">
           {lines.map((line, i) => {

@@ -14,7 +14,7 @@ export function LearningProgress({ maturity, shadowStage, shadowAccuracy }) {
 
   return (
     <Section title="Learning Progress">
-      <div class="bg-white rounded-lg shadow-sm p-4 space-y-4">
+      <div class="bg-white rounded-md shadow-sm p-4 space-y-4">
         <div>
           <div class="flex justify-between text-xs text-gray-500 mb-1">
             {PHASE_LABELS.map((label, i) => (

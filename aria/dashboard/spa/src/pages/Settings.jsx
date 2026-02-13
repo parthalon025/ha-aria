@@ -131,7 +131,7 @@ function CategorySection({ category, configs, onUpdate }) {
   const [open, setOpen] = useState(true);
 
   return (
-    <section class="bg-white rounded-lg shadow-sm">
+    <section class="bg-white rounded-md shadow-sm">
       <button
         class="w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setOpen(!open)}
@@ -197,7 +197,7 @@ export default function Settings() {
 
   return (
     <div class="space-y-6">
-      <div>
+      <div class="animate-fade-in-up">
         <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
         <p class="text-sm text-gray-500">
           {configs.length} parameters across {Object.keys(groups).length} categories.
@@ -205,7 +205,7 @@ export default function Settings() {
         </p>
       </div>
 
-      <div class="space-y-4">
+      <div class="space-y-4 stagger-children">
         {Object.entries(groups).map(([cat, items]) => (
           <CategorySection key={cat} category={cat} configs={items} onUpdate={fetchConfigs} />
         ))}

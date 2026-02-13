@@ -8,37 +8,27 @@ const JOURNEY_STEPS = [
   {
     day: 'Day 1',
     title: 'Collecting',
-    desc: "ARIA connects to Home Assistant and starts watching. Every light switch, door sensor, thermostat change, and motion event gets recorded. You don't need to configure anything.",
-    bg: '#10b981', ringColor: '#a7f3d0',
-    icon: '📡',
+    desc: "ARIA connects to Home Assistant and starts watching. Every light switch, door sensor, thermostat change, and motion event gets recorded. Zero configuration.",
   },
   {
     day: 'Days 2–3',
     title: 'Baselines',
-    desc: 'After 24 hours, ARIA knows what "normal" looks like for your home. It builds hourly averages for every metric — how many lights are typically on at 8pm, usual power draw at noon, typical motion patterns.',
-    bg: '#3b82f6', ringColor: '#bfdbfe',
-    icon: '📊',
+    desc: 'After 24 hours, ARIA knows what "normal" looks like. It builds hourly averages for every metric — lights on at 8pm, power draw at noon, motion patterns.',
   },
   {
     day: 'Days 3–7',
     title: 'ML Training',
-    desc: 'With enough data, machine learning models start training. Six different algorithms learn to predict what your home will do next — which room activates, what time devices turn on, energy patterns.',
-    bg: '#8b5cf6', ringColor: '#ddd6fe',
-    icon: '🧠',
+    desc: 'Six ML algorithms start training — predicting which room activates next, when devices turn on, energy patterns. Models improve with every snapshot.',
   },
   {
     day: 'Week 2+',
     title: 'Shadow Mode',
-    desc: 'ARIA starts making predictions silently and scoring itself. It compares "what I predicted" vs "what actually happened." You can see its accuracy climb in real time. Nothing changes in your home yet.',
-    bg: '#f59e0b', ringColor: '#fde68a',
-    icon: '👻',
+    desc: 'ARIA predicts silently and scores itself. "What I predicted" vs "what happened." Accuracy climbs daily. Nothing changes in your home yet.',
   },
   {
     day: 'When ready',
     title: 'Suggestions',
-    desc: 'Once accuracy is high enough, ARIA generates automation suggestions as ready-to-use YAML. You review and approve each one before it touches your home. You are always in control.',
-    bg: '#06b6d4', ringColor: '#a5f3fc',
-    icon: '⚡',
+    desc: 'Once accuracy gates pass, ARIA generates automation YAML. You review and approve each one. Nothing runs without your sign-off.',
   },
 ];
 
@@ -46,89 +36,79 @@ const PAGE_GUIDE = [
   {
     title: 'Home',
     path: '/',
-    desc: 'The big picture. A live flowchart showing how data moves through ARIA — from collection to learning to action. Status chips show what\'s healthy, blocked, or waiting. The "YOU" cards at the bottom tell you if there\'s anything you need to do.',
-    icon: '🏠',
+    desc: 'Live pipeline flowchart — data flow, module health, status chips. The "YOU" cards show if anything needs attention.',
   },
   {
     title: 'Discovery',
     path: '/discovery',
-    desc: 'Everything Home Assistant knows about your home. Browse every entity (sensor, light, switch), device, and area. Search and filter to find anything. If a device shows "unavailable," it might need attention.',
-    icon: '🔍',
+    desc: 'Every entity, device, and area HA knows about. Search and filter. Unavailable devices are flagged.',
   },
   {
     title: 'Capabilities',
     path: '/capabilities',
-    desc: 'What your home can do. ARIA scans your devices and detects capabilities like "lighting control," "climate management," or "presence detection." This helps it understand which automations make sense for your setup.',
-    icon: '⚡',
+    desc: 'Detected capabilities — lighting control, climate, presence detection. Helps ARIA scope which automations fit your setup.',
   },
   {
     title: 'Data Curation',
     path: '/data-curation',
-    desc: 'Fine-tune what ARIA pays attention to. Some entities are noisy (like update sensors that flip constantly) and can confuse the models. This page lets you include or exclude specific entities from analysis.',
-    icon: '🎯',
+    desc: 'Include or exclude entities from analysis. Filter out noisy sensors that confuse the models.',
   },
   {
     title: 'Intelligence',
     path: '/intelligence',
-    desc: 'The brain of ARIA. See baselines, predictions vs actuals, 30-day trends, cross-metric correlations, and LLM-generated daily insights. This is where you see ARIA actually learning your home.',
-    icon: '🧠',
+    desc: 'Baselines, predictions vs actuals, 30-day trends, correlations, LLM daily insights. The core learning view.',
   },
   {
     title: 'Predictions',
     path: '/predictions',
-    desc: 'What ARIA thinks will happen next. Each prediction has a confidence score. Green means high confidence, yellow is moderate, red is low. Predictions get better every day as more data comes in.',
-    icon: '📋',
+    desc: 'ML model outputs with confidence scores. Green = high, yellow = moderate, red = low. Improves daily.',
   },
   {
     title: 'Patterns',
     path: '/patterns',
-    desc: 'Recurring sequences ARIA has detected. "Every weekday at 6:30am, the kitchen light turns on, then the coffee maker, then the bathroom light." These patterns become the basis for automation suggestions.',
-    icon: '🔗',
+    desc: 'Recurring event sequences — "weekdays 6:30am: kitchen light, coffee maker, bathroom light." Basis for automation suggestions.',
   },
   {
     title: 'Shadow Mode',
     path: '/shadow',
-    desc: "ARIA's training ground. It makes predictions silently and scores itself against reality. Watch accuracy improve over time. The pipeline advances through stages: backtest → shadow → suggest → autonomous.",
-    icon: '👻',
+    desc: 'Prediction accuracy, high-confidence disagreements, pipeline stage progression: backtest, shadow, suggest, autonomous.',
   },
   {
     title: 'Automations',
     path: '/automations',
-    desc: 'Ready-to-use automation suggestions generated from detected patterns. Each comes with YAML you can copy into Home Assistant. Review, approve, or reject each one. ARIA never changes your home without permission.',
-    icon: '⚙️',
+    desc: 'Ready-to-use YAML generated from detected patterns. Review, approve, or reject. ARIA never acts without permission.',
   },
   {
     title: 'Settings',
     path: '/settings',
-    desc: "Tune ARIA's engine parameters. Adjust confidence thresholds, retraining schedules, and feature weights. Most users won't need to touch this — defaults work well. But if you want control, it's here.",
-    icon: '🔧',
+    desc: 'Engine parameters — confidence thresholds, retraining schedules, feature weights. Defaults work well.',
   },
 ];
 
 const FAQ = [
   {
     q: 'Does ARIA send my data anywhere?',
-    a: 'No. Everything runs locally on your machine. ARIA uses local ML models (scikit-learn) and optionally a local LLM (Ollama). Zero data leaves your network.',
+    a: 'No. Everything runs locally — scikit-learn for ML, optionally Ollama for LLM. Zero data leaves your network.',
   },
   {
     q: 'Will ARIA change my Home Assistant setup?',
-    a: 'Never without your permission. ARIA only reads from Home Assistant — it watches events and states. When it generates automation suggestions, you must manually review and approve each one before anything changes.',
+    a: 'Never without permission. ARIA only reads from HA. Automation suggestions require manual review and approval.',
   },
   {
     q: "How long until it's useful?",
-    a: "You'll see baselines within 24 hours. Patterns emerge in 2–3 days. ML predictions start after about a week. Shadow mode accuracy improves daily. Most homes see solid automation suggestions within 2–3 weeks.",
+    a: "Baselines within 24 hours. Patterns in 2\u20133 days. ML predictions after a week. Solid automation suggestions within 2\u20133 weeks.",
   },
   {
     q: 'Why does everything show "Blocked"?',
-    a: "That's normal for the first few days. ARIA needs data before it can learn. \"Blocked\" means the module is waiting for upstream data — like ML Training waiting for enough snapshots. The Home page shows exactly what's needed.",
+    a: 'Normal for the first few days. Each module waits for upstream data \u2014 ML Training waits for snapshots, Patterns waits for logbook history. The Home page shows exactly what\u2019s needed.',
   },
   {
     q: 'What does "Shadow Mode" mean?',
-    a: 'Think of it like a driving student with a co-pilot. ARIA makes predictions silently and compares them to reality, building a track record. It never acts on predictions until accuracy gates are met and you approve.',
+    a: 'ARIA makes predictions silently and compares them to reality. Like a co-pilot building a track record. It never acts until accuracy gates are met and you approve.',
   },
   {
     q: 'Do I need to configure anything?',
-    a: 'Nope. ARIA auto-discovers your devices, classifies entities, and builds models with zero configuration. The Data Curation page lets you fine-tune if you want, but defaults work for most homes.',
+    a: 'No. Auto-discovers devices, classifies entities, builds models. Data Curation lets you fine-tune if you want, but defaults work.',
   },
 ];
 
@@ -138,28 +118,24 @@ const FAQ = [
 
 function HeroSection() {
   return (
-    <div
-      class="relative overflow-hidden rounded-2xl px-8 py-12 mb-10"
-      style="background: linear-gradient(135deg, #111827, #1f2937, #111827)"
-    >
-      {/* Background glow */}
-      <div class="absolute inset-0" style="opacity: 0.12">
-        <div class="absolute rounded-full" style="top: 1rem; left: 2rem; width: 16rem; height: 16rem; background: #06b6d4; filter: blur(60px)" />
-        <div class="absolute rounded-full" style="bottom: 1rem; right: 3rem; width: 12rem; height: 12rem; background: #8b5cf6; filter: blur(60px)" />
+    <div class="relative rounded-md px-6 py-8 mb-8 overflow-hidden" style="background: #111827">
+      {/* Scan line effect */}
+      <div class="absolute inset-0 pointer-events-none" style="opacity: 0.04">
+        <div class="animate-scan-line" style="width: 100%; height: 2px; background: #22d3ee" />
       </div>
 
-      <div class="relative" style="z-index: 10; max-width: 42rem">
-        <AriaLogo className="w-40 mb-4" color="#22d3ee" />
-        <p class="text-sm font-medium mb-3" style="color: #67e8f9; letter-spacing: 0.05em">Adaptive Residence Intelligence Architecture</p>
-        <h2 class="text-2xl sm:text-3xl font-bold leading-tight mb-4" style="color: #ffffff">
-          Your home generates 22,000+ events every day.
-          <br />
+      <div class="relative">
+        <AriaLogo className="w-36 mb-3 animate-fade-in" color="#22d3ee" />
+        <p class="text-xs font-medium mb-4 animate-fade-in delay-100" style="color: #67e8f9; letter-spacing: 0.08em">
+          ADAPTIVE RESIDENCE INTELLIGENCE ARCHITECTURE<span class="animate-blink" style="color: #22d3ee">_</span>
+        </p>
+        <p class="text-lg font-semibold leading-snug mb-3 animate-fade-in delay-200" style="color: #e5e7eb">
+          Your home generates 22,000+ events every day.{' '}
           <span style="color: #22d3ee">ARIA learns what they mean.</span>
-        </h2>
-        <p class="text-base leading-relaxed" style="color: #9ca3af">
-          ARIA watches your Home Assistant instance, learns your household patterns, and generates
-          automation suggestions — all running locally on your hardware. No cloud. No subscriptions.
-          No data leaves your network.
+        </p>
+        <p class="text-sm leading-relaxed animate-fade-in delay-300" style="color: #6b7280">
+          Watches Home Assistant, learns household patterns, generates automation
+          suggestions. Local ML. No cloud. No subscriptions.
         </p>
       </div>
     </div>
@@ -168,37 +144,28 @@ function HeroSection() {
 
 function JourneyTimeline() {
   return (
-    <div class="mb-12">
-      <h2 class="text-xl font-bold text-gray-900 mb-1">How ARIA Learns</h2>
-      <p class="text-sm text-gray-500 mb-6">ARIA gets smarter every day. Here's what happens behind the scenes.</p>
+    <div class="mb-10">
+      <h2 class="text-base font-semibold text-gray-900 mb-4 animate-fade-in-up">How ARIA Learns</h2>
 
       <div class="relative">
         {/* Connecting line */}
-        <div class="hidden sm:block absolute w-0.5" style="left: 1.5rem; top: 2rem; bottom: 2rem; background: linear-gradient(to bottom, #6ee7b7, #c4b5fd, #67e8f9)" />
+        <div class="hidden sm:block absolute w-px animate-grow-width delay-200" style="left: 0.75rem; top: 1rem; bottom: 1rem; background: #d1d5db; width: 1px" />
 
-        <div class="space-y-6">
+        <div class="space-y-4 stagger-children">
           {JOURNEY_STEPS.map((step, i) => (
-            <div key={i} class="relative flex gap-5 items-start">
+            <div key={i} class="relative flex gap-4 items-start">
               {/* Timeline dot */}
               <div
-                class="hidden sm:flex shrink-0 w-12 h-12 items-center justify-center rounded-full text-white text-xl shadow-lg"
-                style={`background: ${step.bg}; box-shadow: 0 0 0 4px ${step.ringColor}; z-index: 10`}
+                class="hidden sm:flex shrink-0 w-6 h-6 items-center justify-center rounded-sm text-xs font-bold"
+                style="background: #22d3ee; color: #111827; z-index: 10; margin-top: 2px"
               >
-                {step.icon}
+                {i + 1}
               </div>
               {/* Card */}
-              <div class="flex-1 bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center gap-3 mb-2">
-                  <span class="sm:hidden text-2xl">{step.icon}</span>
-                  <div>
-                    <span
-                      class="inline-block text-xs font-bold uppercase px-2 py-0.5 rounded-full text-white"
-                      style={`background: ${step.bg}; letter-spacing: 0.05em`}
-                    >
-                      {step.day}
-                    </span>
-                    <h3 class="text-lg font-semibold text-gray-900 mt-1">{step.title}</h3>
-                  </div>
+              <div class="flex-1 border-l-2 sm:border-l-0 pl-4 sm:pl-0" style="border-color: #22d3ee">
+                <div class="flex items-baseline gap-2 mb-1">
+                  <span class="text-xs font-mono font-medium" style="color: #22d3ee">{step.day}</span>
+                  <h3 class="text-sm font-semibold text-gray-900">{step.title}</h3>
                 </div>
                 <p class="text-sm text-gray-600 leading-relaxed">{step.desc}</p>
               </div>
@@ -212,26 +179,18 @@ function JourneyTimeline() {
 
 function PageGuide() {
   return (
-    <div class="mb-12">
-      <h2 class="text-xl font-bold text-gray-900 mb-1">What Each Page Does</h2>
-      <p class="text-sm text-gray-500 mb-6">Click any card to jump to that page.</p>
+    <div class="mb-10">
+      <h2 class="text-base font-semibold text-gray-900 mb-4 animate-fade-in-up">Pages</h2>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="border border-gray-200 rounded-md divide-y divide-gray-200 stagger-children">
         {PAGE_GUIDE.map((page, i) => (
           <a
             key={i}
             href={`#${page.path}`}
-            class="group bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md hover:border-cyan-300 transition-all"
+            class="flex items-baseline gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
           >
-            <div class="flex items-start gap-3">
-              <span class="text-2xl shrink-0">{page.icon}</span>
-              <div>
-                <h3 class="text-base font-semibold text-gray-900 group-hover:text-cyan-600 transition-colors">
-                  {page.title}
-                </h3>
-                <p class="text-sm text-gray-500 leading-relaxed mt-1">{page.desc}</p>
-              </div>
-            </div>
+            <span class="text-sm font-semibold shrink-0" style="color: #22d3ee; min-width: 6rem">{page.title}</span>
+            <span class="text-sm text-gray-600">{page.desc}</span>
           </a>
         ))}
       </div>
@@ -241,14 +200,13 @@ function PageGuide() {
 
 function FaqSection() {
   return (
-    <div class="mb-12">
-      <h2 class="text-xl font-bold text-gray-900 mb-1">Common Questions</h2>
-      <p class="text-sm text-gray-500 mb-6">Everything you need to know, no jargon.</p>
+    <div class="mb-10">
+      <h2 class="text-base font-semibold text-gray-900 mb-4 animate-fade-in-up">FAQ</h2>
 
-      <div class="space-y-4">
+      <div class="space-y-3 stagger-children">
         {FAQ.map((item, i) => (
-          <div key={i} class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <h3 class="text-base font-semibold text-gray-900 mb-2">{item.q}</h3>
+          <div key={i} class="border border-gray-200 rounded-md px-4 py-3">
+            <h3 class="text-sm font-semibold text-gray-900 mb-1">{item.q}</h3>
             <p class="text-sm text-gray-600 leading-relaxed">{item.a}</p>
           </div>
         ))}
@@ -259,51 +217,23 @@ function FaqSection() {
 
 function KeyConcepts() {
   const concepts = [
-    {
-      term: 'Entity',
-      def: 'Anything Home Assistant tracks — a light switch, temperature sensor, door lock, motion detector. Your home has thousands of these.',
-      icon: '💡',
-    },
-    {
-      term: 'Baseline',
-      def: 'What "normal" looks like. ARIA calculates hourly averages so it can tell you "lights are unusually high for 2am" or "power draw is normal for Tuesday evening."',
-      icon: '📏',
-    },
-    {
-      term: 'Shadow Prediction',
-      def: 'A prediction ARIA makes silently. It predicts what will happen next, then waits to see if it was right. Like a weather forecast that only you can see.',
-      icon: '👻',
-    },
-    {
-      term: 'Pipeline',
-      def: 'The path data takes through ARIA: collection → learning → action. Each stage has to complete before the next one can start. The Home page shows this visually.',
-      icon: '🔄',
-    },
-    {
-      term: 'Curation',
-      def: 'Choosing which entities ARIA pays attention to. Some sensors are noisy and confuse the models. Curation filters them out so ARIA learns from clean signals.',
-      icon: '🎯',
-    },
-    {
-      term: 'Accuracy Gate',
-      def: "A quality checkpoint. ARIA won't suggest automations until its predictions hit a minimum accuracy threshold. This prevents bad suggestions from reaching you.",
-      icon: '🚦',
-    },
+    { term: 'Entity', def: 'Anything HA tracks \u2014 light, sensor, lock, motion detector.' },
+    { term: 'Baseline', def: 'Hourly averages of "normal." Flags when something is unusual for the time of day.' },
+    { term: 'Shadow Prediction', def: 'A silent prediction scored against reality. Builds a track record before any action.' },
+    { term: 'Pipeline', def: 'Data path: collection \u2192 learning \u2192 action. Each stage gates the next.' },
+    { term: 'Curation', def: 'Choosing which entities ARIA watches. Filters noise so models learn from clean signals.' },
+    { term: 'Accuracy Gate', def: 'Quality checkpoint. No suggestions until predictions hit minimum accuracy.' },
   ];
 
   return (
-    <div class="mb-12">
-      <h2 class="text-xl font-bold text-gray-900 mb-1">Key Concepts</h2>
-      <p class="text-sm text-gray-500 mb-6">Terms you'll see throughout the dashboard, explained simply.</p>
+    <div class="mb-10">
+      <h2 class="text-base font-semibold text-gray-900 mb-4 animate-fade-in-up">Key Concepts</h2>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-children">
         {concepts.map((c, i) => (
-          <div key={i} class="rounded-xl border border-gray-200 p-5 shadow-sm" style="background: linear-gradient(135deg, #ffffff, #f9fafb)">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="text-xl">{c.icon}</span>
-              <h3 class="text-base font-bold text-gray-900">{c.term}</h3>
-            </div>
-            <p class="text-sm text-gray-600 leading-relaxed">{c.def}</p>
+          <div key={i} class="border border-gray-200 rounded-md px-4 py-3">
+            <h3 class="text-sm font-bold text-gray-900 mb-0.5">{c.term}</h3>
+            <p class="text-xs text-gray-600 leading-relaxed">{c.def}</p>
           </div>
         ))}
       </div>
@@ -311,20 +241,13 @@ function KeyConcepts() {
   );
 }
 
-function PrivacyBanner() {
+function PrivacyNote() {
   return (
-    <div class="rounded-2xl border p-6 mb-10" style="background: linear-gradient(90deg, #ecfdf5, #ecfeff); border-color: #a7f3d0">
-      <div class="flex items-start gap-4">
-        <span class="text-3xl shrink-0">🔒</span>
-        <div>
-          <h3 class="text-lg font-bold mb-1" style="color: #064e3b">100% Local. 100% Private.</h3>
-          <p class="text-sm leading-relaxed" style="color: #065f46">
-            ARIA runs entirely on your hardware. Machine learning models train locally using scikit-learn.
-            The optional LLM runs through Ollama on your own machine. No API calls to external services.
-            No telemetry. No cloud accounts. Your home data stays in your home.
-          </p>
-        </div>
-      </div>
+    <div class="rounded-md px-4 py-3 mb-8 animate-fade-in-up delay-400" style="border-left: 3px solid #22d3ee; background: #f9fafb">
+      <p class="text-sm text-gray-700">
+        <span class="font-semibold">Fully local.</span>{' '}
+        ML via scikit-learn, optional LLM via Ollama. No API calls, no telemetry, no cloud accounts. Your data stays on your hardware.
+      </p>
     </div>
   );
 }
@@ -335,24 +258,22 @@ function PrivacyBanner() {
 
 export default function Guide() {
   return (
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-3xl mx-auto">
       <HeroSection />
-      <PrivacyBanner />
+      <PrivacyNote />
       <JourneyTimeline />
       <KeyConcepts />
       <PageGuide />
       <FaqSection />
 
-      {/* Footer CTA */}
-      <div class="text-center pb-8">
+      <div class="text-center pb-6">
         <a
           href="#/"
-          class="inline-flex items-center gap-2 px-6 py-3 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all"
-          style="background: linear-gradient(90deg, #06b6d4, #0891b2)"
+          class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-md text-white transition-colors"
+          style="background: #0891b2"
         >
-          {"Go to Dashboard →"}
+          Go to Dashboard
         </a>
-        <p class="text-xs text-gray-400 mt-3">ARIA is already learning. Check the Home page for current status.</p>
       </div>
     </div>
   );

@@ -27,7 +27,7 @@ function ShadowBrief({ shadowAccuracy, pipeline }) {
 
   return (
     <Section title="Shadow Engine" subtitle="Predict-compare-score loop running alongside the main engine.">
-      <div class="bg-white rounded-lg shadow-sm p-4">
+      <div class="bg-white rounded-md shadow-sm p-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-4">
             <span class="text-xs font-medium bg-blue-100 text-blue-700 rounded-full px-2.5 py-0.5 capitalize">{stage}</span>
@@ -116,11 +116,17 @@ export default function Intelligence() {
 
   return (
     <div class="space-y-8">
-      <h1 class="text-2xl font-bold text-gray-900">Intelligence</h1>
+      <h1 class="text-2xl font-bold text-gray-900 animate-fade-in-up">Intelligence</h1>
 
-      <LearningProgress maturity={intel.data_maturity} shadowStage={pipeline?.current_stage} shadowAccuracy={shadowAccuracy?.overall_accuracy} />
-      <HomeRightNow intraday={intel.intraday_trend} baselines={intel.baselines} />
-      <ActivitySection activity={intel.activity} />
+      <div class="animate-fade-in-up delay-100">
+        <LearningProgress maturity={intel.data_maturity} shadowStage={pipeline?.current_stage} shadowAccuracy={shadowAccuracy?.overall_accuracy} />
+      </div>
+      <div class="animate-fade-in-up delay-200">
+        <HomeRightNow intraday={intel.intraday_trend} baselines={intel.baselines} />
+      </div>
+      <div class="animate-fade-in-up delay-300">
+        <ActivitySection activity={intel.activity} />
+      </div>
       <ShadowBrief shadowAccuracy={shadowAccuracy} pipeline={pipeline} />
       <TrendsOverTime trendData={intel.trend_data} intradayTrend={intel.intraday_trend} />
       <PredictionsVsActuals predictions={intel.predictions} intradayTrend={intel.intraday_trend} />
@@ -129,7 +135,7 @@ export default function Intelligence() {
       <Correlations correlations={intel.correlations} />
       <SystemStatus runLog={intel.run_log} mlModels={intel.ml_models} metaLearning={intel.meta_learning} />
       <Section title="Configuration" subtitle="Engine parameters are now managed in Settings.">
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 flex items-center justify-between">
+        <div class="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 flex items-center justify-between">
           <span>Engine settings have moved to the dedicated Settings page.</span>
           <a href="#/settings" class="text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">Settings &rarr;</a>
         </div>

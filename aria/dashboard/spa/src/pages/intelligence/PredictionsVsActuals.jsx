@@ -38,7 +38,7 @@ export function PredictionsVsActuals({ predictions, intradayTrend }) {
           {biggestDelta.metric} is {biggestDelta.pct}% off prediction ({biggestDelta.actual} actual vs {biggestDelta.predicted} predicted). Worth a look?
         </Callout>
       )}
-      <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
+      <div class="bg-white rounded-md shadow-sm overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-gray-200 text-left text-xs text-gray-500 uppercase">

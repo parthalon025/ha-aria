@@ -24,7 +24,7 @@ function SummaryBar({ summary }) {
   return (
     <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
       {stats.map((s) => (
-        <div key={s.label} class="bg-white rounded-lg shadow-sm p-3 text-center">
+        <div key={s.label} class="bg-white rounded-md shadow-sm p-3 text-center">
           <div class={`text-xl font-bold ${s.cls}`}>{s.value}</div>
           <div class="text-xs text-gray-400">{s.label}</div>
         </div>
@@ -53,7 +53,7 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
   }
 
   return (
-    <section class="bg-white rounded-lg shadow-sm">
+    <section class="bg-white rounded-md shadow-sm">
       <button
         class="w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setOpen(!open)}
@@ -251,7 +251,7 @@ export default function DataCuration() {
           <h1 class="text-2xl font-bold text-gray-900">Data Curation</h1>
           <p class="text-sm text-gray-500">Classify entities into include/exclude tiers for the shadow engine.</p>
         </div>
-        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+        <div class="bg-gray-50 border border-gray-200 rounded-md p-4 text-sm text-gray-600">
           No entity classifications yet. The data quality module will classify entities after discovery runs.
         </div>
       </div>
@@ -260,14 +260,16 @@ export default function DataCuration() {
 
   return (
     <div class="space-y-6">
-      <div>
+      <div class="animate-fade-in-up">
         <h1 class="text-2xl font-bold text-gray-900">Data Curation</h1>
         <p class="text-sm text-gray-500">Classify entities into include/exclude tiers for the shadow engine.</p>
       </div>
 
-      <SummaryBar summary={summary} />
+      <div class="animate-fade-in-up delay-100">
+        <SummaryBar summary={summary} />
+      </div>
 
-      <div class="space-y-4">
+      <div class="space-y-4 stagger-children">
         <TierSection
           tier={1} label="Auto-Excluded" entities={tier1}
           defaultOpen={false} onOverride={handleOverride} onBulk={handleBulk}

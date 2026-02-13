@@ -6,7 +6,7 @@ export default function ErrorState({ error, onRetry }) {
   const message = error instanceof Error ? error.message : String(error || 'Unknown error');
 
   return (
-    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+    <div class="bg-red-50 border border-red-200 rounded-md p-4">
       <div class="flex items-start gap-3">
         <svg class="w-5 h-5 text-red-500 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10" />

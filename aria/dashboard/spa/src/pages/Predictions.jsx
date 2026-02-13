@@ -19,7 +19,7 @@ function PredictionCard({ prediction }) {
   const pct = Math.round(confidence * 100);
 
   return (
-    <div class="bg-white rounded-lg shadow-sm p-4">
+    <div class="bg-white rounded-md shadow-sm p-4">
       {/* Header */}
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-sm font-bold text-gray-900 truncate mr-2 font-mono">
@@ -125,14 +125,14 @@ export default function Predictions() {
 
   return (
     <div class="space-y-6">
-      <div>
+      <div class="animate-fade-in-up">
         <h1 class="text-2xl font-bold text-gray-900">Predictions</h1>
         <p class="text-sm text-gray-500">{pageSubtitle}</p>
       </div>
 
       {/* Metadata summary */}
       {metadata && (
-        <div class="flex flex-wrap gap-3 text-sm text-gray-500">
+        <div class="flex flex-wrap gap-3 text-sm text-gray-500 animate-fade-in-up delay-100">
           {metadata.model_version && (
             <span class="bg-gray-100 rounded px-2 py-1">v{metadata.model_version}</span>
           )}
@@ -148,11 +148,11 @@ export default function Predictions() {
       )}
 
       {predictions.length === 0 ? (
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+        <div class="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 animate-fade-in-up delay-200">
           No entity-level predictions yet. The ML engine trains models after 14+ days of data, then predicts individual entity states. Until then, aggregate predictions are available on the Intelligence page.
         </div>
       ) : (
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
           {predictions.map((pred, i) => (
             <PredictionCard key={pred.entity_id || i} prediction={pred} />
           ))}

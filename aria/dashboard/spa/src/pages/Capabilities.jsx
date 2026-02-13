@@ -31,7 +31,7 @@ function CapabilityCard({ name, capability }) {
   const hasMore = entities.length > 5;
 
   return (
-    <div class="bg-white rounded-lg shadow-sm p-4">
+    <div class="bg-white rounded-md shadow-sm p-4">
       {/* Header */}
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-base font-bold text-gray-900">{humanize(name)}</h3>
@@ -111,17 +111,17 @@ export default function Capabilities() {
 
   return (
     <div class="space-y-6">
-      <div>
+      <div class="animate-fade-in-up">
         <h1 class="text-2xl font-bold text-gray-900">Capabilities</h1>
         <p class="text-sm text-gray-500">{pageSubtitle}</p>
       </div>
 
       {capabilities.length === 0 ? (
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+        <div class="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 animate-fade-in-up delay-100">
           No capabilities detected yet. Capabilities are identified during discovery by matching entity domains and device classes to known patterns (e.g., power monitoring, lighting, occupancy). They appear after the first successful discovery scan.
         </div>
       ) : (
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-children">
           {capabilities.map((cap) => (
             <CapabilityCard key={cap.name} name={cap.name} capability={cap} />
           ))}
