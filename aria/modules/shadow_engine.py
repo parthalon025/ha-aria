@@ -153,6 +153,10 @@ class ShadowEngine(Module):
         # Thompson Sampling for explore/exploit
         self._thompson = ThompsonSampler()
 
+    def get_thompson_stats(self) -> Dict[str, Any]:
+        """Return Thompson Sampling bucket statistics for observability."""
+        return self._thompson.get_stats()
+
     async def initialize(self):
         """Subscribe to state_changed events and start periodic resolution."""
         self.logger.info("Shadow engine initializing...")
@@ -756,12 +760,14 @@ class ShadowEngine(Module):
         self,
         context: Dict[str, Any],
         predictions: List[Dict[str, Any]],
+        is_exploration: bool = False,
     ):
         """Store predictions in the database and track their windows.
 
         Args:
             context: Context snapshot.
             predictions: List of prediction dicts from _generate_predictions().
+            is_exploration: Whether this prediction was an exploration (Thompson/epsilon).
         """
         # Compute overall confidence as average of individual predictions
         confidences = [p.get("confidence", 0) for p in predictions]
@@ -783,7 +789,7 @@ class ShadowEngine(Module):
                 predictions=predictions,
                 confidence=round(avg_confidence, 3),
                 window_seconds=window_seconds,
-                is_exploration=False,
+                is_exploration=is_exploration,
             )
 
             # Track events during this prediction's window
@@ -844,6 +850,13 @@ class ShadowEngine(Module):
                     outcome=outcome,
                     actual=actual_data,
                 )
+
+                # Update Thompson Sampling posterior with outcome
+                context = prediction.get("context", {})
+                if context:
+                    self._thompson.record_outcome(
+                        context, success=(outcome == "correct")
+                    )
 
                 self.logger.debug(
                     f"Resolved {pred_id[:8]}: {outcome} "

@@ -4,8 +4,8 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/justin/Documents/projects/ha-intelligence-hub
-ExecStart=/bin/bash -c '. ~/.env && exec /home/justin/Documents/projects/ha-intelligence-hub/.venv/bin/aria check-drift'
+WorkingDirectory=/home/justin/Documents/projects/ha-aria
+ExecStart=/bin/bash -c '. ~/.env && exec /home/justin/Documents/projects/ha-aria/.venv/bin/aria check-drift'
 StandardOutput=append:/home/justin/.local/log/aria.log
 StandardError=append:/home/justin/.local/log/aria.log
 MemoryHigh=1G

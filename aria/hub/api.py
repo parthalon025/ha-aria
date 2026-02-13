@@ -333,7 +333,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             stats = await hub.cache.get_accuracy_stats()
             pipeline = await hub.cache.get_pipeline_state()
 
-            return {
+            result = {
                 "overall_accuracy": stats.get("overall_accuracy", 0),
                 "predictions_total": stats.get("total_resolved", 0),
                 "predictions_correct": stats.get("per_outcome", {}).get("correct", 0),
@@ -343,6 +343,13 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                 "daily_trend": stats.get("daily_trend", []),
                 "stage": pipeline.get("current_stage", "shadow") if pipeline else "shadow",
             }
+
+            # Include Thompson Sampling stats if shadow engine is loaded
+            shadow_mod = hub.modules.get("shadow_engine")
+            if shadow_mod and hasattr(shadow_mod, "get_thompson_stats"):
+                result["thompson_sampling"] = shadow_mod.get_thompson_stats()
+
+            return result
         except Exception as e:
             logger.exception("Error getting shadow accuracy")
             raise HTTPException(status_code=500, detail="Internal server error")
@@ -367,15 +374,66 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
 
     @router.get("/api/pipeline")
     async def get_pipeline_status():
-        """Get current pipeline stage and gate progress."""
+        """Get current pipeline stage, gate progress, and multi-metric health.
+
+        Multi-metric gates augment single-accuracy thresholds with:
+        - coverage: fraction of contexts where predictions were attempted
+        - confidence_calibration: how well confidence scores match actual accuracy
+        - trend_direction: whether accuracy is improving, stable, or degrading
+        """
         try:
             pipeline = await hub.cache.get_pipeline_state()
             if pipeline is None:
                 return {
                     "current_stage": "shadow",
                     "gates": {},
+                    "stage_health": {},
                     "message": "Pipeline state not yet initialized"
                 }
+
+            # Compute multi-metric stage health from accuracy stats
+            stage_health = {}
+            try:
+                stats = await hub.cache.get_accuracy_stats()
+                total = stats.get("total_resolved", 0)
+                total_attempted = stats.get("total_attempted", total)
+
+                # Coverage: predictions attempted / events eligible
+                coverage = (total / max(total_attempted, 1)) if total > 0 else 0.0
+                stage_health["coverage"] = round(coverage, 3)
+
+                # Confidence calibration: compare mean confidence vs actual accuracy
+                overall_acc = stats.get("overall_accuracy", 0) / 100.0  # normalize to 0-1
+                # Calibration error = |mean_confidence - actual_accuracy|
+                # Perfect calibration: predictions with 0.7 confidence are right 70% of the time
+                mean_conf = stats.get("mean_confidence", overall_acc)
+                calibration_error = abs(mean_conf - overall_acc)
+                stage_health["confidence_calibration"] = round(1.0 - calibration_error, 3)
+
+                # Trend direction from daily_trend
+                trend = stats.get("daily_trend", [])
+                if len(trend) >= 3:
+                    recent = [d.get("accuracy", 0) for d in trend[-3:]]
+                    earlier = [d.get("accuracy", 0) for d in trend[-6:-3]] if len(trend) >= 6 else recent
+                    recent_avg = sum(recent) / len(recent)
+                    earlier_avg = sum(earlier) / len(earlier)
+                    delta = recent_avg - earlier_avg
+                    if delta > 2:
+                        stage_health["trend_direction"] = "improving"
+                    elif delta < -2:
+                        stage_health["trend_direction"] = "degrading"
+                    else:
+                        stage_health["trend_direction"] = "stable"
+                    stage_health["trend_delta"] = round(delta, 2)
+                else:
+                    stage_health["trend_direction"] = "insufficient_data"
+                    stage_health["trend_delta"] = 0.0
+
+                stage_health["predictions_resolved"] = total
+            except Exception:
+                stage_health["error"] = "Could not compute stage health"
+
+            pipeline["stage_health"] = stage_health
             return pipeline
         except Exception as e:
             logger.exception("Error getting pipeline status")

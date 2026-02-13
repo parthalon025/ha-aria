@@ -4,8 +4,8 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/justin/Documents/projects/ha-intelligence-hub
-ExecStart=/bin/bash -c '. ~/.env && /home/justin/Documents/projects/ha-intelligence-hub/.venv/bin/aria sequences train && /home/justin/Documents/projects/ha-intelligence-hub/.venv/bin/aria sequences detect'
+WorkingDirectory=/home/justin/Documents/projects/ha-aria
+ExecStart=/bin/bash -c '. ~/.env && /home/justin/Documents/projects/ha-aria/.venv/bin/aria sequences train && /home/justin/Documents/projects/ha-aria/.venv/bin/aria sequences detect'
 StandardOutput=append:/home/justin/.local/log/aria.log
 StandardError=append:/home/justin/.local/log/aria.log
 MemoryHigh=3G

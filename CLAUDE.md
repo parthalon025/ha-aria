@@ -12,7 +12,7 @@ Unified intelligence platform for Home Assistant — batch ML engine, real-time 
 
 ## Running
 
-**Service:** `ha-intelligence-hub.service` (user systemd, currently disabled)
+**Service:** `aria-hub.service` (user systemd)
 **CLI:** `aria` (installed via `pip install -e .`, see `pyproject.toml`)
 **API:** `http://127.0.0.1:8001` (localhost only)
 **Dashboard:** `http://127.0.0.1:8001/ui/`
@@ -27,10 +27,10 @@ aria serve
 aria serve --port 8002
 
 # Restart systemd service
-systemctl --user restart ha-intelligence-hub
+systemctl --user restart aria-hub
 
 # Logs
-journalctl --user -u ha-intelligence-hub -f
+journalctl --user -u aria-hub -f
 
 # Cache inspection
 curl -s http://127.0.0.1:8001/api/cache | python3 -m json.tool
