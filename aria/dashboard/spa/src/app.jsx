@@ -93,7 +93,7 @@ export default function App() {
   }, []);
 
   return (
-    <div class="min-h-screen bg-gray-50">
+    <div class="min-h-screen" style="background: var(--bg-base); color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease;">
       <Sidebar />
 
       {/* Content area: offset for sidebar on desktop, bottom padding for tab bar on mobile */}
