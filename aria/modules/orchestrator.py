@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from hub.core import Module, IntelligenceHub
+from aria.hub.core import Module, IntelligenceHub
 
 
 logger = logging.getLogger(__name__)

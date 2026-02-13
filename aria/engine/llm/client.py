@@ -4,7 +4,7 @@ import json
 import re
 import urllib.request
 
-from ha_intelligence.config import OllamaConfig
+from aria.engine.config import OllamaConfig
 
 
 def strip_think_tags(text):

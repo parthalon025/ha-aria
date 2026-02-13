@@ -2,8 +2,8 @@
 
 import json
 
-from ha_intelligence.config import OllamaConfig
-from ha_intelligence.llm.client import ollama_chat, strip_think_tags
+from aria.engine.config import OllamaConfig
+from aria.engine.llm.client import ollama_chat, strip_think_tags
 
 
 def generate_insight_report(snapshot, anomalies, predictions, reliability,

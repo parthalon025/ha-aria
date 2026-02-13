@@ -6,11 +6,11 @@ import tempfile
 import shutil
 from pathlib import Path
 
-from ha_intelligence.config import HolidayConfig, PathConfig, AppConfig
-from ha_intelligence.collectors.snapshot import (
+from aria.engine.config import HolidayConfig, PathConfig, AppConfig
+from aria.engine.collectors.snapshot import (
     build_empty_snapshot, aggregate_intraday_to_daily,
 )
-from ha_intelligence.storage.data_store import DataStore
+from aria.engine.storage.data_store import DataStore
 
 
 class TestIntradaySnapshot(unittest.TestCase):

@@ -5,20 +5,20 @@ import unittest
 import tempfile
 import shutil
 
-from ha_intelligence.features.feature_config import DEFAULT_FEATURE_CONFIG
-from ha_intelligence.features.vector_builder import build_training_data
-from ha_intelligence.models.training import (
+from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
+from aria.engine.features.vector_builder import build_training_data
+from aria.engine.models.training import (
     train_continuous_model, blend_predictions, count_days_of_data,
     predict_with_ml,
 )
-from ha_intelligence.models.isolation_forest import IsolationForestModel
-from ha_intelligence.models.device_failure import (
+from aria.engine.models.isolation_forest import IsolationForestModel
+from aria.engine.models.device_failure import (
     train_device_failure_model, predict_device_failures,
     detect_contextual_anomalies,
 )
-from ha_intelligence.config import HolidayConfig, PathConfig
-from ha_intelligence.collectors.snapshot import build_empty_snapshot
-from ha_intelligence.storage.data_store import DataStore
+from aria.engine.config import HolidayConfig, PathConfig
+from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.storage.data_store import DataStore
 
 from conftest import make_synthetic_snapshots
 

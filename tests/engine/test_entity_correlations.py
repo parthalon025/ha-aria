@@ -2,7 +2,7 @@
 
 import unittest
 
-from ha_intelligence.analysis.entity_correlations import (
+from aria.engine.analysis.entity_correlations import (
     compute_co_occurrences, compute_hourly_patterns,
     summarize_entity_correlations, _is_trackable,
 )

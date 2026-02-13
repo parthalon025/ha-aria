@@ -2,7 +2,7 @@
 
 import unittest
 
-from ha_intelligence.analysis.power_profiles import (
+from aria.engine.analysis.power_profiles import (
     ApplianceProfiler, ApplianceProfile, profile_correlation,
 )
 

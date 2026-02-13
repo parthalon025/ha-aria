@@ -3,13 +3,13 @@
 import copy
 import unittest
 
-from ha_intelligence.config import HolidayConfig
-from ha_intelligence.collectors.snapshot import build_empty_snapshot
-from ha_intelligence.features.time_features import (
+from aria.engine.config import HolidayConfig
+from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.features.time_features import (
     build_time_features, cyclical_encode, _time_to_minutes,
 )
-from ha_intelligence.features.feature_config import DEFAULT_FEATURE_CONFIG
-from ha_intelligence.features.vector_builder import (
+from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
+from aria.engine.features.vector_builder import (
     build_feature_vector, build_training_data,
     extract_target_values, get_feature_names,
 )

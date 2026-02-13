@@ -7,10 +7,10 @@ import tempfile
 import shutil
 from pathlib import Path
 
-from ha_intelligence.config import HolidayConfig, PathConfig
-from ha_intelligence.collectors.snapshot import build_empty_snapshot
-from ha_intelligence.predictions.predictor import generate_predictions
-from ha_intelligence.predictions.scoring import (
+from aria.engine.config import HolidayConfig, PathConfig
+from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.predictions.predictor import generate_predictions
+from aria.engine.predictions.scoring import (
     score_prediction, score_all_predictions, accuracy_trend,
 )
 

@@ -7,7 +7,7 @@ blend_predictions (lines 1173-1186).
 import os
 from datetime import datetime
 
-from ha_intelligence.config import PathConfig
+from aria.engine.config import PathConfig
 
 
 def blend_predictions(stat_pred, ml_pred, days_of_data):

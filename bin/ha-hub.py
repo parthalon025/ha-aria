@@ -24,15 +24,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import uvicorn
-from hub.core import IntelligenceHub
-from hub.api import create_api
-from modules.discovery import DiscoveryModule
-from modules.ml_engine import MLEngine
-from modules.orchestrator import OrchestratorModule
-from modules.patterns import PatternRecognition
-from modules.intelligence import IntelligenceModule
-from modules.activity_monitor import ActivityMonitor
-from modules.shadow_engine import ShadowEngine
+from aria.hub.core import IntelligenceHub
+from aria.hub.api import create_api
+from aria.modules.discovery import DiscoveryModule
+from aria.modules.ml_engine import MLEngine
+from aria.modules.orchestrator import OrchestratorModule
+from aria.modules.patterns import PatternRecognition
+from aria.modules.intelligence import IntelligenceModule
+from aria.modules.activity_monitor import ActivityMonitor
+from aria.modules.shadow_engine import ShadowEngine
 
 
 # Global hub instance for signal handling
@@ -142,7 +142,7 @@ async def main():
 
     # Seed config defaults (INSERT OR IGNORE preserves user overrides)
     try:
-        from hub.config_defaults import seed_config_defaults
+        from aria.hub.config_defaults import seed_config_defaults
         seeded = await seed_config_defaults(hub_instance.cache)
         if seeded:
             logger.info(f"Seeded {seeded} new config parameter(s)")
@@ -240,7 +240,7 @@ async def main():
     # Register data quality module (non-fatal)
     try:
         logger.info("Initializing data quality module...")
-        from modules.data_quality import DataQualityModule
+        from aria.modules.data_quality import DataQualityModule
         data_quality = DataQualityModule(hub_instance)
         hub_instance.register_module(data_quality)
         await data_quality.initialize()

@@ -2,11 +2,11 @@
 
 import unittest
 
-from ha_intelligence.config import HolidayConfig, SafetyConfig
-from ha_intelligence.collectors.snapshot import build_empty_snapshot
-from ha_intelligence.collectors.ha_api import parse_weather
-from ha_intelligence.collectors.logbook import summarize_logbook
-from ha_intelligence.collectors.extractors import (
+from aria.engine.config import HolidayConfig, SafetyConfig
+from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.collectors.ha_api import parse_weather
+from aria.engine.collectors.logbook import summarize_logbook
+from aria.engine.collectors.extractors import (
     PowerCollector, OccupancyCollector, ClimateCollector,
     LightsCollector, EVCollector, DoorsWindowsCollector,
     BatteriesCollector, NetworkCollector, MediaCollector,
@@ -149,9 +149,9 @@ class TestNewExtraction(unittest.TestCase):
 class TestSnapshotAssembly(unittest.TestCase):
     def test_build_snapshot_assembles_all_sections(self):
         from unittest.mock import patch
-        from ha_intelligence.collectors.snapshot import build_snapshot
-        from ha_intelligence.config import AppConfig
-        from ha_intelligence.storage.data_store import DataStore
+        from aria.engine.collectors.snapshot import build_snapshot
+        from aria.engine.config import AppConfig
+        from aria.engine.storage.data_store import DataStore
         import tempfile, shutil
 
         tmpdir = tempfile.mkdtemp()
@@ -162,9 +162,9 @@ class TestSnapshotAssembly(unittest.TestCase):
             store = DataStore(config.paths)
             store.ensure_dirs()
 
-            with patch("ha_intelligence.collectors.snapshot.fetch_ha_states", return_value=SAMPLE_STATES), \
-                 patch("ha_intelligence.collectors.snapshot.fetch_weather", return_value="Clear +75°F 50% →5mph"), \
-                 patch("ha_intelligence.collectors.snapshot.fetch_calendar_events",
+            with patch("aria.engine.collectors.snapshot.fetch_ha_states", return_value=SAMPLE_STATES), \
+                 patch("aria.engine.collectors.snapshot.fetch_weather", return_value="Clear +75°F 50% →5mph"), \
+                 patch("aria.engine.collectors.snapshot.fetch_calendar_events",
                        return_value=[{"start": "2026-02-10T09:00:00", "end": "2026-02-10T10:00:00", "summary": "Meeting"}]):
                 snapshot = build_snapshot("2026-02-10", config=config, store=store)
 

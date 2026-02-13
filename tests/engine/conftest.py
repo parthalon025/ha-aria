@@ -6,14 +6,14 @@ import shutil
 
 import pytest
 
-from ha_intelligence.config import (
+from aria.engine.config import (
     AppConfig, HAConfig, PathConfig, ModelConfig, OllamaConfig,
     WeatherConfig, SafetyConfig, HolidayConfig,
 )
-from ha_intelligence.storage.data_store import DataStore
-from ha_intelligence.collectors.snapshot import build_empty_snapshot
-from ha_intelligence.features.time_features import build_time_features
-from ha_intelligence.features.feature_config import DEFAULT_FEATURE_CONFIG
+from aria.engine.storage.data_store import DataStore
+from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.features.time_features import build_time_features
+from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
 
 
 # --- Common test data ---

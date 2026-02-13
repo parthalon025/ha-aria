@@ -2,7 +2,7 @@
 
 import unittest
 
-from ha_intelligence.analysis.drift import DriftDetector
+from aria.engine.analysis.drift import DriftDetector
 
 
 class TestDriftDetector(unittest.TestCase):

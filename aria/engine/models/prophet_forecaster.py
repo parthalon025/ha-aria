@@ -13,7 +13,7 @@ import os
 import pickle
 from datetime import datetime, timedelta
 
-from ha_intelligence.models.registry import ModelRegistry, BaseModel
+from aria.engine.models.registry import ModelRegistry, BaseModel
 
 HAS_PROPHET = True
 try:

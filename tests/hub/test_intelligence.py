@@ -20,8 +20,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
-from modules.intelligence import IntelligenceModule, METRIC_PATHS
+from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
+from aria.modules.intelligence import IntelligenceModule, METRIC_PATHS
 
 
 # ============================================================================
@@ -430,7 +430,7 @@ class TestTelegramSending:
         module._telegram_token = "fake-token"
         module._telegram_chat_id = "12345"
 
-        with patch("modules.intelligence.aiohttp.ClientSession", return_value=mock_session):
+        with patch("aria.modules.intelligence.aiohttp.ClientSession", return_value=mock_session):
             await module._send_telegram("Test message")
 
         # Verify post was called with correct URL structure
@@ -456,7 +456,7 @@ class TestTelegramSending:
         module._telegram_token = "fake-token"
         module._telegram_chat_id = "12345"
 
-        with patch("modules.intelligence.aiohttp.ClientSession", return_value=mock_session):
+        with patch("aria.modules.intelligence.aiohttp.ClientSession", return_value=mock_session):
             with pytest.raises(RuntimeError, match="Telegram API error"):
                 await module._send_telegram("Test message")
 

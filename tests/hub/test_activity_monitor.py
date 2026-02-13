@@ -21,9 +21,9 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from hub.core import Module, IntelligenceHub
-from hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
-from modules.activity_monitor import (
+from aria.hub.core import Module, IntelligenceHub
+from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
+from aria.modules.activity_monitor import (
     ActivityMonitor,
     DAILY_SNAPSHOT_CAP,
     NOISE_TRANSITIONS,

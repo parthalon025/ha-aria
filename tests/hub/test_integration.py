@@ -17,11 +17,11 @@ from datetime import datetime, timedelta
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from hub.core import IntelligenceHub
-from modules.discovery import DiscoveryModule
-from modules.ml_engine import MLEngine
-from modules.patterns import PatternRecognition
-from modules.orchestrator import OrchestratorModule
+from aria.hub.core import IntelligenceHub
+from aria.modules.discovery import DiscoveryModule
+from aria.modules.ml_engine import MLEngine
+from aria.modules.patterns import PatternRecognition
+from aria.modules.orchestrator import OrchestratorModule
 
 
 # ============================================================================

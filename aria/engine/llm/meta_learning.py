@@ -12,10 +12,10 @@ import shutil
 import tempfile
 from datetime import datetime
 
-from ha_intelligence.config import AppConfig, OllamaConfig
-from ha_intelligence.features.feature_config import DEFAULT_FEATURE_CONFIG
-from ha_intelligence.llm.client import ollama_chat, strip_think_tags
-from ha_intelligence.storage.data_store import DataStore
+from aria.engine.config import AppConfig, OllamaConfig
+from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
+from aria.engine.llm.client import ollama_chat, strip_think_tags
+from aria.engine.storage.data_store import DataStore
 
 # --- Constants ---
 
@@ -146,8 +146,8 @@ def validate_suggestion(suggestion, snapshots, config):
         return None, None
 
     # Deferred imports — these modules may still be migrating
-    from ha_intelligence.features.vector_builder import build_training_data
-    from ha_intelligence.models.training import train_continuous_model
+    from aria.engine.features.vector_builder import build_training_data
+    from aria.engine.models.training import train_continuous_model
 
     modified_config = copy.deepcopy(config)
     if not apply_suggestion_to_config(suggestion, modified_config):
@@ -207,7 +207,7 @@ def run_meta_learning(config: AppConfig = None, store: DataStore = None):
         return {"error": "sklearn not installed"}
 
     # Deferred import — models module may still be migrating
-    from ha_intelligence.models.training import count_days_of_data, train_all_models
+    from aria.engine.models.training import count_days_of_data, train_all_models
 
     days = count_days_of_data(config.paths)
     if days < 14:

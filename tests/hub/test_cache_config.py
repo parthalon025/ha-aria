@@ -10,8 +10,8 @@ import pytest_asyncio
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from hub.cache import CacheManager
-from hub.constants import CACHE_CONFIG, CACHE_ENTITY_CURATION, CACHE_CONFIG_HISTORY
+from aria.hub.cache import CacheManager
+from aria.hub.constants import CACHE_CONFIG, CACHE_ENTITY_CURATION, CACHE_CONFIG_HISTORY
 
 
 # ============================================================================

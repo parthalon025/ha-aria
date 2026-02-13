@@ -10,7 +10,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from hub.core import IntelligenceHub
+from aria.hub.core import IntelligenceHub
 
 
 logger = logging.getLogger(__name__)

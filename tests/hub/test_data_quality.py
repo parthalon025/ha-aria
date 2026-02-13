@@ -15,7 +15,7 @@ import pytest_asyncio
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from modules.data_quality import (
+from aria.modules.data_quality import (
     DataQualityModule,
     CONFIG_AUTO_EXCLUDE_DOMAINS,
     CONFIG_NOISE_EVENT_THRESHOLD,

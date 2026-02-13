@@ -1,11 +1,11 @@
 """Prediction generation, scoring, and accuracy tracking."""
 
-from ha_intelligence.predictions.predictor import (
+from aria.engine.predictions.predictor import (
     blend_predictions,
     count_days_of_data,
     generate_predictions,
 )
-from ha_intelligence.predictions.scoring import (
+from aria.engine.predictions.scoring import (
     METRIC_TO_ACTUAL,
     accuracy_trend,
     score_all_predictions,

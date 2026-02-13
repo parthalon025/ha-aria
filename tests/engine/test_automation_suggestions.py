@@ -3,7 +3,7 @@
 import json
 import unittest
 
-from ha_intelligence.llm.automation_suggestions import (
+from aria.engine.llm.automation_suggestions import (
     parse_automation_suggestions, _validate_yaml_structure,
     _format_co_occurrences,
 )

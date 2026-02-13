@@ -5,8 +5,8 @@ import os
 import pickle
 from datetime import datetime
 
-from ha_intelligence.config import AppConfig, PathConfig
-from ha_intelligence.storage.data_store import DataStore
+from aria.engine.config import AppConfig, PathConfig
+from aria.engine.storage.data_store import DataStore
 
 HAS_SKLEARN = True
 try:
@@ -32,10 +32,10 @@ def train_all_models(days=90, config=None, store=None):
     models_dir = str(config.paths.models_dir)
 
     # Lazy imports — these modules may not be migrated yet
-    from ha_intelligence.features.vector_builder import build_training_data
-    from ha_intelligence.models.gradient_boosting import GradientBoostingModel
-    from ha_intelligence.models.isolation_forest import IsolationForestModel
-    from ha_intelligence.models.device_failure import train_device_failure_model
+    from aria.engine.features.vector_builder import build_training_data
+    from aria.engine.models.gradient_boosting import GradientBoostingModel
+    from aria.engine.models.isolation_forest import IsolationForestModel
+    from aria.engine.models.device_failure import train_device_failure_model
 
     # Load intra-day snapshots (or fall back to daily)
     snapshots = store.load_all_intraday_snapshots(days)
@@ -100,7 +100,7 @@ def predict_with_ml(snapshot, config=None, prev_snapshot=None, rolling_stats=Non
     if not HAS_SKLEARN:
         return {}
 
-    from ha_intelligence.features.vector_builder import build_feature_vector, get_feature_names
+    from aria.engine.features.vector_builder import build_feature_vector, get_feature_names
 
     if config is None:
         if store is not None:
@@ -137,7 +137,7 @@ def train_continuous_model(metric_name, feature_names, X, y, model_dir, config=N
     Convenience wrapper around GradientBoostingModel.train() for use by
     meta_learning validation (which needs to train in temp dirs).
     """
-    from ha_intelligence.models.gradient_boosting import GradientBoostingModel
+    from aria.engine.models.gradient_boosting import GradientBoostingModel
     model = GradientBoostingModel()
     return model.train(metric_name, feature_names, X, y, model_dir, config)
 

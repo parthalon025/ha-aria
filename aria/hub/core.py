@@ -6,7 +6,7 @@ from typing import Dict, Set, Optional, Any, Callable
 from datetime import datetime, timedelta
 import json
 
-from hub.cache import CacheManager
+from aria.hub.cache import CacheManager
 
 
 logger = logging.getLogger(__name__)

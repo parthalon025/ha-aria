@@ -17,9 +17,9 @@ import pytest_asyncio
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from hub.core import Module, IntelligenceHub
-from hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
-from modules.shadow_engine import (
+from aria.hub.core import Module, IntelligenceHub
+from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
+from aria.modules.shadow_engine import (
     ShadowEngine,
     DEFAULT_WINDOW_SECONDS,
     MIN_CONFIDENCE,
@@ -1396,7 +1396,7 @@ class TestActivityMonitorIntegration:
         hub = IntegrationHub()
 
         # Create activity monitor with dummy HA credentials
-        from modules.activity_monitor import ActivityMonitor
+        from aria.modules.activity_monitor import ActivityMonitor
         activity_mon = ActivityMonitor(hub, "http://dummy:8123", "dummy_token")
         hub.register_module(activity_mon)
 

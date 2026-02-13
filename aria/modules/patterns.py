@@ -20,7 +20,7 @@ from mlxtend.preprocessing import TransactionEncoder
 import pandas as pd
 import ollama
 
-from hub.core import Module, IntelligenceHub
+from aria.hub.core import Module, IntelligenceHub
 
 
 logger = logging.getLogger(__name__)

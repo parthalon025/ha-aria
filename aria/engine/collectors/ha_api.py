@@ -6,7 +6,7 @@ import subprocess
 import urllib.request
 import urllib.error
 
-from ha_intelligence.config import HAConfig, WeatherConfig
+from aria.engine.config import HAConfig, WeatherConfig
 
 
 def fetch_ha_states(ha_config: HAConfig) -> list[dict]:

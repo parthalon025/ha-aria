@@ -8,7 +8,7 @@ Lightweight alternative to LSTM-Autoencoder — zero new dependencies.
 import math
 from collections import defaultdict
 
-from ha_intelligence.analysis.entity_correlations import (
+from aria.engine.analysis.entity_correlations import (
     _is_trackable,
     _parse_timestamp,
 )

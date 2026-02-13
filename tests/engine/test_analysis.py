@@ -2,12 +2,12 @@
 
 import unittest
 
-from ha_intelligence.config import HolidayConfig
-from ha_intelligence.collectors.snapshot import build_empty_snapshot
-from ha_intelligence.analysis.baselines import compute_baselines
-from ha_intelligence.analysis.correlations import pearson_r, cross_correlate
-from ha_intelligence.analysis.reliability import compute_device_reliability
-from ha_intelligence.analysis.anomalies import detect_anomalies
+from aria.engine.config import HolidayConfig
+from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.analysis.baselines import compute_baselines
+from aria.engine.analysis.correlations import pearson_r, cross_correlate
+from aria.engine.analysis.reliability import compute_device_reliability
+from aria.engine.analysis.anomalies import detect_anomalies
 
 from conftest import make_snapshot
 

@@ -8,9 +8,9 @@ import json
 import re
 from datetime import datetime
 
-from ha_intelligence.config import AppConfig, OllamaConfig
-from ha_intelligence.llm.client import ollama_chat, strip_think_tags
-from ha_intelligence.storage.data_store import DataStore
+from aria.engine.config import AppConfig, OllamaConfig
+from aria.engine.llm.client import ollama_chat, strip_think_tags
+from aria.engine.storage.data_store import DataStore
 
 
 AUTOMATION_PROMPT = """You are a Home Assistant automation expert analyzing real behavioral data from a smart home.

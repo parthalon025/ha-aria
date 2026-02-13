@@ -10,8 +10,8 @@ import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from hub.core import Module, IntelligenceHub
-from hub.constants import CACHE_ENTITIES, CACHE_ACTIVITY_LOG
+from aria.hub.core import Module, IntelligenceHub
+from aria.hub.constants import CACHE_ENTITIES, CACHE_ACTIVITY_LOG
 
 logger = logging.getLogger(__name__)
 

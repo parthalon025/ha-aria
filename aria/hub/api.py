@@ -9,7 +9,7 @@ import logging
 import json
 from datetime import datetime
 
-from hub.core import IntelligenceHub
+from aria.hub.core import IntelligenceHub
 
 
 logger = logging.getLogger(__name__)

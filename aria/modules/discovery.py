@@ -16,7 +16,7 @@ from datetime import timedelta
 
 import aiohttp
 
-from hub.core import Module, IntelligenceHub
+from aria.hub.core import Module, IntelligenceHub
 
 
 logger = logging.getLogger(__name__)

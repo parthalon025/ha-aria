@@ -29,8 +29,8 @@ import json
 import sys
 from datetime import datetime, timedelta
 
-from ha_intelligence.config import AppConfig
-from ha_intelligence.storage.data_store import DataStore
+from aria.engine.config import AppConfig
+from aria.engine.storage.data_store import DataStore
 
 # sklearn availability check (same pattern as v2)
 HAS_SKLEARN = True
@@ -55,8 +55,8 @@ def cmd_snapshot_intraday():
     """Collect and save an intra-day snapshot."""
     config, store = _init()
 
-    from ha_intelligence.collectors.snapshot import build_intraday_snapshot
-    from ha_intelligence.features.time_features import build_time_features
+    from aria.engine.collectors.snapshot import build_intraday_snapshot
+    from aria.engine.features.time_features import build_time_features
 
     snapshot = build_intraday_snapshot(hour=None, date_str=None,
                                        config=config, store=store)
@@ -76,7 +76,7 @@ def cmd_snapshot():
     """Collect and save today's snapshot."""
     config, store = _init()
 
-    from ha_intelligence.collectors.snapshot import build_snapshot
+    from aria.engine.collectors.snapshot import build_snapshot
 
     snapshot = build_snapshot(date_str=None, config=config, store=store)
     path = store.save_snapshot(snapshot)
@@ -88,15 +88,15 @@ def cmd_analyze():
     """Run full analysis on latest data, including ML contextual anomaly detection."""
     config, store = _init()
 
-    from ha_intelligence.collectors.snapshot import build_snapshot
-    from ha_intelligence.analysis.baselines import compute_baselines
-    from ha_intelligence.analysis.anomalies import detect_anomalies
-    from ha_intelligence.analysis.correlations import cross_correlate
-    from ha_intelligence.analysis.reliability import compute_device_reliability
-    from ha_intelligence.features.vector_builder import build_feature_vector, get_feature_names
-    from ha_intelligence.features.feature_config import load_feature_config
-    from ha_intelligence.models.device_failure import detect_contextual_anomalies
-    from ha_intelligence.models.training import count_days_of_data
+    from aria.engine.collectors.snapshot import build_snapshot
+    from aria.engine.analysis.baselines import compute_baselines
+    from aria.engine.analysis.anomalies import detect_anomalies
+    from aria.engine.analysis.correlations import cross_correlate
+    from aria.engine.analysis.reliability import compute_device_reliability
+    from aria.engine.features.vector_builder import build_feature_vector, get_feature_names
+    from aria.engine.features.feature_config import load_feature_config
+    from aria.engine.models.device_failure import detect_contextual_anomalies
+    from aria.engine.models.training import count_days_of_data
 
     today = datetime.now().strftime("%Y-%m-%d")
     snapshot = store.load_snapshot(today)
@@ -144,16 +144,16 @@ def cmd_predict():
     """Generate predictions for tomorrow with ML blending."""
     config, store = _init()
 
-    from ha_intelligence.collectors.snapshot import build_empty_snapshot
-    from ha_intelligence.collectors.ha_api import fetch_weather, parse_weather
-    from ha_intelligence.features.time_features import build_time_features
-    from ha_intelligence.features.vector_builder import build_feature_vector, get_feature_names
-    from ha_intelligence.features.feature_config import load_feature_config
-    from ha_intelligence.models.training import predict_with_ml, count_days_of_data
-    from ha_intelligence.models.device_failure import (
+    from aria.engine.collectors.snapshot import build_empty_snapshot
+    from aria.engine.collectors.ha_api import fetch_weather, parse_weather
+    from aria.engine.features.time_features import build_time_features
+    from aria.engine.features.vector_builder import build_feature_vector, get_feature_names
+    from aria.engine.features.feature_config import load_feature_config
+    from aria.engine.models.training import predict_with_ml, count_days_of_data
+    from aria.engine.models.device_failure import (
         predict_device_failures, detect_contextual_anomalies,
     )
-    from ha_intelligence.predictions.predictor import generate_predictions
+    from aria.engine.predictions.predictor import generate_predictions
 
     baselines = store.load_baselines()
     correlations = store.load_correlations()
@@ -230,7 +230,7 @@ def cmd_score():
     """Score yesterday's predictions against actual data."""
     config, store = _init()
 
-    from ha_intelligence.predictions.scoring import score_all_predictions, accuracy_trend
+    from aria.engine.predictions.scoring import score_all_predictions, accuracy_trend
 
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     predictions = store.load_predictions()
@@ -254,11 +254,11 @@ def cmd_report(dry_run=False):
     """Generate full Ollama insight report."""
     config, store = _init()
 
-    from ha_intelligence.collectors.snapshot import build_snapshot
-    from ha_intelligence.analysis.baselines import compute_baselines
-    from ha_intelligence.analysis.anomalies import detect_anomalies
-    from ha_intelligence.analysis.reliability import compute_device_reliability
-    from ha_intelligence.llm.reports import generate_insight_report
+    from aria.engine.collectors.snapshot import build_snapshot
+    from aria.engine.analysis.baselines import compute_baselines
+    from aria.engine.analysis.anomalies import detect_anomalies
+    from aria.engine.analysis.reliability import compute_device_reliability
+    from aria.engine.llm.reports import generate_insight_report
 
     today = datetime.now().strftime("%Y-%m-%d")
     snapshot = store.load_snapshot(today)
@@ -294,7 +294,7 @@ def cmd_retrain():
     """Retrain all sklearn ML models."""
     config, store = _init()
 
-    from ha_intelligence.models.training import train_all_models
+    from aria.engine.models.training import train_all_models
 
     print("Retraining ML models...")
     results = train_all_models(days=90, config=config, store=store)
@@ -310,7 +310,7 @@ def cmd_meta_learn():
     """Run meta-learning analysis (weekly)."""
     config, store = _init()
 
-    from ha_intelligence.llm.meta_learning import run_meta_learning
+    from aria.engine.llm.meta_learning import run_meta_learning
 
     return run_meta_learning(config=config, store=store)
 
@@ -319,10 +319,10 @@ def cmd_brief():
     """Print one-liner for telegram-brief integration."""
     config, store = _init()
 
-    from ha_intelligence.collectors.snapshot import build_snapshot
-    from ha_intelligence.analysis.baselines import compute_baselines
-    from ha_intelligence.analysis.anomalies import detect_anomalies
-    from ha_intelligence.llm.reports import generate_brief_line
+    from aria.engine.collectors.snapshot import build_snapshot
+    from aria.engine.analysis.baselines import compute_baselines
+    from aria.engine.analysis.anomalies import detect_anomalies
+    from aria.engine.llm.reports import generate_brief_line
 
     today = datetime.now().strftime("%Y-%m-%d")
     snapshot = store.load_snapshot(today)
@@ -339,7 +339,7 @@ def cmd_check_drift():
     """Check for concept drift and conditionally trigger retraining."""
     config, store = _init()
 
-    from ha_intelligence.analysis.drift import DriftDetector
+    from aria.engine.analysis.drift import DriftDetector
 
     accuracy = store.load_accuracy_history()
     detector = DriftDetector()
@@ -366,7 +366,7 @@ def cmd_entity_correlations():
     """Compute entity co-occurrence correlations from logbook data."""
     config, store = _init()
 
-    from ha_intelligence.analysis.entity_correlations import (
+    from aria.engine.analysis.entity_correlations import (
         compute_co_occurrences, compute_hourly_patterns,
         summarize_entity_correlations,
     )
@@ -397,7 +397,7 @@ def cmd_suggest_automations():
     """Generate HA automation YAML suggestions from learned patterns."""
     config, store = _init()
 
-    from ha_intelligence.llm.automation_suggestions import generate_automation_suggestions
+    from aria.engine.llm.automation_suggestions import generate_automation_suggestions
 
     result = generate_automation_suggestions(config=config, store=store)
     if not result or "error" in result:
@@ -419,7 +419,7 @@ def cmd_train_prophet():
     """Train Prophet seasonal forecasters on daily snapshot time series."""
     config, store = _init()
 
-    from ha_intelligence.models.prophet_forecaster import (
+    from aria.engine.models.prophet_forecaster import (
         train_prophet_models, predict_with_prophet, HAS_PROPHET,
     )
 
@@ -464,10 +464,10 @@ def cmd_occupancy():
     """Estimate Bayesian occupancy from the current HA snapshot."""
     config, store = _init()
 
-    from ha_intelligence.analysis.occupancy import (
+    from aria.engine.analysis.occupancy import (
         BayesianOccupancy, occupancy_to_features,
     )
-    from ha_intelligence.collectors.snapshot import build_snapshot
+    from aria.engine.collectors.snapshot import build_snapshot
 
     today = datetime.now().strftime("%Y-%m-%d")
     snapshot = store.load_snapshot(today)
@@ -492,7 +492,7 @@ def cmd_power_profiles():
     """Analyze per-outlet power consumption profiles."""
     config, store = _init()
 
-    from ha_intelligence.analysis.power_profiles import ApplianceProfiler
+    from aria.engine.analysis.power_profiles import ApplianceProfiler
 
     # Load daily snapshots
     import os
@@ -550,7 +550,7 @@ def cmd_train_sequences():
     """Train Markov chain sequence model from logbook data."""
     config, store = _init()
 
-    from ha_intelligence.analysis.sequence_anomalies import MarkovChainDetector
+    from aria.engine.analysis.sequence_anomalies import MarkovChainDetector
 
     entries = store.load_logbook()
     if not entries:
@@ -573,7 +573,7 @@ def cmd_sequence_anomalies():
     """Detect anomalous event sequences using trained Markov chain."""
     config, store = _init()
 
-    from ha_intelligence.analysis.sequence_anomalies import (
+    from aria.engine.analysis.sequence_anomalies import (
         MarkovChainDetector,
         summarize_sequence_anomalies,
     )

@@ -16,8 +16,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from hub.core import Module, IntelligenceHub
-from hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
+from aria.hub.core import Module, IntelligenceHub
+from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
 
 logger = logging.getLogger(__name__)
 

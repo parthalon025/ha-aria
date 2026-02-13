@@ -4,8 +4,8 @@ import pytest
 import pytest_asyncio
 import asyncio
 from pathlib import Path
-from hub.core import IntelligenceHub
-from modules.patterns import PatternRecognition
+from aria.hub.core import IntelligenceHub
+from aria.modules.patterns import PatternRecognition
 
 
 @pytest_asyncio.fixture
@@ -119,7 +119,7 @@ async def test_llm_interpretation(hub, patterns_module):
 @pytest.mark.asyncio
 async def test_dtw_distance():
     """Test DTW distance calculation."""
-    from modules.patterns import PatternRecognition
+    from aria.modules.patterns import PatternRecognition
 
     module = PatternRecognition(
         hub=None,
@@ -148,7 +148,7 @@ async def test_dtw_distance():
 @pytest.mark.asyncio
 async def test_extract_area_from_name():
     """Test area extraction from entity names."""
-    from modules.patterns import PatternRecognition
+    from aria.modules.patterns import PatternRecognition
 
     module = PatternRecognition(
         hub=None,
@@ -164,7 +164,7 @@ async def test_extract_area_from_name():
 @pytest.mark.asyncio
 async def test_strip_think_tags():
     """Test removal of deepseek-r1 thinking tags."""
-    from modules.patterns import PatternRecognition
+    from aria.modules.patterns import PatternRecognition
 
     module = PatternRecognition(
         hub=None,

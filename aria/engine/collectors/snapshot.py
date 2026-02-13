@@ -3,17 +3,17 @@
 import statistics
 from datetime import datetime
 
-from ha_intelligence.config import AppConfig, HolidayConfig
-from ha_intelligence.storage.data_store import DataStore
-from ha_intelligence.collectors.registry import CollectorRegistry
-from ha_intelligence.collectors.ha_api import (
+from aria.engine.config import AppConfig, HolidayConfig
+from aria.engine.storage.data_store import DataStore
+from aria.engine.collectors.registry import CollectorRegistry
+from aria.engine.collectors.ha_api import (
     fetch_ha_states,
     fetch_weather,
     parse_weather,
     fetch_calendar_events,
 )
-from ha_intelligence.collectors.logbook import summarize_logbook
-from ha_intelligence.collectors.extractors import EntitiesSummaryCollector
+from aria.engine.collectors.logbook import summarize_logbook
+from aria.engine.collectors.extractors import EntitiesSummaryCollector
 
 
 def build_empty_snapshot(date_str: str, holidays_config: HolidayConfig) -> dict:

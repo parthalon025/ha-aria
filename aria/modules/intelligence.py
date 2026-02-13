@@ -15,8 +15,8 @@ from datetime import datetime, timedelta
 
 import aiohttp
 
-from hub.core import Module, IntelligenceHub
-from hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
+from aria.hub.core import Module, IntelligenceHub
+from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
 
 
 logger = logging.getLogger(__name__)

@@ -2,7 +2,7 @@
 
 import unittest
 
-from ha_intelligence.analysis.sequence_anomalies import MarkovChainDetector
+from aria.engine.analysis.sequence_anomalies import MarkovChainDetector
 
 
 def _make_entries(triples):
@@ -171,7 +171,7 @@ class TestMarkovChainDetection(unittest.TestCase):
 class TestSummarizeSequenceAnomalies(unittest.TestCase):
 
     def test_summarize_returns_overview(self):
-        from ha_intelligence.analysis.sequence_anomalies import summarize_sequence_anomalies
+        from aria.engine.analysis.sequence_anomalies import summarize_sequence_anomalies
         anomalies = [
             {"time_start": "2026-02-11T03:00:00", "time_end": "2026-02-11T03:01:30",
              "score": -5.2, "threshold": -3.0, "severity": "high",

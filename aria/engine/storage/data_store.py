@@ -9,7 +9,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from ha_intelligence.config import PathConfig
+from aria.engine.config import PathConfig
 
 
 class DataStore:

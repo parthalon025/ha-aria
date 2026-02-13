@@ -13,8 +13,8 @@ import numpy as np
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 
-from modules.ml_engine import MLEngine
-from hub.core import IntelligenceHub
+from aria.modules.ml_engine import MLEngine
+from aria.hub.core import IntelligenceHub
 
 
 @pytest.fixture
@@ -1004,7 +1004,7 @@ class TestFeatureEngineering:
 
     def test_decay_weight_recency_ordering(self, engine):
         """Today's weight > yesterday's weight > last week's weight."""
-        from modules.ml_engine import DECAY_HALF_LIFE_DAYS
+        from aria.modules.ml_engine import DECAY_HALF_LIFE_DAYS
         now = datetime(2026, 2, 12, 12, 0, 0)
 
         snapshots = [
@@ -1022,7 +1022,7 @@ class TestFeatureEngineering:
 
     def test_decay_weight_weekday_alignment_bonus(self, engine):
         """Same-weekday snapshots receive the alignment bonus."""
-        from modules.ml_engine import DECAY_HALF_LIFE_DAYS, WEEKDAY_ALIGNMENT_BONUS
+        from aria.modules.ml_engine import DECAY_HALF_LIFE_DAYS, WEEKDAY_ALIGNMENT_BONUS
 
         # 2026-02-12 is a Thursday
         now = datetime(2026, 2, 12, 12, 0, 0)

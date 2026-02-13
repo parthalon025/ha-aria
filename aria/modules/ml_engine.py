@@ -26,7 +26,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, r2_score
 import lightgbm as lgb
 
-from hub.core import Module, IntelligenceHub
+from aria.hub.core import Module, IntelligenceHub
 
 
 logger = logging.getLogger(__name__)

@@ -3,8 +3,8 @@
 import os
 import pickle
 
-from ha_intelligence.config import ModelConfig
-from ha_intelligence.models.registry import ModelRegistry, BaseModel
+from aria.engine.config import ModelConfig
+from aria.engine.models.registry import ModelRegistry, BaseModel
 
 HAS_SKLEARN = True
 try:
