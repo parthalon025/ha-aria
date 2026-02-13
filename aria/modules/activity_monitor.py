@@ -27,8 +27,17 @@ logger = logging.getLogger(__name__)
 
 # Domains worth tracking for activity detection
 TRACKED_DOMAINS = {
-    "light", "switch", "binary_sensor", "lock", "media_player",
-    "cover", "climate", "vacuum", "person", "device_tracker", "fan",
+    "light",
+    "switch",
+    "binary_sensor",
+    "lock",
+    "media_player",
+    "cover",
+    "climate",
+    "vacuum",
+    "person",
+    "device_tracker",
+    "fan",
 }
 
 # sensor is only tracked when device_class == "power"
@@ -97,9 +106,7 @@ class ActivityMonitor(Module):
         self._aria_cli = self._find_aria_cli()
 
         # Persistent snapshot log (append-only JSONL, never pruned)
-        self._snapshot_log_path = (
-            Path.home() / "ha-logs" / "intelligence" / "snapshot_log.jsonl"
-        )
+        self._snapshot_log_path = Path.home() / "ha-logs" / "intelligence" / "snapshot_log.jsonl"
         self._snapshot_log_path.parent.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
@@ -149,9 +156,7 @@ class ActivityMonitor(Module):
         try:
             await self._load_curation_rules()
         except Exception as e:
-            self.logger.warning(
-                f"Failed to load curation rules, using domain fallback: {e}"
-            )
+            self.logger.warning(f"Failed to load curation rules, using domain fallback: {e}")
 
         self.logger.info("Activity monitor started")
 
@@ -178,11 +183,7 @@ class ActivityMonitor(Module):
         included = await self.hub.cache.get_included_entity_ids()
         all_curation = await self.hub.cache.get_all_curation()
 
-        excluded = {
-            row["entity_id"]
-            for row in all_curation
-            if row["status"] in ("excluded", "auto_excluded")
-        }
+        excluded = {row["entity_id"] for row in all_curation if row["status"] in ("excluded", "auto_excluded")}
 
         if not included and not excluded:
             self.logger.info("Curation table empty — using domain fallback")
@@ -192,9 +193,7 @@ class ActivityMonitor(Module):
         self._included_entities = included
         self._excluded_entities = excluded
         self._curation_loaded = True
-        self.logger.info(
-            f"Loaded curation rules: {len(included)} included, {len(excluded)} excluded"
-        )
+        self.logger.info(f"Loaded curation rules: {len(included)} included, {len(excluded)} excluded")
 
     # ------------------------------------------------------------------
     # WebSocket listener (follows discovery.py pattern)
@@ -216,19 +215,19 @@ class ActivityMonitor(Module):
                             continue
 
                         # 2. Authenticate
-                        await ws.send_json({
-                            "type": "auth",
-                            "access_token": self.ha_token,
-                        })
+                        await ws.send_json(
+                            {
+                                "type": "auth",
+                                "access_token": self.ha_token,
+                            }
+                        )
                         auth_resp = await ws.receive_json()
                         if auth_resp.get("type") != "auth_ok":
                             self.logger.error(f"WS auth failed: {auth_resp}")
                             await asyncio.sleep(retry_delay)
                             continue
 
-                        self.logger.info(
-                            "Activity WebSocket connected — listening for state_changed"
-                        )
+                        self.logger.info("Activity WebSocket connected — listening for state_changed")
                         retry_delay = 5  # reset backoff
 
                         # Track liveness
@@ -241,11 +240,13 @@ class ActivityMonitor(Module):
                         self._ws_last_connected_at = now.isoformat()
 
                         # 3. Subscribe to state_changed
-                        await ws.send_json({
-                            "id": 1,
-                            "type": "subscribe_events",
-                            "event_type": "state_changed",
-                        })
+                        await ws.send_json(
+                            {
+                                "id": 1,
+                                "type": "subscribe_events",
+                                "event_type": "state_changed",
+                            }
+                        )
 
                         # 4. Listen loop
                         async for msg in ws:
@@ -261,9 +262,7 @@ class ActivityMonitor(Module):
                                 break
 
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                self.logger.warning(
-                    f"Activity WebSocket error: {e} — retrying in {retry_delay}s"
-                )
+                self.logger.warning(f"Activity WebSocket error: {e} — retrying in {retry_delay}s")
             except Exception as e:
                 self.logger.error(f"Activity WebSocket unexpected error: {e}")
 
@@ -347,18 +346,22 @@ class ActivityMonitor(Module):
         # Emit to event bus for shadow engine (non-blocking — fire and forget)
         try:
             loop = asyncio.get_running_loop()
-            task = loop.create_task(self.hub.publish("state_changed", {
-                "entity_id": entity_id,
-                "domain": domain,
-                "device_class": device_class,
-                "from": from_state,
-                "to": to_state,
-                "timestamp": event["timestamp"],
-                "friendly_name": friendly_name,
-            }))
+            task = loop.create_task(
+                self.hub.publish(
+                    "state_changed",
+                    {
+                        "entity_id": entity_id,
+                        "domain": domain,
+                        "device_class": device_class,
+                        "from": from_state,
+                        "to": to_state,
+                        "timestamp": event["timestamp"],
+                        "friendly_name": friendly_name,
+                    },
+                )
+            )
             task.add_done_callback(
-                lambda t: self.logger.error(f"Event publish failed: {t.exception()}")
-                if t.exception() else None
+                lambda t: self.logger.error(f"Event publish failed: {t.exception()}") if t.exception() else None
             )
         except RuntimeError as e:
             if "event loop" not in str(e).lower():
@@ -428,9 +431,7 @@ class ActivityMonitor(Module):
         }
         self._append_snapshot_log(log_entry)
 
-        self.logger.info(
-            f"Triggering adaptive snapshot ({self._snapshots_today}/{DAILY_SNAPSHOT_CAP} today)"
-        )
+        self.logger.info(f"Triggering adaptive snapshot ({self._snapshots_today}/{DAILY_SNAPSHOT_CAP} today)")
 
         # Fire-and-forget subprocess (log errors from the future)
         loop = asyncio.get_running_loop()
@@ -458,15 +459,11 @@ class ActivityMonitor(Module):
                 timeout=30,
             )
             if result.returncode != 0:
-                self.logger.warning(
-                    f"Snapshot subprocess failed: {result.stderr[:200]}"
-                )
+                self.logger.warning(f"Snapshot subprocess failed: {result.stderr[:200]}")
             else:
                 self.logger.info("Adaptive snapshot completed")
         except FileNotFoundError:
-            self.logger.warning(
-                f"aria CLI not found at {self._aria_cli}"
-            )
+            self.logger.warning(f"aria CLI not found at {self._aria_cli}")
         except subprocess.TimeoutExpired:
             self.logger.warning("Snapshot subprocess timed out after 30s")
         except Exception as e:
@@ -516,7 +513,7 @@ class ActivityMonitor(Module):
         SEQ_LEN = 5
         sequence_followers: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for i in range(len(all_domains) - SEQ_LEN):
-            key = "|".join(all_domains[i:i + SEQ_LEN])
+            key = "|".join(all_domains[i : i + SEQ_LEN])
             follower = all_domains[i + SEQ_LEN]
             sequence_followers[key][follower] += 1
 
@@ -612,11 +609,13 @@ class ActivityMonitor(Module):
             # Skip trivial: all same domain
             if len(set(parts)) == 1:
                 continue
-            patterns.append({
-                "sequence": parts,
-                "count": count,
-                "last_seen": trigram_last_seen.get(key, ""),
-            })
+            patterns.append(
+                {
+                    "sequence": parts,
+                    "count": count,
+                    "last_seen": trigram_last_seen.get(key, ""),
+                }
+            )
             if len(patterns) >= 10:  # cap at 10 patterns
                 break
 
@@ -747,20 +746,24 @@ class ActivityMonitor(Module):
 
         if current_rate > avg * 2 and avg > 0 and current_rate > 5:
             multiplier = round(current_rate / avg, 1)
-            anomalies.append({
-                "type": "unusual_activity",
-                "message": f"{multiplier}x normal events this hour ({current_rate} vs avg {round(avg, 1)})",
-                "severity": "info",
-                "hour": current_hour,
-            })
+            anomalies.append(
+                {
+                    "type": "unusual_activity",
+                    "message": f"{multiplier}x normal events this hour ({current_rate} vs avg {round(avg, 1)})",
+                    "severity": "info",
+                    "hour": current_hour,
+                }
+            )
 
         if current_rate == 0 and avg > 10:
-            anomalies.append({
-                "type": "unusual_quiet",
-                "message": f"No events this period, but average is {round(avg, 1)} for this hour",
-                "severity": "info",
-                "hour": current_hour,
-            })
+            anomalies.append(
+                {
+                    "type": "unusual_quiet",
+                    "message": f"No events this period, but average is {round(avg, 1)} for this hour",
+                    "severity": "info",
+                    "hour": current_hour,
+                }
+            )
 
         return anomalies
 
@@ -794,12 +797,14 @@ class ActivityMonitor(Module):
             # Notable = non-binary_sensor events, or lock/door events
             domain = evt["domain"]
             if domain in ("lock", "cover", "media_player", "climate", "vacuum"):
-                notable.append({
-                    "entity": evt["entity_id"],
-                    "from": evt["from"],
-                    "to": evt["to"],
-                    "time": evt["time"][:5],  # HH:MM
-                })
+                notable.append(
+                    {
+                        "entity": evt["entity_id"],
+                        "from": evt["from"],
+                        "to": evt["to"],
+                        "time": evt["time"][:5],  # HH:MM
+                    }
+                )
 
         window = {
             "window_start": window_start.isoformat(),
@@ -830,14 +835,16 @@ class ActivityMonitor(Module):
             "snapshots_today": self._snapshots_today,
         }
 
-        await self.hub.set_cache(CACHE_ACTIVITY_LOG, activity_log, {
-            "source": "activity_monitor",
-            "window_count": len(windows),
-        })
-
-        self.logger.debug(
-            f"Flushed {len(self._activity_buffer)} events into activity window"
+        await self.hub.set_cache(
+            CACHE_ACTIVITY_LOG,
+            activity_log,
+            {
+                "source": "activity_monitor",
+                "window_count": len(windows),
+            },
         )
+
+        self.logger.debug(f"Flushed {len(self._activity_buffer)} events into activity window")
 
         # Clear buffer
         self._activity_buffer.clear()
@@ -852,15 +859,17 @@ class ActivityMonitor(Module):
         # Recent activity: last 15 events from ring buffer (survives flushes)
         recent = []
         for evt in reversed(list(self._recent_events)):
-            recent.append({
-                "entity": evt["entity_id"],
-                "domain": evt["domain"],
-                "device_class": evt.get("device_class", ""),
-                "from": evt["from"],
-                "to": evt["to"],
-                "time": evt["time"][:5],
-                "friendly_name": evt.get("friendly_name", evt["entity_id"]),
-            })
+            recent.append(
+                {
+                    "entity": evt["entity_id"],
+                    "domain": evt["domain"],
+                    "device_class": evt.get("device_class", ""),
+                    "from": evt["from"],
+                    "to": evt["to"],
+                    "time": evt["time"][:5],
+                    "friendly_name": evt.get("friendly_name", evt["entity_id"]),
+                }
+            )
             if len(recent) >= 15:
                 break
 
@@ -874,9 +883,7 @@ class ActivityMonitor(Module):
 
         # Average events/window over last hour (up to 4 windows)
         one_hour_ago = (now - timedelta(hours=1)).isoformat()
-        recent_windows = [
-            w for w in windows if w.get("window_start", "") >= one_hour_ago
-        ]
+        recent_windows = [w for w in windows if w.get("window_start", "") >= one_hour_ago]
         if recent_windows:
             avg_1h = sum(w["event_count"] for w in recent_windows) / len(recent_windows)
         else:
@@ -929,9 +936,7 @@ class ActivityMonitor(Module):
                 "cooldown_remaining_s": int(cooldown_remaining),
                 "log_today": self._read_snapshot_log_today(),
             },
-            "domains_active_1h": dict(
-                sorted(domains_1h.items(), key=lambda x: x[1], reverse=True)
-            ),
+            "domains_active_1h": dict(sorted(domains_1h.items(), key=lambda x: x[1], reverse=True)),
             "websocket": {
                 "connected": self._ws_connected,
                 "last_connected_at": self._ws_last_connected_at,
@@ -944,6 +949,10 @@ class ActivityMonitor(Module):
             "anomalies": anomalies,
         }
 
-        await self.hub.set_cache(CACHE_ACTIVITY_SUMMARY, summary, {
-            "source": "activity_monitor",
-        })
+        await self.hub.set_cache(
+            CACHE_ACTIVITY_SUMMARY,
+            summary,
+            {
+                "source": "activity_monitor",
+            },
+        )

@@ -11,6 +11,7 @@ from pathlib import Path
 @dataclass
 class HAConfig:
     """Home Assistant connection settings."""
+
     url: str = "http://192.168.1.35:8123"
     token: str = ""
 
@@ -25,6 +26,7 @@ class HAConfig:
 @dataclass
 class PathConfig:
     """All data directory paths. Single source of truth for file locations."""
+
     data_dir: Path = field(default_factory=lambda: Path.home() / "ha-logs" / "intelligence")
     logbook_path: Path = field(default_factory=lambda: Path.home() / "ha-logs" / "current.json")
 
@@ -82,14 +84,14 @@ class PathConfig:
 
     def ensure_dirs(self):
         """Create all required directories."""
-        for d in [self.data_dir, self.daily_dir, self.intraday_dir,
-                  self.models_dir, self.meta_dir, self.insights_dir]:
+        for d in [self.data_dir, self.daily_dir, self.intraday_dir, self.models_dir, self.meta_dir, self.insights_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
 
 @dataclass
 class ModelConfig:
     """sklearn model hyperparameters."""
+
     n_estimators: int = 100
     max_depth: int = 4
     learning_rate: float = 0.1
@@ -102,6 +104,7 @@ class ModelConfig:
 @dataclass
 class OllamaConfig:
     """Ollama LLM settings."""
+
     url: str = "http://localhost:11434/api/chat"
     model: str = "deepseek-r1:8b"
     timeout: int = 60
@@ -110,23 +113,22 @@ class OllamaConfig:
 @dataclass
 class WeatherConfig:
     """Weather API settings."""
+
     location: str = "Shalimar+FL"
 
 
 @dataclass
 class SafetyConfig:
     """Entity safety rules."""
-    unavailable_exclude_domains: set = field(
-        default_factory=lambda: {"update", "tts", "stt"}
-    )
-    safety_entities: set = field(
-        default_factory=lambda: {"lock.", "alarm_", "camera."}
-    )
+
+    unavailable_exclude_domains: set = field(default_factory=lambda: {"update", "tts", "stt"})
+    safety_entities: set = field(default_factory=lambda: {"lock.", "alarm_", "camera."})
 
 
 @dataclass
 class HolidayConfig:
     """Holiday calendar."""
+
     country: str = "US"
     years: tuple = (2025, 2026, 2027, 2028)
 
@@ -134,6 +136,7 @@ class HolidayConfig:
         """Load holiday calendar. Returns empty dict if holidays package unavailable."""
         try:
             import holidays as holidays_lib
+
             return holidays_lib.country_holidays(self.country, years=list(self.years))
         except ImportError:
             return {}
@@ -142,6 +145,7 @@ class HolidayConfig:
 @dataclass
 class AppConfig:
     """Top-level config composing all sub-configs."""
+
     ha: HAConfig = field(default_factory=HAConfig)
     paths: PathConfig = field(default_factory=PathConfig)
     model: ModelConfig = field(default_factory=ModelConfig)

@@ -42,8 +42,7 @@ class MarkovChainDetector:
         events = self._filter_and_sort(logbook_entries)
 
         if len(events) < 2:
-            return {"transitions": 0, "unique_entities": 0,
-                    "threshold": None, "status": "insufficient_data"}
+            return {"transitions": 0, "unique_entities": 0, "threshold": None, "status": "insufficient_data"}
 
         for i in range(len(events) - 1):
             ts_a, eid_a = events[i]
@@ -68,8 +67,7 @@ class MarkovChainDetector:
             "transitions": self.total_transitions,
             "unique_entities": len(self.entity_counts),
             "threshold": self.threshold,
-            "status": "trained" if self.total_transitions >= self.min_transitions
-                      else "insufficient_data",
+            "status": "trained" if self.total_transitions >= self.min_transitions else "insufficient_data",
         }
 
     def _filter_and_sort(self, logbook_entries):
@@ -91,7 +89,7 @@ class MarkovChainDetector:
         scores = []
         step = max(1, window_size // 2)
         for i in range(0, len(events) - window_size + 1, step):
-            window = events[i:i + window_size]
+            window = events[i : i + window_size]
             score = self._score_window(window)
             if score is not None:
                 scores.append(score)
@@ -160,21 +158,23 @@ class MarkovChainDetector:
 
         anomalies = []
         for i in range(0, max(1, len(events) - window_size + 1), step):
-            window = events[i:i + window_size]
+            window = events[i : i + window_size]
             if len(window) < 3:
                 continue
 
             score = self._score_window(window)
             if score is not None and score < self.threshold:
                 entities = list(set(eid for _, eid in window))
-                anomalies.append({
-                    "time_start": window[0][0].isoformat(),
-                    "time_end": window[-1][0].isoformat(),
-                    "score": round(score, 4),
-                    "threshold": round(self.threshold, 4),
-                    "severity": "high" if score < self.threshold * 1.5 else "medium",
-                    "entities": entities,
-                })
+                anomalies.append(
+                    {
+                        "time_start": window[0][0].isoformat(),
+                        "time_end": window[-1][0].isoformat(),
+                        "score": round(score, 4),
+                        "threshold": round(self.threshold, 4),
+                        "severity": "high" if score < self.threshold * 1.5 else "medium",
+                        "entities": entities,
+                    }
+                )
 
         return anomalies
 

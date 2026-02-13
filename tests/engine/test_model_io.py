@@ -5,7 +5,6 @@ directory creation, listing, and existence checks.
 """
 
 import pickle
-from pathlib import Path
 
 import pytest
 

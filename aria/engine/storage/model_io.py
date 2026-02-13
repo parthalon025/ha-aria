@@ -45,8 +45,7 @@ class ModelIO:
         """Check if a model file exists."""
         return (self.models_dir / f"{name}.pkl").is_file()
 
-    def save_model_versioned(self, model, name: str, metadata: dict | None = None,
-                             keep: int = 3) -> Path:
+    def save_model_versioned(self, model, name: str, metadata: dict | None = None, keep: int = 3) -> Path:
         """Save model with date-based versioning.
 
         Creates a timestamped copy alongside a _latest pointer.

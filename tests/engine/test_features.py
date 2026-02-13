@@ -6,12 +6,16 @@ import unittest
 from aria.engine.config import HolidayConfig
 from aria.engine.collectors.snapshot import build_empty_snapshot
 from aria.engine.features.time_features import (
-    build_time_features, cyclical_encode, _time_to_minutes,
+    build_time_features,
+    cyclical_encode,
+    _time_to_minutes,
 )
 from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
 from aria.engine.features.vector_builder import (
-    build_feature_vector, build_training_data,
-    extract_target_values, get_feature_names,
+    build_feature_vector,
+    build_training_data,
+    extract_target_values,
+    get_feature_names,
 )
 
 
@@ -34,11 +38,27 @@ class TestTimeFeatures(unittest.TestCase):
         sun_data = {"sunrise": "06:42", "sunset": "17:58"}
         tf = build_time_features("2026-02-10T16:00:00", sun_data, "2026-02-10")
         required_keys = [
-            "hour", "hour_sin", "hour_cos", "dow", "dow_sin", "dow_cos",
-            "month", "month_sin", "month_cos", "day_of_year", "day_of_year_sin",
-            "day_of_year_cos", "is_weekend", "is_holiday", "is_night",
-            "is_work_hours", "minutes_since_midnight", "minutes_since_sunrise",
-            "minutes_until_sunset", "daylight_remaining_pct", "week_of_year",
+            "hour",
+            "hour_sin",
+            "hour_cos",
+            "dow",
+            "dow_sin",
+            "dow_cos",
+            "month",
+            "month_sin",
+            "month_cos",
+            "day_of_year",
+            "day_of_year_sin",
+            "day_of_year_cos",
+            "is_weekend",
+            "is_holiday",
+            "is_night",
+            "is_work_hours",
+            "minutes_since_midnight",
+            "minutes_since_sunrise",
+            "minutes_until_sunset",
+            "daylight_remaining_pct",
+            "week_of_year",
         ]
         for key in required_keys:
             self.assertIn(key, tf, f"Missing time feature: {key}")
@@ -100,8 +120,8 @@ class TestFeatureVector(unittest.TestCase):
         config = DEFAULT_FEATURE_CONFIG
         snapshot = build_empty_snapshot("2026-02-10", HolidayConfig())
         snapshot["time_features"] = build_time_features(
-            "2026-02-10T16:00:00",
-            {"sunrise": "06:42", "sunset": "17:58"}, "2026-02-10")
+            "2026-02-10T16:00:00", {"sunrise": "06:42", "sunset": "17:58"}, "2026-02-10"
+        )
         snapshot["weather"] = {"temp_f": 72, "humidity_pct": 60, "wind_mph": 8}
         snapshot["power"]["total_watts"] = 245.3
         snapshot["lights"]["on"] = 8
@@ -123,8 +143,7 @@ class TestFeatureVector(unittest.TestCase):
     def test_build_feature_vector_with_lag(self):
         config = DEFAULT_FEATURE_CONFIG
         snapshot = build_empty_snapshot("2026-02-10", HolidayConfig())
-        snapshot["time_features"] = build_time_features(
-            "2026-02-10T16:00:00", None, "2026-02-10")
+        snapshot["time_features"] = build_time_features("2026-02-10T16:00:00", None, "2026-02-10")
         snapshot["media"] = {"total_active": 0}
         snapshot["motion"] = {"active_count": 0}
         snapshot["ev"] = {}
@@ -139,6 +158,7 @@ class TestFeatureVector(unittest.TestCase):
 
     def test_build_training_data(self):
         from conftest import make_synthetic_snapshots
+
         config = DEFAULT_FEATURE_CONFIG
         snapshots = make_synthetic_snapshots(10)
 
@@ -160,8 +180,7 @@ class TestFeatureVector(unittest.TestCase):
         config["interaction_features"]["is_weekend_x_temp"] = True
 
         snapshot = build_empty_snapshot("2026-02-14", HolidayConfig())  # Saturday
-        snapshot["time_features"] = build_time_features(
-            "2026-02-14T12:00:00", None, "2026-02-14")
+        snapshot["time_features"] = build_time_features("2026-02-14T12:00:00", None, "2026-02-14")
         snapshot["weather"] = {"temp_f": 80, "humidity_pct": 50, "wind_mph": 5}
         snapshot["media"] = {"total_active": 0}
         snapshot["motion"] = {"active_count": 0}

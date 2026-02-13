@@ -17,13 +17,16 @@ def ollama_chat(prompt, config: OllamaConfig = None):
     if config is None:
         config = OllamaConfig()
 
-    payload = json.dumps({
-        "model": config.model,
-        "messages": [{"role": "user", "content": prompt}],
-        "stream": False,
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": config.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+        }
+    ).encode()
     req = urllib.request.Request(
-        config.url, data=payload,
+        config.url,
+        data=payload,
         headers={"Content-Type": "application/json"},
     )
     try:

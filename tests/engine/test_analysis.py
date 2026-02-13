@@ -49,7 +49,7 @@ class TestCorrelation(unittest.TestCase):
     def test_cross_correlate_finds_weather_power_link(self):
         snapshots = []
         for i, temp in enumerate([60, 70, 80, 90, 95, 65, 75, 85, 92, 88]):
-            snap = build_empty_snapshot(f"2026-02-{i+1:02d}", HolidayConfig())
+            snap = build_empty_snapshot(f"2026-02-{i + 1:02d}", HolidayConfig())
             snap["weather"]["temp_f"] = temp
             snap["power"]["total_watts"] = 100 + (temp - 60) * 3
             snap["lights"]["on"] = 30
@@ -69,7 +69,7 @@ class TestDeviceReliability(unittest.TestCase):
         snapshots = []
         unavail_days = {"2026-02-04", "2026-02-06", "2026-02-09"}
         for i in range(7):
-            date = f"2026-02-{4+i:02d}"
+            date = f"2026-02-{4 + i:02d}"
             snap = build_empty_snapshot(date, HolidayConfig())
             if date in unavail_days:
                 snap["entities"]["unavailable_list"] = ["sensor.flaky_device"]
@@ -85,7 +85,7 @@ class TestDeviceReliability(unittest.TestCase):
     def test_healthy_device_gets_100_score(self):
         snapshots = []
         for i in range(7):
-            snap = build_empty_snapshot(f"2026-02-{4+i:02d}", HolidayConfig())
+            snap = build_empty_snapshot(f"2026-02-{4 + i:02d}", HolidayConfig())
             snap["entities"]["unavailable_list"] = []
             snapshots.append(snap)
 

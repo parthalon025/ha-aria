@@ -67,11 +67,7 @@ class DiscoveryModule(Module):
                 capture_output=True,
                 text=True,
                 timeout=120,
-                env={
-                    **os.environ,
-                    "HA_URL": self.ha_url,
-                    "HA_TOKEN": self.ha_token
-                }
+                env={**os.environ, "HA_URL": self.ha_url, "HA_TOKEN": self.ha_token},
             )
 
             if result.returncode != 0:
@@ -114,34 +110,22 @@ class DiscoveryModule(Module):
         # Store entities
         entities = capabilities.get("entities", {})
         if entities:
-            await self.hub.set_cache("entities", entities, {
-                "count": len(entities),
-                "source": "discovery"
-            })
+            await self.hub.set_cache("entities", entities, {"count": len(entities), "source": "discovery"})
 
         # Store devices
         devices = capabilities.get("devices", {})
         if devices:
-            await self.hub.set_cache("devices", devices, {
-                "count": len(devices),
-                "source": "discovery"
-            })
+            await self.hub.set_cache("devices", devices, {"count": len(devices), "source": "discovery"})
 
         # Store areas
         areas = capabilities.get("areas", {})
         if areas:
-            await self.hub.set_cache("areas", areas, {
-                "count": len(areas),
-                "source": "discovery"
-            })
+            await self.hub.set_cache("areas", areas, {"count": len(areas), "source": "discovery"})
 
         # Store capabilities
         caps = capabilities.get("capabilities", {})
         if caps:
-            await self.hub.set_cache("capabilities", caps, {
-                "count": len(caps),
-                "source": "discovery"
-            })
+            await self.hub.set_cache("capabilities", caps, {"count": len(caps), "source": "discovery"})
 
         # Store metadata
         metadata = {
@@ -150,7 +134,7 @@ class DiscoveryModule(Module):
             "area_count": capabilities.get("area_count", 0),
             "capability_count": len(caps),
             "timestamp": capabilities.get("timestamp"),
-            "ha_version": capabilities.get("ha_version")
+            "ha_version": capabilities.get("ha_version"),
         }
         await self.hub.set_cache("discovery_metadata", metadata)
 
@@ -193,10 +177,12 @@ class DiscoveryModule(Module):
                                 continue
 
                             # 2. Authenticate
-                            await ws.send_json({
-                                "type": "auth",
-                                "access_token": self.ha_token,
-                            })
+                            await ws.send_json(
+                                {
+                                    "type": "auth",
+                                    "access_token": self.ha_token,
+                                }
+                            )
                             auth_resp = await ws.receive_json()
                             if auth_resp.get("type") != "auth_ok":
                                 self.logger.error(f"WS auth failed: {auth_resp}")
@@ -209,11 +195,13 @@ class DiscoveryModule(Module):
                             # 3. Subscribe to events
                             cmd_id = 1
                             for evt in self._registry_events:
-                                await ws.send_json({
-                                    "id": cmd_id,
-                                    "type": "subscribe_events",
-                                    "event_type": evt,
-                                })
+                                await ws.send_json(
+                                    {
+                                        "id": cmd_id,
+                                        "type": "subscribe_events",
+                                        "event_type": evt,
+                                    }
+                                )
                                 cmd_id += 1
 
                             # 4. Listen loop
@@ -221,10 +209,7 @@ class DiscoveryModule(Module):
                                 if msg.type == aiohttp.WSMsgType.TEXT:
                                     data = json.loads(msg.data)
                                     if data.get("type") == "event":
-                                        evt_type = (
-                                            data.get("event", {})
-                                            .get("event_type", "")
-                                        )
+                                        evt_type = data.get("event", {}).get("event_type", "")
                                         if evt_type in self._registry_events:
                                             self._schedule_debounced_discovery(evt_type)
                                 elif msg.type in (
@@ -275,6 +260,7 @@ class DiscoveryModule(Module):
         Args:
             interval_hours: Hours between discovery runs
         """
+
         async def discovery_task():
             try:
                 await self.run_discovery()
@@ -285,7 +271,7 @@ class DiscoveryModule(Module):
             task_id="discovery_periodic",
             coro=discovery_task,
             interval=timedelta(hours=interval_hours),
-            run_immediately=False  # Initial discovery already done
+            run_immediately=False,  # Initial discovery already done
         )
 
         self.logger.info(f"Scheduled periodic discovery every {interval_hours} hours")

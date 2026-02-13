@@ -32,8 +32,7 @@ class PageHinkleyDetector:
             give more weight to recent observations. Default 0.9999.
     """
 
-    def __init__(self, delta_: float = 0.005, lambda_: float = 50.0,
-                 alpha_: float = 0.9999):
+    def __init__(self, delta_: float = 0.005, lambda_: float = 50.0, alpha_: float = 0.9999):
         self.delta_ = delta_
         self.lambda_ = lambda_
         self.alpha_ = alpha_
@@ -119,8 +118,13 @@ class DriftDetector:
         use_page_hinkley: Whether to also run Page-Hinkley detection (default True).
     """
 
-    def __init__(self, window_days: int = 7, threshold_multiplier: float = 2.0,
-                 min_samples: int = 5, use_page_hinkley: bool = True):
+    def __init__(
+        self,
+        window_days: int = 7,
+        threshold_multiplier: float = 2.0,
+        min_samples: int = 5,
+        use_page_hinkley: bool = True,
+    ):
         self.window_days = window_days
         self.threshold_multiplier = threshold_multiplier
         self.min_samples = min_samples
@@ -152,7 +156,7 @@ class DriftDetector:
             }
 
         # Use the most recent window_days entries
-        window = scores[-self.window_days:]
+        window = scores[-self.window_days :]
         latest = scores[-1]
 
         # Extract per-metric absolute errors from the window
@@ -199,8 +203,7 @@ class DriftDetector:
             method = "threshold + page-hinkley" if self.use_page_hinkley else "threshold"
             return {
                 "needs_retrain": True,
-                "reason": f"drift detected in {', '.join(drift_detected)} "
-                          f"(method: {method})",
+                "reason": f"drift detected in {', '.join(drift_detected)} (method: {method})",
                 "drifted_metrics": drift_detected,
                 "rolling_mae": rolling_mae,
                 "current_mae": current_mae,
@@ -217,8 +220,8 @@ class DriftDetector:
                 return {
                     "needs_retrain": True,
                     "reason": f"overall accuracy dropped >10% "
-                              f"({statistics.mean(recent_overall):.0f}% vs "
-                              f"{statistics.mean(earlier_overall):.0f}%)",
+                    f"({statistics.mean(recent_overall):.0f}% vs "
+                    f"{statistics.mean(earlier_overall):.0f}%)",
                     "rolling_mae": rolling_mae,
                     "current_mae": current_mae,
                     "threshold": thresholds,

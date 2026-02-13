@@ -7,10 +7,17 @@ from aria.engine.collectors.snapshot import build_empty_snapshot
 from aria.engine.collectors.ha_api import parse_weather
 from aria.engine.collectors.logbook import summarize_logbook
 from aria.engine.collectors.extractors import (
-    PowerCollector, OccupancyCollector, ClimateCollector,
-    LightsCollector, EVCollector, DoorsWindowsCollector,
-    BatteriesCollector, NetworkCollector, MediaCollector,
-    SunCollector, VacuumCollector,
+    PowerCollector,
+    OccupancyCollector,
+    ClimateCollector,
+    LightsCollector,
+    EVCollector,
+    DoorsWindowsCollector,
+    BatteriesCollector,
+    NetworkCollector,
+    MediaCollector,
+    SunCollector,
+    VacuumCollector,
 )
 
 from conftest import SAMPLE_STATES, EXTENDED_STATES
@@ -20,11 +27,22 @@ class TestDailySnapshot(unittest.TestCase):
     def test_snapshot_schema_has_required_keys(self):
         snapshot = build_empty_snapshot("2026-02-10", HolidayConfig())
         required_keys = [
-            "date", "day_of_week", "is_weekend", "is_holiday",
-            "weather", "calendar_events",
-            "entities", "power", "occupancy", "climate",
-            "locks", "lights", "motion", "automations",
-            "ev", "logbook_summary"
+            "date",
+            "day_of_week",
+            "is_weekend",
+            "is_holiday",
+            "weather",
+            "calendar_events",
+            "entities",
+            "power",
+            "occupancy",
+            "climate",
+            "locks",
+            "lights",
+            "motion",
+            "automations",
+            "ev",
+            "logbook_summary",
         ]
         for key in required_keys:
             self.assertIn(key, snapshot, f"Missing key: {key}")
@@ -163,10 +181,14 @@ class TestSnapshotAssembly(unittest.TestCase):
             store = DataStore(config.paths)
             store.ensure_dirs()
 
-            with patch("aria.engine.collectors.snapshot.fetch_ha_states", return_value=SAMPLE_STATES), \
-                 patch("aria.engine.collectors.snapshot.fetch_weather", return_value="Clear +75°F 50% →5mph"), \
-                 patch("aria.engine.collectors.snapshot.fetch_calendar_events",
-                       return_value=[{"start": "2026-02-10T09:00:00", "end": "2026-02-10T10:00:00", "summary": "Meeting"}]):
+            with (
+                patch("aria.engine.collectors.snapshot.fetch_ha_states", return_value=SAMPLE_STATES),
+                patch("aria.engine.collectors.snapshot.fetch_weather", return_value="Clear +75°F 50% →5mph"),
+                patch(
+                    "aria.engine.collectors.snapshot.fetch_calendar_events",
+                    return_value=[{"start": "2026-02-10T09:00:00", "end": "2026-02-10T10:00:00", "summary": "Meeting"}],
+                ),
+            ):
                 snapshot = build_snapshot("2026-02-10", config=config, store=store)
 
             self.assertEqual(snapshot["weather"]["temp_f"], 75)

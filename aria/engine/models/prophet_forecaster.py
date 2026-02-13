@@ -26,6 +26,7 @@ PROPHET_METRICS = ["power_watts", "lights_on", "devices_home", "unavailable"]
 
 # Suppress Prophet's verbose stdout
 import logging  # noqa: E402
+
 logging.getLogger("prophet").setLevel(logging.WARNING)
 logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
 
@@ -64,8 +65,8 @@ class ProphetForecaster(BaseModel):
 
         # Configure Prophet
         model = Prophet(
-            daily_seasonality=False,   # Daily snapshots — no sub-daily pattern
-            weekly_seasonality=True,    # Strong weekly pattern expected
+            daily_seasonality=False,  # Daily snapshots — no sub-daily pattern
+            weekly_seasonality=True,  # Strong weekly pattern expected
             yearly_seasonality=len(rows) >= 60,  # Only if enough data
             changepoint_prior_scale=0.05,  # Conservative trend changes
             seasonality_mode="additive",

@@ -45,14 +45,16 @@ def cross_correlate(snapshots, min_r=0.5):
             if abs(r) >= min_r:
                 strength = "strong" if abs(r) >= 0.8 else "moderate"
                 direction = "positive" if r > 0 else "negative"
-                results.append({
-                    "x": keys[i],
-                    "y": keys[j],
-                    "r": round(r, 3),
-                    "strength": strength,
-                    "direction": direction,
-                    "description": f"{keys[i]} ↔ {keys[j]}: r={r:.2f} ({strength} {direction})",
-                })
+                results.append(
+                    {
+                        "x": keys[i],
+                        "y": keys[j],
+                        "r": round(r, 3),
+                        "strength": strength,
+                        "direction": direction,
+                        "description": f"{keys[i]} ↔ {keys[j]}: r={r:.2f} ({strength} {direction})",
+                    }
+                )
 
     results.sort(key=lambda c: -abs(c["r"]))
     return results

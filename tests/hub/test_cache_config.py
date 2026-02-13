@@ -28,22 +28,37 @@ async def cache(tmp_path):
     await cm.close()
 
 
-async def _seed_config(cache, key="shadow.min_confidence", value="0.3",
-                       value_type="number", category="Shadow Engine",
-                       min_value=0.05, max_value=0.9, step=0.05):
+async def _seed_config(
+    cache,
+    key="shadow.min_confidence",
+    value="0.3",
+    value_type="number",
+    category="Shadow Engine",
+    min_value=0.05,
+    max_value=0.9,
+    step=0.05,
+):
     """Helper to seed a single config parameter."""
     await cache.upsert_config_default(
-        key=key, default_value=value, value_type=value_type,
-        label=key, description=f"Test param {key}", category=category,
-        min_value=min_value, max_value=max_value, step=step,
+        key=key,
+        default_value=value,
+        value_type=value_type,
+        label=key,
+        description=f"Test param {key}",
+        category=category,
+        min_value=min_value,
+        max_value=max_value,
+        step=step,
     )
 
 
-async def _seed_curation(cache, entity_id="light.living_room",
-                         status="included", tier=3, reason="Default"):
+async def _seed_curation(cache, entity_id="light.living_room", status="included", tier=3, reason="Default"):
     """Helper to seed a single curation record."""
     await cache.upsert_curation(
-        entity_id=entity_id, status=status, tier=tier, reason=reason,
+        entity_id=entity_id,
+        status=status,
+        tier=tier,
+        reason=reason,
     )
 
 
@@ -53,7 +68,6 @@ async def _seed_curation(cache, entity_id="light.living_room",
 
 
 class TestConstants:
-
     def test_config_constant(self):
         assert CACHE_CONFIG == "config"
 
@@ -70,12 +84,9 @@ class TestConstants:
 
 
 class TestTableCreation:
-
     @pytest.mark.asyncio
     async def test_config_table_exists(self, cache):
-        cursor = await cache._conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='config'"
-        )
+        cursor = await cache._conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='config'")
         assert await cursor.fetchone() is not None
 
     @pytest.mark.asyncio
@@ -112,9 +123,7 @@ class TestTableCreation:
     @pytest.mark.asyncio
     async def test_reinitialize_is_safe(self, cache):
         await cache.initialize()
-        cursor = await cache._conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='config'"
-        )
+        cursor = await cache._conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='config'")
         assert await cursor.fetchone() is not None
 
 
@@ -124,13 +133,17 @@ class TestTableCreation:
 
 
 class TestConfigCRUD:
-
     @pytest.mark.asyncio
     async def test_upsert_config_default_inserts(self, cache):
         inserted = await cache.upsert_config_default(
-            key="test.param", default_value="42", value_type="number",
-            label="Test", description="A test param", category="Testing",
-            min_value=0, max_value=100,
+            key="test.param",
+            default_value="42",
+            value_type="number",
+            label="Test",
+            description="A test param",
+            category="Testing",
+            min_value=0,
+            max_value=100,
         )
         assert inserted is True
 
@@ -150,7 +163,9 @@ class TestConfigCRUD:
 
         # Re-seed should NOT overwrite
         inserted = await cache.upsert_config_default(
-            key="x", default_value="10", value_type="number",
+            key="x",
+            default_value="10",
+            value_type="number",
         )
         assert inserted is False
 
@@ -259,7 +274,9 @@ class TestConfigCRUD:
     @pytest.mark.asyncio
     async def test_get_config_value_boolean(self, cache):
         await cache.upsert_config_default(
-            key="flag", default_value="true", value_type="boolean",
+            key="flag",
+            default_value="true",
+            value_type="boolean",
         )
         val = await cache.get_config_value("flag")
         assert val is True
@@ -267,7 +284,9 @@ class TestConfigCRUD:
     @pytest.mark.asyncio
     async def test_set_config_validates_select_options(self, cache):
         await cache.upsert_config_default(
-            key="mode", default_value="fast", value_type="select",
+            key="mode",
+            default_value="fast",
+            value_type="select",
             options="fast,slow,auto",
         )
         # Valid
@@ -283,7 +302,6 @@ class TestConfigCRUD:
 
 
 class TestCurationCRUD:
-
     @pytest.mark.asyncio
     async def test_upsert_and_get(self, cache):
         await _seed_curation(cache, entity_id="light.kitchen", status="included", tier=3)
@@ -299,7 +317,9 @@ class TestCurationCRUD:
     async def test_upsert_updates_existing(self, cache):
         await _seed_curation(cache, entity_id="light.kitchen", status="included", tier=3)
         await cache.upsert_curation(
-            entity_id="light.kitchen", status="excluded", tier=1,
+            entity_id="light.kitchen",
+            status="excluded",
+            tier=1,
             reason="Too noisy",
         )
 
@@ -350,9 +370,7 @@ class TestCurationCRUD:
         await _seed_curation(cache, entity_id="b", status="included")
         await _seed_curation(cache, entity_id="c", status="included")
 
-        count = await cache.bulk_update_curation(
-            ["a", "b"], status="excluded", decided_by="alice"
-        )
+        count = await cache.bulk_update_curation(["a", "b"], status="excluded", decided_by="alice")
         assert count == 2
 
         a = await cache.get_curation("a")
@@ -382,7 +400,9 @@ class TestCurationCRUD:
     async def test_curation_with_metrics(self, cache):
         metrics = {"event_rate_day": 150.5, "unique_states": 4}
         await cache.upsert_curation(
-            entity_id="sensor.x", status="included", tier=3,
+            entity_id="sensor.x",
+            status="included",
+            tier=3,
             metrics=metrics,
         )
 
@@ -396,7 +416,6 @@ class TestCurationCRUD:
 
 
 class TestConfigHistory:
-
     @pytest.mark.asyncio
     async def test_history_empty(self, cache):
         history = await cache.get_config_history()
@@ -443,7 +462,6 @@ class TestConfigHistory:
 
 
 class TestExistingCacheUnaffected:
-
     @pytest.mark.asyncio
     async def test_original_cache_still_works(self, cache):
         await cache.set("test_category", {"key": "value"})

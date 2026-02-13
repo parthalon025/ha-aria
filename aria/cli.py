@@ -43,8 +43,7 @@ def main():
 
     # Status command
     status_parser = subparsers.add_parser("status", help="Show ARIA hub status")
-    status_parser.add_argument("--json", action="store_true", dest="json_output",
-                               help="Output as JSON")
+    status_parser.add_argument("--json", action="store_true", dest="json_output", help="Output as JSON")
 
     # Log sync
     subparsers.add_parser("sync-logs", help="Sync HA logbook to local JSON")
@@ -81,6 +80,7 @@ def _dispatch(args):
     if args.command in ENGINE_COMMANDS:
         # Delegate to engine CLI with the old-style flag
         from aria.engine.cli import main as engine_main
+
         sys.argv = ["aria", ENGINE_COMMANDS[args.command]]
         engine_main()
 
@@ -93,6 +93,7 @@ def _dispatch(args):
             print("Usage: aria sequences {train|detect}")
             sys.exit(1)
         from aria.engine.cli import main as engine_main
+
         engine_main()
 
     elif args.command == "serve":
@@ -159,6 +160,7 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
         # Seed config defaults
         try:
             from aria.hub.config_defaults import seed_config_defaults
+
             seeded = await seed_config_defaults(hub.cache)
             if seeded:
                 logger.info(f"Seeded {seeded} new config parameter(s)")
@@ -180,13 +182,15 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
         # Register and initialize modules, tracking success/failure
         def _init_module(module, name):
             """Register and mark module status after init attempt."""
+
             async def _do():
                 try:
                     await module.initialize()
                     hub.mark_module_running(name)
-                except Exception as e:
+                except Exception:
                     hub.mark_module_failed(name)
                     raise
+
             return _do
 
         # discovery
@@ -227,6 +231,7 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
         # data_quality (non-fatal)
         try:
             from aria.modules.data_quality import DataQualityModule
+
             data_quality = DataQualityModule(hub)
             hub.register_module(data_quality)
             await _init_module(data_quality, "data_quality")()
@@ -255,17 +260,18 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
         running = sum(1 for s in hub.module_status.values() if s == "running")
         failed = [mid for mid, s in hub.module_status.items() if s == "failed"]
         if failed:
-            logger.warning(
-                f"Loaded {running}/{total} modules ({', '.join(failed)} failed)"
-            )
+            logger.warning(f"Loaded {running}/{total} modules ({', '.join(failed)} failed)")
         else:
             logger.info(f"Loaded {running}/{total} modules (all healthy)")
 
         app = create_api(hub)
 
         config = uvicorn.Config(
-            app, host=host, port=port,
-            log_level=log_level.lower(), access_log=(log_level != "WARNING"),
+            app,
+            host=host,
+            port=port,
+            log_level=log_level.lower(),
+            access_log=(log_level != "WARNING"),
         )
         server = uvicorn.Server(config)
 
@@ -300,6 +306,7 @@ def _status(json_output: bool = False):
     # Check if hub is running by hitting /health
     try:
         import urllib.request
+
         req = urllib.request.Request("http://127.0.0.1:8001/health", method="GET")
         with urllib.request.urlopen(req, timeout=2) as resp:
             health = json.loads(resp.read())
@@ -317,6 +324,7 @@ def _status(json_output: bool = False):
         if db_path.exists():
             try:
                 import sqlite3
+
                 conn = sqlite3.connect(str(db_path))
                 cursor = conn.execute("SELECT COUNT(*) FROM cache")
                 result["cache_categories"] = cursor.fetchone()[0]
@@ -368,6 +376,7 @@ def _sync_logs():
     """Run ha-log-sync."""
     import subprocess
     import os
+
     bin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     sync_script = os.path.join(bin_dir, "bin", "ha-log-sync")
     subprocess.run([sys.executable, sync_script], check=True)

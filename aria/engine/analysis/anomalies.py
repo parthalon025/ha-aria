@@ -28,14 +28,16 @@ def detect_anomalies(snapshot, baselines):
         z = abs(current - mean) / stddev
         if z > ANOMALY_THRESHOLD:
             direction = "above" if current > mean else "below"
-            anomalies.append({
-                "metric": metric,
-                "current": current,
-                "mean": mean,
-                "stddev": stddev,
-                "z_score": round(z, 2),
-                "direction": direction,
-                "description": f"{metric} is {z:.1f}σ {direction} normal ({current} vs {mean:.0f}±{stddev:.0f})",
-            })
+            anomalies.append(
+                {
+                    "metric": metric,
+                    "current": current,
+                    "mean": mean,
+                    "stddev": stddev,
+                    "z_score": round(z, 2),
+                    "direction": direction,
+                    "description": f"{metric} is {z:.1f}σ {direction} normal ({current} vs {mean:.0f}±{stddev:.0f})",
+                }
+            )
 
     return anomalies

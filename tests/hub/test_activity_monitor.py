@@ -280,16 +280,18 @@ class TestBufferWindowing:
         # Inject events into buffer
         now = datetime.now()
         for i in range(3):
-            monitor._activity_buffer.append({
-                "entity_id": f"light.room_{i}",
-                "domain": "light",
-                "device_class": "",
-                "from": "off",
-                "to": "on",
-                "time": now.strftime("%H:%M:%S"),
-                "timestamp": now.isoformat(),
-                "friendly_name": f"Room {i}",
-            })
+            monitor._activity_buffer.append(
+                {
+                    "entity_id": f"light.room_{i}",
+                    "domain": "light",
+                    "device_class": "",
+                    "from": "off",
+                    "to": "on",
+                    "time": now.strftime("%H:%M:%S"),
+                    "timestamp": now.isoformat(),
+                    "friendly_name": f"Room {i}",
+                }
+            )
 
         await monitor._flush_activity_buffer()
 
@@ -304,16 +306,18 @@ class TestBufferWindowing:
     @pytest.mark.asyncio
     async def test_flush_clears_buffer(self, monitor):
         """After flush, the activity buffer is emptied."""
-        monitor._activity_buffer.append({
-            "entity_id": "light.kitchen",
-            "domain": "light",
-            "device_class": "",
-            "from": "off",
-            "to": "on",
-            "time": "10:00:00",
-            "timestamp": datetime.now().isoformat(),
-            "friendly_name": "Kitchen",
-        })
+        monitor._activity_buffer.append(
+            {
+                "entity_id": "light.kitchen",
+                "domain": "light",
+                "device_class": "",
+                "from": "off",
+                "to": "on",
+                "time": "10:00:00",
+                "timestamp": datetime.now().isoformat(),
+                "friendly_name": "Kitchen",
+            }
+        )
 
         await monitor._flush_activity_buffer()
         assert len(monitor._activity_buffer) == 0
@@ -332,34 +336,39 @@ class TestBufferWindowing:
         """Windows older than 24 hours are pruned on flush."""
         # Seed cache with an old window
         old_time = (datetime.now() - timedelta(hours=25)).isoformat()
-        await hub.set_cache(CACHE_ACTIVITY_LOG, {
-            "windows": [
-                {
-                    "window_start": old_time,
-                    "window_end": old_time,
-                    "event_count": 5,
-                    "by_domain": {"light": 5},
-                    "notable_changes": [],
-                    "occupancy": True,
-                }
-            ],
-            "last_updated": old_time,
-            "events_today": 5,
-            "snapshots_today": 0,
-        })
+        await hub.set_cache(
+            CACHE_ACTIVITY_LOG,
+            {
+                "windows": [
+                    {
+                        "window_start": old_time,
+                        "window_end": old_time,
+                        "event_count": 5,
+                        "by_domain": {"light": 5},
+                        "notable_changes": [],
+                        "occupancy": True,
+                    }
+                ],
+                "last_updated": old_time,
+                "events_today": 5,
+                "snapshots_today": 0,
+            },
+        )
 
         # Add a fresh event and flush
         now = datetime.now()
-        monitor._activity_buffer.append({
-            "entity_id": "light.kitchen",
-            "domain": "light",
-            "device_class": "",
-            "from": "off",
-            "to": "on",
-            "time": now.strftime("%H:%M:%S"),
-            "timestamp": now.isoformat(),
-            "friendly_name": "Kitchen",
-        })
+        monitor._activity_buffer.append(
+            {
+                "entity_id": "light.kitchen",
+                "domain": "light",
+                "device_class": "",
+                "from": "off",
+                "to": "on",
+                "time": now.strftime("%H:%M:%S"),
+                "timestamp": now.isoformat(),
+                "friendly_name": "Kitchen",
+            }
+        )
 
         await monitor._flush_activity_buffer()
 
@@ -384,17 +393,18 @@ class TestSnapshotTriggering:
         monitor._occupancy_people = ["Justin"]
         # Fill buffer with enough events
         for i in range(6):
-            monitor._activity_buffer.append({
-                "entity_id": f"light.room_{i}",
-                "domain": "light",
-            })
+            monitor._activity_buffer.append(
+                {
+                    "entity_id": f"light.room_{i}",
+                    "domain": "light",
+                }
+            )
 
         mock_future = MagicMock()
         mock_loop = MagicMock()
         mock_loop.run_in_executor = MagicMock(return_value=mock_future)
 
-        with patch.object(monitor, "_run_snapshot"), \
-             patch("asyncio.get_running_loop", return_value=mock_loop):
+        with patch.object(monitor, "_run_snapshot"), patch("asyncio.get_running_loop", return_value=mock_loop):
             monitor._maybe_trigger_snapshot()
 
         assert monitor._snapshots_today == 1
@@ -450,21 +460,20 @@ class TestSnapshotTriggering:
         monitor._occupancy_state = True
         monitor._occupancy_people = ["Justin"]
         # Set last snapshot well beyond cooldown
-        monitor._last_snapshot_time = datetime.now() - timedelta(
-            seconds=SNAPSHOT_COOLDOWN_S + 60
-        )
+        monitor._last_snapshot_time = datetime.now() - timedelta(seconds=SNAPSHOT_COOLDOWN_S + 60)
         for i in range(6):
-            monitor._activity_buffer.append({
-                "entity_id": f"light.room_{i}",
-                "domain": "light",
-            })
+            monitor._activity_buffer.append(
+                {
+                    "entity_id": f"light.room_{i}",
+                    "domain": "light",
+                }
+            )
 
         mock_future = MagicMock()
         mock_loop = MagicMock()
         mock_loop.run_in_executor = MagicMock(return_value=mock_future)
 
-        with patch.object(monitor, "_run_snapshot"), \
-             patch("asyncio.get_running_loop", return_value=mock_loop):
+        with patch.object(monitor, "_run_snapshot"), patch("asyncio.get_running_loop", return_value=mock_loop):
             monitor._maybe_trigger_snapshot()
 
         assert monitor._snapshots_today == 1

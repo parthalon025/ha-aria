@@ -45,18 +45,9 @@ def mock_capabilities():
     """Create mock capabilities data."""
     return {
         "data": {
-            "power_monitoring": {
-                "available": True,
-                "entities": ["sensor.power_1", "sensor.power_2"]
-            },
-            "lighting": {
-                "available": True,
-                "entities": ["light.living_room", "light.bedroom"]
-            },
-            "occupancy": {
-                "available": True,
-                "entities": ["device_tracker.phone", "person.justin"]
-            }
+            "power_monitoring": {"available": True, "entities": ["sensor.power_1", "sensor.power_2"]},
+            "lighting": {"available": True, "entities": ["light.living_room", "light.bedroom"]},
+            "occupancy": {"available": True, "entities": ["device_tracker.phone", "person.justin"]},
         }
     }
 
@@ -93,7 +84,7 @@ def synthetic_snapshots(tmp_path):
                 "is_work_hours": True,
                 "minutes_since_sunrise": 360,
                 "minutes_until_sunset": 300,
-                "daylight_remaining_pct": 0.5
+                "daylight_remaining_pct": 0.5,
             },
             "weather": {
                 "temp_f": 65.0 + day_offset % 10,
@@ -101,24 +92,17 @@ def synthetic_snapshots(tmp_path):
                 "wind_mph": 5.0,
                 "pressure": 1013.0,
                 "cloud_cover": 30.0,
-                "uv_index": 3.0
+                "uv_index": 3.0,
             },
-            "power": {
-                "total_watts": 500.0 + day_offset * 10 + np.random.randn() * 50
-            },
-            "lights": {
-                "on": 3 + (day_offset % 3),
-                "total_brightness": 150.0 + day_offset * 5
-            },
+            "power": {"total_watts": 500.0 + day_offset * 10 + np.random.randn() * 50},
+            "lights": {"on": 3 + (day_offset % 3), "total_brightness": 150.0 + day_offset * 5},
             "occupancy": {
                 "people_home": ["person.justin"],
                 "people_home_count": 1,
                 "device_count_home": 2 + (day_offset % 2),
-                "devices_home": ["device_tracker.phone"]
+                "devices_home": ["device_tracker.phone"],
             },
-            "motion": {
-                "active_count": 1 + (day_offset % 2)
-            }
+            "motion": {"active_count": 1 + (day_offset % 2)},
         }
 
         # Save snapshot file
@@ -181,15 +165,11 @@ class TestMLEngine:
 
         # For 8th snapshot (index 7), check rolling stats
         i = 7
-        recent = snapshots[max(0, i - 7):i]
+        recent = snapshots[max(0, i - 7) : i]
 
         # Manual calculation
-        expected_power_mean = sum(
-            s.get("power", {}).get("total_watts", 0) for s in recent
-        ) / len(recent)
-        expected_lights_mean = sum(
-            s.get("lights", {}).get("on", 0) for s in recent
-        ) / len(recent)
+        expected_power_mean = sum(s.get("power", {}).get("total_watts", 0) for s in recent) / len(recent)
+        expected_lights_mean = sum(s.get("lights", {}).get("on", 0) for s in recent) / len(recent)
 
         # Build dataset and verify rolling stats are used
         X, y, weights = await ml_engine._build_training_dataset(snapshots, "power_watts")
@@ -225,16 +205,9 @@ class TestMLEngine:
         snapshot = synthetic_snapshots[5]
         prev_snapshot = synthetic_snapshots[4]
 
-        rolling_stats = {
-            "power_mean_7d": 500.0,
-            "lights_mean_7d": 3.0
-        }
+        rolling_stats = {"power_mean_7d": 500.0, "lights_mean_7d": 3.0}
 
-        features = await ml_engine._extract_features(
-            snapshot,
-            prev_snapshot=prev_snapshot,
-            rolling_stats=rolling_stats
-        )
+        features = await ml_engine._extract_features(snapshot, prev_snapshot=prev_snapshot, rolling_stats=rolling_stats)
 
         assert features is not None
         assert isinstance(features, dict)
@@ -308,10 +281,7 @@ class TestMLEngine:
 
         # Verify cache was updated with training metadata
         mock_hub.set_cache.assert_called()
-        metadata_calls = [
-            call for call in mock_hub.set_cache.call_args_list
-            if call[0][0] == "ml_training_metadata"
-        ]
+        metadata_calls = [call for call in mock_hub.set_cache.call_args_list if call[0][0] == "ml_training_metadata"]
         assert len(metadata_calls) > 0, "ml_training_metadata not found in set_cache calls"
 
         metadata = metadata_calls[0][0][1]
@@ -475,7 +445,9 @@ class TestMLEngine:
             assert abs(confidence - expected_conf) < 0.01, f"{target}: conf={confidence}, expected={expected_conf}"
 
     @pytest.mark.asyncio
-    async def test_generate_predictions_anomaly_detection(self, ml_engine, mock_hub, mock_capabilities, synthetic_snapshots):
+    async def test_generate_predictions_anomaly_detection(
+        self, ml_engine, mock_hub, mock_capabilities, synthetic_snapshots
+    ):
         """Test anomaly detection in predictions."""
         # Setup (train_models uses get_cache_fresh)
         mock_hub.get_cache_fresh.return_value = mock_capabilities
@@ -505,7 +477,9 @@ class TestMLEngine:
             assert result["anomaly_score"] is not None
 
     @pytest.mark.asyncio
-    async def test_generate_predictions_cache_storage(self, ml_engine, mock_hub, mock_capabilities, synthetic_snapshots):
+    async def test_generate_predictions_cache_storage(
+        self, ml_engine, mock_hub, mock_capabilities, synthetic_snapshots
+    ):
         """Test predictions are stored in cache."""
         # Setup (train_models uses get_cache_fresh)
         mock_hub.get_cache_fresh.return_value = mock_capabilities
@@ -586,27 +560,29 @@ class TestLightGBMIntegration:
                     "hour_cos": float(np.cos(2 * np.pi * 12 / 24)),
                     "dow_sin": float(np.sin(2 * np.pi * date.weekday() / 7)),
                     "dow_cos": float(np.cos(2 * np.pi * date.weekday() / 7)),
-                    "month_sin": 0.5, "month_cos": 0.866,
-                    "day_of_year_sin": 0.3, "day_of_year_cos": 0.95,
+                    "month_sin": 0.5,
+                    "month_cos": 0.866,
+                    "day_of_year_sin": 0.3,
+                    "day_of_year_cos": 0.95,
                     "is_weekend": date.weekday() >= 5,
-                    "is_holiday": False, "is_night": False, "is_work_hours": True,
+                    "is_holiday": False,
+                    "is_night": False,
+                    "is_work_hours": True,
                     "minutes_since_sunrise": 360,
                     "minutes_until_sunset": 300,
-                    "daylight_remaining_pct": 0.5
+                    "daylight_remaining_pct": 0.5,
                 },
-                "weather": {
-                    "temp_f": 65.0 + day_offset % 10,
-                    "humidity_pct": 50.0 + day_offset % 20,
-                    "wind_mph": 5.0
+                "weather": {"temp_f": 65.0 + day_offset % 10, "humidity_pct": 50.0 + day_offset % 20, "wind_mph": 5.0},
+                "power": {
+                    "total_watts": 500.0 + day_offset * 10 + float(np.random.default_rng(day_offset).normal() * 50)
                 },
-                "power": {"total_watts": 500.0 + day_offset * 10 + float(np.random.default_rng(day_offset).normal() * 50)},
                 "lights": {"on": 3 + (day_offset % 3), "total_brightness": 150.0 + day_offset * 5},
                 "occupancy": {
                     "people_home": ["person.justin"],
                     "people_home_count": 1,
-                    "device_count_home": 2 + (day_offset % 2)
+                    "device_count_home": 2 + (day_offset % 2),
                 },
-                "motion": {"active_count": 1 + (day_offset % 2)}
+                "motion": {"active_count": 1 + (day_offset % 2)},
             }
             snapshot_file = training_data_dir / f"{date.strftime('%Y-%m-%d')}.json"
             with open(snapshot_file, "w") as f:
@@ -748,8 +724,7 @@ class TestLightGBMIntegration:
             # Verify blending uses normalized weights (0.35 + 0.25 + 0.40 = 1.0)
             expected = round(0.35 * gb + 0.25 * rf + 0.40 * lgbm, 2)
             assert abs(blended - expected) < 0.02, (
-                f"{target}: blended={blended}, expected={expected} "
-                f"(gb={gb}, rf={rf}, lgbm={lgbm})"
+                f"{target}: blended={blended}, expected={expected} (gb={gb}, rf={rf}, lgbm={lgbm})"
             )
 
     @pytest.mark.asyncio
@@ -890,6 +865,7 @@ class TestLightGBMIntegration:
             if "anomaly" in pkl_file.stem:
                 continue
             import pickle
+
             with open(pkl_file, "rb") as f:
                 data = pickle.load(f)
             assert "lgbm_model" in data, f"lgbm_model not in {pkl_file.name}"
@@ -1049,6 +1025,7 @@ class TestFeatureEngineering:
         # Note: dates without time parse to midnight, so days_ago includes
         # fractional days from reference_date's noon time
         import math
+
         thu_dt = datetime(2026, 2, 5, 0, 0, 0)
         fri_dt = datetime(2026, 2, 6, 0, 0, 0)
         thu_days_ago = (now - thu_dt).total_seconds() / 86400
@@ -1109,6 +1086,7 @@ class TestFeatureEngineering:
     async def test_rolling_window_entropy_multi_domain(self, engine):
         """Entropy is positive when activity spans multiple domains."""
         import math
+
         now = datetime.now()
         activity_log = {
             "windows": [
@@ -1295,14 +1273,16 @@ class TestFeatureEngineering:
         snapshots = []
         for i in range(20):
             date = datetime(2026, 1, 20) + timedelta(days=i)
-            snapshots.append({
-                "date": date.strftime("%Y-%m-%d"),
-                "power": {"total_watts": 500 + i * 10},
-                "lights": {"on": 3},
-                "occupancy": {"people_home_count": 1, "device_count_home": 2},
-                "motion": {"active_count": 1},
-                "weather": {"temp_f": 65, "humidity_pct": 50, "wind_mph": 5},
-            })
+            snapshots.append(
+                {
+                    "date": date.strftime("%Y-%m-%d"),
+                    "power": {"total_watts": 500 + i * 10},
+                    "lights": {"on": 3},
+                    "occupancy": {"people_home_count": 1, "device_count_home": 2},
+                    "motion": {"active_count": 1},
+                    "weather": {"temp_f": 65, "humidity_pct": 50, "wind_mph": 5},
+                }
+            )
 
         X, y, weights = await engine._build_training_dataset(snapshots, "power_watts")
 

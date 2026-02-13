@@ -6,6 +6,7 @@ from datetime import datetime
 # US holidays (Florida)
 try:
     import holidays as holidays_lib
+
     US_HOLIDAYS = holidays_lib.US(years=range(2025, 2028))
 except ImportError:
     US_HOLIDAYS = {}
@@ -26,7 +27,11 @@ def cyclical_encode(value, max_value):
 def build_time_features(timestamp_str, sun_data=None, date_str=None):
     """Build all time features from a timestamp and sun data."""
     if timestamp_str:
-        dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")) if "T" in timestamp_str else datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+        dt = (
+            datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            if "T" in timestamp_str
+            else datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+        )
     else:
         dt = datetime.now()
 
@@ -61,13 +66,17 @@ def build_time_features(timestamp_str, sun_data=None, date_str=None):
 
     return {
         "hour": dt.hour,
-        "hour_sin": h_sin, "hour_cos": h_cos,
+        "hour_sin": h_sin,
+        "hour_cos": h_cos,
         "dow": dow,
-        "dow_sin": d_sin, "dow_cos": d_cos,
+        "dow_sin": d_sin,
+        "dow_cos": d_cos,
         "month": month,
-        "month_sin": m_sin, "month_cos": m_cos,
+        "month_sin": m_sin,
+        "month_cos": m_cos,
         "day_of_year": doy,
-        "day_of_year_sin": y_sin, "day_of_year_cos": y_cos,
+        "day_of_year_sin": y_sin,
+        "day_of_year_cos": y_cos,
         "is_weekend": dow >= 5,
         "is_holiday": is_holiday,
         "is_night": is_night,
@@ -75,6 +84,8 @@ def build_time_features(timestamp_str, sun_data=None, date_str=None):
         "minutes_since_midnight": current_minutes,
         "minutes_since_sunrise": max(0, current_minutes - sunrise_minutes),
         "minutes_until_sunset": max(0, sunset_minutes - current_minutes),
-        "daylight_remaining_pct": round(max(0, (sunset_minutes - current_minutes) / daylight_total * 100), 1) if not is_night else 0,
+        "daylight_remaining_pct": round(max(0, (sunset_minutes - current_minutes) / daylight_total * 100), 1)
+        if not is_night
+        else 0,
         "week_of_year": dt.isocalendar()[1],
     }

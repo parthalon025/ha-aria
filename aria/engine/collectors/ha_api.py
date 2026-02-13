@@ -45,16 +45,16 @@ def parse_weather(raw: str) -> dict:
     result = {"raw": raw, "condition": "", "temp_f": None, "humidity_pct": None, "wind_mph": None}
     if not raw:
         return result
-    m = re.search(r'([+-]?\d+)\s*°F', raw)
+    m = re.search(r"([+-]?\d+)\s*°F", raw)
     if m:
         result["temp_f"] = int(m.group(1))
-    m = re.search(r'(\d+)%', raw)
+    m = re.search(r"(\d+)%", raw)
     if m:
         result["humidity_pct"] = int(m.group(1))
-    m = re.search(r'[→←↑↓↗↘↙↖]?\s*(\d+)\s*mph', raw)
+    m = re.search(r"[→←↑↓↗↘↙↖]?\s*(\d+)\s*mph", raw)
     if m:
         result["wind_mph"] = int(m.group(1))
-    m = re.match(r'^(.+?)\s*[+-]?\d+°', raw)
+    m = re.match(r"^(.+?)\s*[+-]?\d+°", raw)
     if m:
         result["condition"] = m.group(1).strip()
     return result
@@ -65,7 +65,9 @@ def fetch_calendar_events() -> list:
     try:
         result = subprocess.run(
             ["gog", "calendar", "list", "--today", "--all", "--plain"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if result.returncode != 0:
             logger.warning("Calendar fetch failed (exit %d): %s", result.returncode, result.stderr[:200])

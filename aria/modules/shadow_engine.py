@@ -38,13 +38,23 @@ PREDICTION_COOLDOWN_S = 30
 
 # Domains worth tracking for predictions
 PREDICTABLE_DOMAINS = {
-    "light", "switch", "media_player", "cover", "climate",
-    "vacuum", "fan", "lock",
+    "light",
+    "switch",
+    "media_player",
+    "cover",
+    "climate",
+    "vacuum",
+    "fan",
+    "lock",
 }
 
 # Domains used for room detection
 ROOM_INDICATOR_DOMAINS = {
-    "light", "switch", "binary_sensor", "media_player", "fan",
+    "light",
+    "switch",
+    "binary_sensor",
+    "media_player",
+    "fan",
 }
 
 
@@ -165,9 +175,7 @@ class ShadowEngine(Module):
         self.hub.subscribe("state_changed", self._on_state_changed)
 
         # Start periodic resolution task
-        self._resolution_task = asyncio.create_task(
-            self._resolution_loop()
-        )
+        self._resolution_task = asyncio.create_task(self._resolution_loop())
 
         self.logger.info("Shadow engine initialized")
 
@@ -225,9 +233,7 @@ class ShadowEngine(Module):
             old_state = data.get("old_state", {})
             to_state = new_state.get("state", "")
             from_state = old_state.get("state", "")
-            friendly_name = new_state.get("attributes", {}).get(
-                "friendly_name", entity_id
-            )
+            friendly_name = new_state.get("attributes", {}).get("friendly_name", entity_id)
         else:
             # Flat format from activity_monitor buffer
             to_state = data.get("to", "")
@@ -253,9 +259,10 @@ class ShadowEngine(Module):
             self._window_events[pred_id].append(event)
 
         # Check cooldown before generating predictions (config with constant fallback)
-        cooldown = await self.hub.cache.get_config_value(
-            "shadow.prediction_cooldown_s", PREDICTION_COOLDOWN_S
-        ) or PREDICTION_COOLDOWN_S
+        cooldown = (
+            await self.hub.cache.get_config_value("shadow.prediction_cooldown_s", PREDICTION_COOLDOWN_S)
+            or PREDICTION_COOLDOWN_S
+        )
         if self._last_prediction_time:
             elapsed = (now - self._last_prediction_time).total_seconds()
             if elapsed < cooldown:
@@ -272,9 +279,9 @@ class ShadowEngine(Module):
 
             if predictions:
                 # Determine explore/exploit via configured strategy
-                explore_strategy = await self.hub.cache.get_config_value(
-                    "shadow.explore_strategy", "epsilon"
-                ) or "epsilon"
+                explore_strategy = (
+                    await self.hub.cache.get_config_value("shadow.explore_strategy", "epsilon") or "epsilon"
+                )
 
                 if explore_strategy == "thompson":
                     is_exploration = self._thompson.should_explore(context)
@@ -282,9 +289,7 @@ class ShadowEngine(Module):
                     # Default epsilon-greedy (80% exploit, 20% explore)
                     is_exploration = random.random() < 0.2
 
-                await self._store_predictions(
-                    context, predictions, is_exploration=is_exploration
-                )
+                await self._store_predictions(context, predictions, is_exploration=is_exploration)
                 self._last_prediction_time = now
         except Exception as e:
             self.logger.error(f"Prediction generation failed: {e}")
@@ -293,10 +298,7 @@ class ShadowEngine(Module):
         """Remove events older than the max age from the buffer."""
         cutoff = now - timedelta(seconds=self._recent_events_max_age_s)
         cutoff_iso = cutoff.isoformat()
-        self._recent_events = [
-            e for e in self._recent_events
-            if e.get("timestamp", "") >= cutoff_iso
-        ]
+        self._recent_events = [e for e in self._recent_events if e.get("timestamp", "") >= cutoff_iso]
 
     # ------------------------------------------------------------------
     # Context capture
@@ -399,9 +401,19 @@ class ShadowEngine(Module):
             Room name or None.
         """
         room_keywords = [
-            "bedroom", "kitchen", "living", "bathroom", "closet",
-            "office", "garage", "hallway", "dining", "basement",
-            "porch", "patio", "laundry",
+            "bedroom",
+            "kitchen",
+            "living",
+            "bathroom",
+            "closet",
+            "office",
+            "garage",
+            "hallway",
+            "dining",
+            "basement",
+            "porch",
+            "patio",
+            "laundry",
         ]
 
         text = f"{entity_id} {friendly_name}".lower()
@@ -429,12 +441,14 @@ class ShadowEngine(Module):
             except (ValueError, TypeError):
                 seconds_ago = 0
 
-            result.append({
-                "domain": evt.get("domain", ""),
-                "entity": evt.get("entity_id", ""),
-                "state": evt.get("to", ""),
-                "seconds_ago": round(seconds_ago),
-            })
+            result.append(
+                {
+                    "domain": evt.get("domain", ""),
+                    "entity": evt.get("entity_id", ""),
+                    "state": evt.get("to", ""),
+                    "seconds_ago": round(seconds_ago),
+                }
+            )
 
         return result
 
@@ -518,9 +532,7 @@ class ShadowEngine(Module):
     # Prediction generation
     # ------------------------------------------------------------------
 
-    async def _generate_predictions(
-        self, context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+    async def _generate_predictions(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate predictions using ML models and frequency heuristics.
 
         Produces up to 3 prediction types:
@@ -537,9 +549,7 @@ class ShadowEngine(Module):
         predictions = []
 
         # Phase 2: read min confidence from config store (constant as fallback)
-        min_conf = await self.hub.cache.get_config_value(
-            "shadow.min_confidence", MIN_CONFIDENCE
-        ) or MIN_CONFIDENCE
+        min_conf = await self.hub.cache.get_config_value("shadow.min_confidence", MIN_CONFIDENCE) or MIN_CONFIDENCE
 
         # 1. Next domain action prediction
         domain_pred = await self._predict_next_domain(context)
@@ -558,9 +568,7 @@ class ShadowEngine(Module):
 
         return predictions
 
-    async def _predict_next_domain(
-        self, context: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    async def _predict_next_domain(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Predict which domain will produce the next action.
 
         Uses ML engine models if available, falls back to frequency analysis
@@ -573,9 +581,10 @@ class ShadowEngine(Module):
             Prediction dict or None.
         """
         # Phase 2: read window from config store (constant as fallback)
-        window_s = await self.hub.cache.get_config_value(
-            "shadow.default_window_seconds", DEFAULT_WINDOW_SECONDS
-        ) or DEFAULT_WINDOW_SECONDS
+        window_s = (
+            await self.hub.cache.get_config_value("shadow.default_window_seconds", DEFAULT_WINDOW_SECONDS)
+            or DEFAULT_WINDOW_SECONDS
+        )
 
         # Try activity_summary event_predictions (frequency-based)
         summary = await self.hub.get_cache(CACHE_ACTIVITY_SUMMARY)
@@ -622,9 +631,7 @@ class ShadowEngine(Module):
             "window_seconds": window_s,
         }
 
-    async def _predict_room_activation(
-        self, context: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    async def _predict_room_activation(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Predict which room will become active next.
 
         Based on recent event rooms and presence data.
@@ -652,9 +659,7 @@ class ShadowEngine(Module):
 
         # Predict the room with most recent activity that isn't already
         # the most recently active (predict *next*, not current)
-        sorted_rooms = sorted(
-            room_counts.items(), key=lambda x: x[1], reverse=True
-        )
+        sorted_rooms = sorted(room_counts.items(), key=lambda x: x[1], reverse=True)
 
         # Pick the top room — if we have multiple rooms, predict the second
         # most active (it's likely to get more attention next)
@@ -676,9 +681,7 @@ class ShadowEngine(Module):
             "window_seconds": DEFAULT_WINDOW_SECONDS,
         }
 
-    async def _predict_routine_trigger(
-        self, context: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    async def _predict_routine_trigger(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Predict whether a known routine is about to start.
 
         Uses cached pattern data to check if current time/context
@@ -774,9 +777,7 @@ class ShadowEngine(Module):
         avg_confidence = sum(confidences) / len(confidences) if confidences else 0
 
         # Determine window from the predictions (use max window)
-        window_seconds = max(
-            p.get("window_seconds", DEFAULT_WINDOW_SECONDS) for p in predictions
-        )
+        window_seconds = max(p.get("window_seconds", DEFAULT_WINDOW_SECONDS) for p in predictions)
 
         prediction_id = uuid.uuid4().hex
         now = datetime.now().isoformat()
@@ -813,9 +814,10 @@ class ShadowEngine(Module):
         while True:
             try:
                 # Phase 2: read interval from config store (constant as fallback)
-                interval = await self.hub.cache.get_config_value(
-                    "shadow.resolution_interval_s", RESOLUTION_INTERVAL_S
-                ) or RESOLUTION_INTERVAL_S
+                interval = (
+                    await self.hub.cache.get_config_value("shadow.resolution_interval_s", RESOLUTION_INTERVAL_S)
+                    or RESOLUTION_INTERVAL_S
+                )
                 await asyncio.sleep(interval)
                 await self._resolve_expired_predictions()
             except asyncio.CancelledError:
@@ -840,9 +842,7 @@ class ShadowEngine(Module):
             pred_id = prediction["id"]
             actual_events = self._window_events.pop(pred_id, [])
 
-            outcome, actual_data = self._score_prediction(
-                prediction, actual_events
-            )
+            outcome, actual_data = self._score_prediction(prediction, actual_events)
 
             try:
                 await self.hub.cache.update_prediction_outcome(
@@ -854,18 +854,11 @@ class ShadowEngine(Module):
                 # Update Thompson Sampling posterior with outcome
                 context = prediction.get("context", {})
                 if context:
-                    self._thompson.record_outcome(
-                        context, success=(outcome == "correct")
-                    )
+                    self._thompson.record_outcome(context, success=(outcome == "correct"))
 
-                self.logger.debug(
-                    f"Resolved {pred_id[:8]}: {outcome} "
-                    f"({len(actual_events)} events in window)"
-                )
+                self.logger.debug(f"Resolved {pred_id[:8]}: {outcome} ({len(actual_events)} events in window)")
             except Exception as e:
-                self.logger.error(
-                    f"Failed to update prediction outcome {pred_id}: {e}"
-                )
+                self.logger.error(f"Failed to update prediction outcome {pred_id}: {e}")
 
         # Clean up any stale window_events entries
         self._cleanup_stale_windows()
@@ -941,8 +934,7 @@ class ShadowEngine(Module):
                 else:
                     # No expected_domains stored — require 3+ diverse
                     # domain events as a lenient fallback
-                    if (len(actual_events) >= 3
-                            and len(actual_domains) >= 2):
+                    if len(actual_events) >= 3 and len(actual_domains) >= 2:
                         any_correct = True
                         break
 

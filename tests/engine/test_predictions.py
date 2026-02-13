@@ -9,9 +9,10 @@ from aria.engine.config import HolidayConfig, PathConfig
 from aria.engine.collectors.snapshot import build_empty_snapshot
 from aria.engine.predictions.predictor import generate_predictions
 from aria.engine.predictions.scoring import (
-    score_prediction, score_all_predictions, accuracy_trend,
+    score_prediction,
+    score_all_predictions,
+    accuracy_trend,
 )
-
 
 
 class TestPredictions(unittest.TestCase):
@@ -85,7 +86,7 @@ class TestMLEnhancedPredictions(unittest.TestCase):
             paths.ensure_dirs()
             # Create 30 fake daily files
             for d in range(30):
-                with open(paths.daily_dir / f"2026-01-{d+1:02d}.json", "w") as f:
+                with open(paths.daily_dir / f"2026-01-{d + 1:02d}.json", "w") as f:
                     f.write("{}")
 
             baselines = {
@@ -99,8 +100,7 @@ class TestMLEnhancedPredictions(unittest.TestCase):
                 }
             }
             ml_preds = {"power_watts": 180.0, "lights_on": 40.0}
-            predictions = generate_predictions(
-                "2026-02-11", baselines, ml_predictions=ml_preds, paths=paths)
+            predictions = generate_predictions("2026-02-11", baselines, ml_predictions=ml_preds, paths=paths)
             self.assertAlmostEqual(predictions["power_watts"]["predicted"], 166.0, delta=1)
             self.assertEqual(predictions["prediction_method"], "blended")
             self.assertAlmostEqual(predictions["lights_on"]["predicted"], 36.5, delta=1)
@@ -123,18 +123,32 @@ class TestMLEnhancedPredictions(unittest.TestCase):
         self.assertAlmostEqual(predictions["power_watts"]["predicted"], 160.0, delta=1)
 
     def test_generate_predictions_includes_device_failures(self):
-        baselines = {"Wednesday": {"sample_count": 1, "power_watts": {"mean": 100, "stddev": 10},
-                     "lights_on": {"mean": 10, "stddev": 2}, "devices_home": {"mean": 50, "stddev": 5},
-                     "unavailable": {"mean": 900, "stddev": 20}, "useful_events": {"mean": 2500, "stddev": 300}}}
+        baselines = {
+            "Wednesday": {
+                "sample_count": 1,
+                "power_watts": {"mean": 100, "stddev": 10},
+                "lights_on": {"mean": 10, "stddev": 2},
+                "devices_home": {"mean": 50, "stddev": 5},
+                "unavailable": {"mean": 900, "stddev": 20},
+                "useful_events": {"mean": 2500, "stddev": 300},
+            }
+        }
         failures = [{"entity_id": "sensor.flaky", "failure_probability": 0.85, "risk": "high"}]
         predictions = generate_predictions("2026-02-11", baselines, device_failures=failures)
         self.assertEqual(len(predictions["device_failures"]), 1)
         self.assertEqual(predictions["device_failures"][0]["entity_id"], "sensor.flaky")
 
     def test_generate_predictions_includes_contextual_anomalies(self):
-        baselines = {"Wednesday": {"sample_count": 1, "power_watts": {"mean": 100, "stddev": 10},
-                     "lights_on": {"mean": 10, "stddev": 2}, "devices_home": {"mean": 50, "stddev": 5},
-                     "unavailable": {"mean": 900, "stddev": 20}, "useful_events": {"mean": 2500, "stddev": 300}}}
+        baselines = {
+            "Wednesday": {
+                "sample_count": 1,
+                "power_watts": {"mean": 100, "stddev": 10},
+                "lights_on": {"mean": 10, "stddev": 2},
+                "devices_home": {"mean": 50, "stddev": 5},
+                "unavailable": {"mean": 900, "stddev": 20},
+                "useful_events": {"mean": 2500, "stddev": 300},
+            }
+        }
         ctx = {"is_anomaly": True, "anomaly_score": -0.35, "severity": "high"}
         predictions = generate_predictions("2026-02-11", baselines, contextual_anomalies=ctx)
         self.assertTrue(predictions["contextual_anomalies"]["is_anomaly"])

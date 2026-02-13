@@ -45,7 +45,6 @@ def client(hub):
 
 
 class TestGetVersion:
-
     def test_returns_version_info(self, hub, client):
         """Returns version, package name, and Python version."""
         response = client.get("/api/version")
@@ -75,7 +74,6 @@ class TestGetVersion:
 
 
 class TestGetCacheKeys:
-
     def test_empty_cache(self, hub, client):
         """Returns empty list when no cache categories exist."""
         hub.cache.list_categories = AsyncMock(return_value=[])
@@ -90,10 +88,12 @@ class TestGetCacheKeys:
     def test_with_categories(self, hub, client):
         """Returns categories with metadata."""
         hub.cache.list_categories = AsyncMock(return_value=["entities", "areas"])
-        hub.cache.get = AsyncMock(side_effect=[
-            {"last_updated": "2026-02-13T10:00:00", "version": 3, "data": {}},
-            {"last_updated": "2026-02-13T09:00:00", "version": 1, "data": {}},
-        ])
+        hub.cache.get = AsyncMock(
+            side_effect=[
+                {"last_updated": "2026-02-13T10:00:00", "version": 3, "data": {}},
+                {"last_updated": "2026-02-13T09:00:00", "version": 1, "data": {}},
+            ]
+        )
 
         response = client.get("/api/cache/keys")
         assert response.status_code == 200
@@ -124,7 +124,6 @@ class TestGetCacheKeys:
 
 
 class TestGetMetrics:
-
     def test_returns_metrics(self, hub, client):
         """Returns all expected metric fields."""
         hub.cache.list_categories = AsyncMock(return_value=["a", "b", "c"])
@@ -145,10 +144,15 @@ class TestGetMetrics:
         # Make a few requests first
         client.get("/")
         client.get("/health")
-        hub.health_check = AsyncMock(return_value={
-            "status": "ok", "uptime_seconds": 0, "modules": {},
-            "cache": {"categories": []}, "timestamp": "t"
-        })
+        hub.health_check = AsyncMock(
+            return_value={
+                "status": "ok",
+                "uptime_seconds": 0,
+                "modules": {},
+                "cache": {"categories": []},
+                "timestamp": "t",
+            }
+        )
 
         response = client.get("/api/metrics")
         data = response.json()
@@ -162,20 +166,21 @@ class TestGetMetrics:
 
 
 class TestEnhancedHealth:
-
     def test_health_returns_module_status(self, hub, client):
         """Health endpoint returns module status and uptime."""
-        hub.health_check = AsyncMock(return_value={
-            "status": "ok",
-            "uptime_seconds": 120,
-            "modules": {
-                "discovery": "running",
-                "ml_engine": "running",
-                "shadow_engine": "failed",
-            },
-            "cache": {"categories": ["entities"]},
-            "timestamp": "2026-02-13T10:00:00",
-        })
+        hub.health_check = AsyncMock(
+            return_value={
+                "status": "ok",
+                "uptime_seconds": 120,
+                "modules": {
+                    "discovery": "running",
+                    "ml_engine": "running",
+                    "shadow_engine": "failed",
+                },
+                "cache": {"categories": ["entities"]},
+                "timestamp": "2026-02-13T10:00:00",
+            }
+        )
 
         response = client.get("/health")
         assert response.status_code == 200
@@ -201,7 +206,6 @@ class TestEnhancedHealth:
 
 
 class TestRequestTimingMiddleware:
-
     def test_increments_request_count(self, hub, client):
         """Middleware increments request count on each request."""
         initial = hub._request_count

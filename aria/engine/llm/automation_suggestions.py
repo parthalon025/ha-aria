@@ -67,8 +67,7 @@ def _format_co_occurrences(entity_corrs: dict) -> str:
 
     lines = []
     for p in pairs[:10]:
-        prob = max(p.get("conditional_prob_a_given_b", 0),
-                   p.get("conditional_prob_b_given_a", 0))
+        prob = max(p.get("conditional_prob_a_given_b", 0), p.get("conditional_prob_b_given_a", 0))
         lines.append(
             f"- {p['entity_a']} ↔ {p['entity_b']}: "
             f"{p['count']}x co-occurrence, P={prob:.0%}, "
@@ -112,8 +111,7 @@ def parse_automation_suggestions(llm_response: str) -> list:
         return []
 
 
-def generate_automation_suggestions(config: AppConfig = None,
-                                     store: DataStore = None) -> dict:
+def generate_automation_suggestions(config: AppConfig = None, store: DataStore = None) -> dict:
     """Generate HA automation suggestions from learned patterns.
 
     Returns dict with suggestions list and metadata.
@@ -137,18 +135,19 @@ def generate_automation_suggestions(config: AppConfig = None,
     # Format hourly patterns from automation-worthy pairs
     hourly_info = []
     for pair in entity_corrs.get("automation_worthy_pairs", [])[:5]:
-        hourly_info.append(
-            f"- {pair['entity_a']} & {pair['entity_b']}: "
-            f"peak hour {pair.get('typical_hour', '?')}"
-        )
+        hourly_info.append(f"- {pair['entity_a']} & {pair['entity_b']}: peak hour {pair.get('typical_hour', '?')}")
 
     prompt = AUTOMATION_PROMPT.format(
         co_occurrences=_format_co_occurrences(entity_corrs),
         hourly_patterns="\n".join(hourly_info) or "No hourly data yet.",
         metric_correlations=json.dumps(metric_corrs[:5], indent=2) if metric_corrs else "No metric correlations yet.",
         baselines=json.dumps(
-            {day: {k: v.get("mean") for k, v in metrics.items() if isinstance(v, dict)}
-             for day, metrics in baselines.items()} if baselines else {},
+            {
+                day: {k: v.get("mean") for k, v in metrics.items() if isinstance(v, dict)}
+                for day, metrics in baselines.items()
+            }
+            if baselines
+            else {},
             indent=2,
         ),
     )
@@ -179,7 +178,7 @@ def generate_automation_suggestions(config: AppConfig = None,
 
     # Also save individual YAML files for easy import
     for i, s in enumerate(suggestions):
-        yaml_path = output_dir / f"{timestamp}_{i+1}.yaml"
+        yaml_path = output_dir / f"{timestamp}_{i + 1}.yaml"
         with open(yaml_path, "w") as f:
             f.write(f"# {s.get('description', 'Suggested automation')}\n")
             f.write(f"# Confidence: {s.get('confidence', 'unknown')}\n")

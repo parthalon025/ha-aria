@@ -53,7 +53,9 @@ class IsolationForestModel(BaseModel):
             return {"error": f"insufficient data ({len(X_arr)} samples)"}
 
         model = IsolationForest(
-            n_estimators=100, contamination=0.05, random_state=42,
+            n_estimators=100,
+            contamination=0.05,
+            random_state=42,
         )
         model.fit(X_arr)
 

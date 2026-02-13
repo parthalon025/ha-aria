@@ -83,13 +83,15 @@ class ClimateCollector(BaseCollector):
                 name = attrs.get("friendly_name", s["entity_id"])
                 if "tars" in name.lower() or "tessy" in name.lower():
                     continue
-                zones.append({
-                    "name": name,
-                    "state": s.get("state", "unknown"),
-                    "current_temp": attrs.get("current_temperature"),
-                    "target_temp": attrs.get("temperature"),
-                    "hvac_action": attrs.get("hvac_action", ""),
-                })
+                zones.append(
+                    {
+                        "name": name,
+                        "state": s.get("state", "unknown"),
+                        "current_temp": attrs.get("current_temperature"),
+                        "target_temp": attrs.get("temperature"),
+                        "hvac_action": attrs.get("hvac_action", ""),
+                    }
+                )
         snapshot["climate"] = zones
 
 
@@ -126,11 +128,13 @@ class LocksCollector(BaseCollector):
             if s["entity_id"].startswith("lock."):
                 attrs = s.get("attributes", {})
                 name = attrs.get("friendly_name", s["entity_id"])
-                locks.append({
-                    "name": name,
-                    "state": s.get("state", "unknown"),
-                    "battery": attrs.get("battery_level"),
-                })
+                locks.append(
+                    {
+                        "name": name,
+                        "state": s.get("state", "unknown"),
+                        "battery": attrs.get("battery_level"),
+                    }
+                )
         snapshot["locks"] = locks
 
 
@@ -198,8 +202,7 @@ class EntitiesSummaryCollector(BaseCollector):
 
     def __init__(self, safety_config: SafetyConfig | None = None):
         self._unavailable_exclude_domains = (
-            safety_config.unavailable_exclude_domains if safety_config
-            else {"update", "tts", "stt"}
+            safety_config.unavailable_exclude_domains if safety_config else {"update", "tts", "stt"}
         )
 
     def extract(self, snapshot, states):
@@ -216,9 +219,9 @@ class EntitiesSummaryCollector(BaseCollector):
         snapshot["entities"]["unavailable"] = unavail
         snapshot["entities"]["by_domain"] = by_domain
         snapshot["entities"]["unavailable_list"] = [
-            s["entity_id"] for s in states
-            if s.get("state") == "unavailable"
-            and s["entity_id"].split(".")[0] not in self._unavailable_exclude_domains
+            s["entity_id"]
+            for s in states
+            if s.get("state") == "unavailable" and s["entity_id"].split(".")[0] not in self._unavailable_exclude_domains
         ]
 
 

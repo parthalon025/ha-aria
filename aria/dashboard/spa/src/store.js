@@ -1,5 +1,5 @@
 /**
- * Reactive store for HA Intelligence Hub SPA.
+ * Reactive store for ARIA SPA.
  *
  * Uses @preact/signals for fine-grained reactivity.
  * - cacheStore: Map of category name → signal with { data, loading, error, stale, lastFetched }

@@ -1,6 +1,6 @@
 # DEPRECATED: Replaced by SPA in dashboard/spa/ (mounted at /ui via StaticFiles in hub/api.py)
 # Kept for reference until SPA is fully validated. Safe to delete after validation.
-"""Dashboard routes for HA Intelligence Hub web UI (DEPRECATED)."""
+"""Dashboard routes for ARIA web UI (DEPRECATED)."""
 
 import logging
 from pathlib import Path
@@ -40,12 +40,7 @@ def create_dashboard_router(hub: IntelligenceHub) -> APIRouter:
 
             return templates.TemplateResponse(
                 "home.html",
-                {
-                    "request": request,
-                    "health": health,
-                    "categories": categories,
-                    "recent_events": recent_events
-                }
+                {"request": request, "health": health, "categories": categories, "recent_events": recent_events},
             )
         except Exception as e:
             logger.error(f"Error rendering home page: {e}")
@@ -102,8 +97,7 @@ def create_dashboard_router(hub: IntelligenceHub) -> APIRouter:
                 }
 
             domain_breakdown = sorted(
-                [{"domain": d, "count": c} for d, c in domain_counts.items()],
-                key=lambda x: -x["count"]
+                [{"domain": d, "count": c} for d, c in domain_counts.items()], key=lambda x: -x["count"]
             )
 
             return templates.TemplateResponse(
@@ -121,7 +115,7 @@ def create_dashboard_router(hub: IntelligenceHub) -> APIRouter:
                     "unavailable_count": unavailable_count,
                     "domain_breakdown": domain_breakdown,
                     "area_entity_counts": area_entity_counts,
-                }
+                },
             )
         except Exception as e:
             logger.error(f"Error rendering discovery page: {e}")
@@ -138,11 +132,7 @@ def create_dashboard_router(hub: IntelligenceHub) -> APIRouter:
 
             return templates.TemplateResponse(
                 "capabilities.html",
-                {
-                    "request": request,
-                    "capabilities": capabilities,
-                    "capability_count": len(capabilities)
-                }
+                {"request": request, "capabilities": capabilities, "capability_count": len(capabilities)},
             )
         except Exception as e:
             logger.error(f"Error rendering capabilities page: {e}")
@@ -157,13 +147,7 @@ def create_dashboard_router(hub: IntelligenceHub) -> APIRouter:
 
             predictions = predictions_cache["data"] if predictions_cache else {}
 
-            return templates.TemplateResponse(
-                "predictions.html",
-                {
-                    "request": request,
-                    "predictions": predictions
-                }
-            )
+            return templates.TemplateResponse("predictions.html", {"request": request, "predictions": predictions})
         except Exception as e:
             logger.error(f"Error rendering predictions page: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -177,13 +161,7 @@ def create_dashboard_router(hub: IntelligenceHub) -> APIRouter:
 
             patterns = patterns_cache["data"] if patterns_cache else {}
 
-            return templates.TemplateResponse(
-                "patterns.html",
-                {
-                    "request": request,
-                    "patterns": patterns
-                }
-            )
+            return templates.TemplateResponse("patterns.html", {"request": request, "patterns": patterns})
         except Exception as e:
             logger.error(f"Error rendering patterns page: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -197,13 +175,7 @@ def create_dashboard_router(hub: IntelligenceHub) -> APIRouter:
 
             automations = automations_cache["data"] if automations_cache else {}
 
-            return templates.TemplateResponse(
-                "automations.html",
-                {
-                    "request": request,
-                    "automations": automations
-                }
-            )
+            return templates.TemplateResponse("automations.html", {"request": request, "automations": automations})
         except Exception as e:
             logger.error(f"Error rendering automations page: {e}")
             raise HTTPException(status_code=500, detail=str(e))

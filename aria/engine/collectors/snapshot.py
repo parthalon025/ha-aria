@@ -40,8 +40,7 @@ def build_empty_snapshot(date_str: str, holidays_config: HolidayConfig) -> dict:
     }
 
 
-def build_intraday_snapshot(hour: int | None, date_str: str | None,
-                            config: AppConfig, store: DataStore) -> dict:
+def build_intraday_snapshot(hour: int | None, date_str: str | None, config: AppConfig, store: DataStore) -> dict:
     """Build an intra-day snapshot capturing current state with time features."""
     now = datetime.now()
     if date_str is None:
@@ -72,7 +71,8 @@ def build_intraday_snapshot(hour: int | None, date_str: str | None,
         # Enhanced lights: avg brightness, rooms lit
         if snapshot["lights"]["on"] > 0:
             snapshot["lights"]["avg_brightness"] = round(
-                snapshot["lights"]["total_brightness"] / snapshot["lights"]["on"], 1)
+                snapshot["lights"]["total_brightness"] / snapshot["lights"]["on"], 1
+            )
         else:
             snapshot["lights"]["avg_brightness"] = 0
 
@@ -85,8 +85,7 @@ def build_intraday_snapshot(hour: int | None, date_str: str | None,
         snapshot["lights"]["rooms_lit"] = rooms_lit
 
         # Motion active count
-        snapshot["motion"]["active_count"] = sum(
-            1 for v in snapshot["motion"]["sensors"].values() if v == "on")
+        snapshot["motion"]["active_count"] = sum(1 for v in snapshot["motion"]["sensors"].values() if v == "on")
 
         # Add is_charging for EV
         for ev_name, ev_data in snapshot["ev"].items():
@@ -118,8 +117,10 @@ def aggregate_intraday_to_daily(date_str: str, store: DataStore) -> dict | None:
 
     # Build curves from intra-day snapshots
     power_curve = [s.get("power", {}).get("total_watts", 0) for s in intraday]
-    occ_curve = [s.get("occupancy", {}).get("people_home_count",
-        len(s.get("occupancy", {}).get("people_home", []))) for s in intraday]
+    occ_curve = [
+        s.get("occupancy", {}).get("people_home_count", len(s.get("occupancy", {}).get("people_home", [])))
+        for s in intraday
+    ]
     lights_curve = [s.get("lights", {}).get("on", 0) for s in intraday]
     motion_curve = [s.get("motion", {}).get("active_count", 0) for s in intraday]
 

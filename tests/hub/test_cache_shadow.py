@@ -60,9 +60,7 @@ class TestTableCreation:
 
     @pytest.mark.asyncio
     async def test_predictions_table_exists(self, cache):
-        cursor = await cache._conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='predictions'"
-        )
+        cursor = await cache._conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='predictions'")
         row = await cursor.fetchone()
         assert row is not None
 
@@ -88,9 +86,7 @@ class TestTableCreation:
     async def test_reinitialize_is_safe(self, cache):
         """Calling initialize() again should not fail (IF NOT EXISTS)."""
         await cache.initialize()
-        cursor = await cache._conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='predictions'"
-        )
+        cursor = await cache._conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='predictions'")
         assert await cursor.fetchone() is not None
 
 
@@ -100,7 +96,6 @@ class TestTableCreation:
 
 
 class TestConstants:
-
     def test_predictions_constant(self):
         assert CACHE_PREDICTIONS == "predictions"
 
@@ -114,7 +109,6 @@ class TestConstants:
 
 
 class TestInsertPrediction:
-
     @pytest.mark.asyncio
     async def test_insert_basic(self, cache):
         kwargs = _make_prediction_kwargs()
@@ -180,7 +174,6 @@ class TestInsertPrediction:
 
 
 class TestUpdatePredictionOutcome:
-
     @pytest.mark.asyncio
     async def test_update_correct(self, cache):
         kwargs = _make_prediction_kwargs()
@@ -241,7 +234,6 @@ class TestUpdatePredictionOutcome:
 
 
 class TestGetRecentPredictions:
-
     @pytest.mark.asyncio
     async def test_empty(self, cache):
         rows = await cache.get_recent_predictions()
@@ -251,9 +243,7 @@ class TestGetRecentPredictions:
     async def test_ordered_by_timestamp_desc(self, cache):
         for i in range(3):
             ts = (datetime.now() - timedelta(minutes=10 - i)).isoformat()
-            await cache.insert_prediction(
-                **_make_prediction_kwargs(prediction_id=f"pred-{i}", timestamp=ts)
-            )
+            await cache.insert_prediction(**_make_prediction_kwargs(prediction_id=f"pred-{i}", timestamp=ts))
 
         rows = await cache.get_recent_predictions()
         assert len(rows) == 3
@@ -264,9 +254,7 @@ class TestGetRecentPredictions:
     @pytest.mark.asyncio
     async def test_limit(self, cache):
         for i in range(5):
-            await cache.insert_prediction(
-                **_make_prediction_kwargs(prediction_id=f"pred-{i}")
-            )
+            await cache.insert_prediction(**_make_prediction_kwargs(prediction_id=f"pred-{i}"))
 
         rows = await cache.get_recent_predictions(limit=2)
         assert len(rows) == 2
@@ -296,7 +284,6 @@ class TestGetRecentPredictions:
 
 
 class TestGetPendingPredictions:
-
     @pytest.mark.asyncio
     async def test_empty(self, cache):
         rows = await cache.get_pending_predictions()
@@ -396,7 +383,6 @@ class TestGetPendingPredictions:
 
 
 class TestGetAccuracyStats:
-
     @pytest.mark.asyncio
     async def test_empty(self, cache):
         stats = await cache.get_accuracy_stats()
@@ -408,9 +394,7 @@ class TestGetAccuracyStats:
     @pytest.mark.asyncio
     async def test_all_correct(self, cache):
         for i in range(5):
-            await cache.insert_prediction(
-                **_make_prediction_kwargs(prediction_id=f"p-{i}")
-            )
+            await cache.insert_prediction(**_make_prediction_kwargs(prediction_id=f"p-{i}"))
             await cache.update_prediction_outcome(f"p-{i}", "correct")
 
         stats = await cache.get_accuracy_stats()
@@ -422,9 +406,7 @@ class TestGetAccuracyStats:
     async def test_mixed_outcomes(self, cache):
         outcomes = ["correct", "correct", "disagreement", "nothing", "correct"]
         for i, outcome in enumerate(outcomes):
-            await cache.insert_prediction(
-                **_make_prediction_kwargs(prediction_id=f"p-{i}")
-            )
+            await cache.insert_prediction(**_make_prediction_kwargs(prediction_id=f"p-{i}"))
             await cache.update_prediction_outcome(f"p-{i}", outcome)
 
         stats = await cache.get_accuracy_stats()
@@ -439,15 +421,11 @@ class TestGetAccuracyStats:
         """Only predictions within the time window should count."""
         # Old prediction (outside 7-day window)
         old_ts = (datetime.now() - timedelta(days=10)).isoformat()
-        await cache.insert_prediction(
-            **_make_prediction_kwargs(prediction_id="p-old", timestamp=old_ts)
-        )
+        await cache.insert_prediction(**_make_prediction_kwargs(prediction_id="p-old", timestamp=old_ts))
         await cache.update_prediction_outcome("p-old", "correct")
 
         # Recent prediction
-        await cache.insert_prediction(
-            **_make_prediction_kwargs(prediction_id="p-new")
-        )
+        await cache.insert_prediction(**_make_prediction_kwargs(prediction_id="p-new"))
         await cache.update_prediction_outcome("p-new", "disagreement")
 
         stats = await cache.get_accuracy_stats(days=7)
@@ -459,9 +437,7 @@ class TestGetAccuracyStats:
     async def test_daily_trend(self, cache):
         """Daily trend should group by resolved_at date."""
         for i in range(3):
-            await cache.insert_prediction(
-                **_make_prediction_kwargs(prediction_id=f"p-{i}")
-            )
+            await cache.insert_prediction(**_make_prediction_kwargs(prediction_id=f"p-{i}"))
             await cache.update_prediction_outcome(f"p-{i}", "correct" if i < 2 else "nothing")
 
         stats = await cache.get_accuracy_stats()
@@ -488,7 +464,6 @@ class TestGetAccuracyStats:
 
 
 class TestGetPipelineState:
-
     @pytest.mark.asyncio
     async def test_creates_default_on_first_call(self, cache):
         state = await cache.get_pipeline_state()
@@ -520,7 +495,6 @@ class TestGetPipelineState:
 
 
 class TestUpdatePipelineState:
-
     @pytest.mark.asyncio
     async def test_update_stage(self, cache):
         await cache.update_pipeline_state(current_stage="shadow")

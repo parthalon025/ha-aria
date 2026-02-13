@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 try:
     import prophet  # noqa: F401
+
     HAS_PROPHET = True
 except ImportError:
     HAS_PROPHET = False
@@ -39,24 +40,28 @@ class TestProphetMetricExtraction(unittest.TestCase):
 
     def test_extract_power_watts(self):
         from aria.engine.models.prophet_forecaster import ProphetForecaster
+
         snap = {"power": {"total_watts": 250.5}}
         result = ProphetForecaster._extract_metric(snap, "power_watts")
         self.assertEqual(result, 250.5)
 
     def test_extract_lights_on(self):
         from aria.engine.models.prophet_forecaster import ProphetForecaster
+
         snap = {"lights": {"on": 5}}
         result = ProphetForecaster._extract_metric(snap, "lights_on")
         self.assertEqual(result, 5.0)
 
     def test_extract_missing_key(self):
         from aria.engine.models.prophet_forecaster import ProphetForecaster
+
         snap = {"power": {}}
         result = ProphetForecaster._extract_metric(snap, "power_watts")
         self.assertIsNone(result)
 
     def test_extract_unknown_metric(self):
         from aria.engine.models.prophet_forecaster import ProphetForecaster
+
         snap = {"power": {"total_watts": 100}}
         result = ProphetForecaster._extract_metric(snap, "not_a_metric")
         self.assertIsNone(result)
@@ -68,6 +73,7 @@ class TestProphetForecaster(unittest.TestCase):
 
     def test_train_insufficient_data(self):
         from aria.engine.models.prophet_forecaster import ProphetForecaster
+
         forecaster = ProphetForecaster()
         # Only 5 days — below 14-day minimum
         snapshots = _make_daily_snapshots(n_days=5)
@@ -77,6 +83,7 @@ class TestProphetForecaster(unittest.TestCase):
 
     def test_train_produces_results(self):
         from aria.engine.models.prophet_forecaster import ProphetForecaster
+
         forecaster = ProphetForecaster()
         snapshots = _make_daily_snapshots(n_days=30)
         model_dir = "/tmp/test-prophet-train"
@@ -95,6 +102,7 @@ class TestProphetForecaster(unittest.TestCase):
 
     def test_predict_returns_forecast(self):
         from aria.engine.models.prophet_forecaster import ProphetForecaster
+
         forecaster = ProphetForecaster()
         snapshots = _make_daily_snapshots(n_days=30)
         model_dir = "/tmp/test-prophet-predict"
@@ -116,6 +124,7 @@ class TestProphetForecaster(unittest.TestCase):
 
     def test_predict_missing_model_returns_none(self):
         from aria.engine.models.prophet_forecaster import ProphetForecaster
+
         forecaster = ProphetForecaster()
         result = forecaster.predict("power_watts", "/tmp/nonexistent-dir")
         self.assertIsNone(result)
@@ -127,6 +136,7 @@ class TestProphetConvenienceFunctions(unittest.TestCase):
 
     def test_train_prophet_models(self):
         from aria.engine.models.prophet_forecaster import train_prophet_models
+
         snapshots = _make_daily_snapshots(n_days=30)
         model_dir = "/tmp/test-prophet-all"
         os.makedirs(model_dir, exist_ok=True)
@@ -139,8 +149,10 @@ class TestProphetConvenienceFunctions(unittest.TestCase):
 
     def test_predict_with_prophet(self):
         from aria.engine.models.prophet_forecaster import (
-            train_prophet_models, predict_with_prophet,
+            train_prophet_models,
+            predict_with_prophet,
         )
+
         snapshots = _make_daily_snapshots(n_days=30)
         model_dir = "/tmp/test-prophet-roundtrip"
         os.makedirs(model_dir, exist_ok=True)
@@ -160,8 +172,10 @@ class TestProphetRegistered(unittest.TestCase):
 
     def test_prophet_in_registry(self):
         from aria.engine.models.registry import ModelRegistry
+
         # Import to trigger registration
         import aria.engine.models.prophet_forecaster  # noqa: F401
+
         self.assertIn("prophet", ModelRegistry.available())
 
 

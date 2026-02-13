@@ -7,6 +7,7 @@ def test_engine_imports_accessible_from_hub():
     from aria.engine.storage.data_store import DataStore
     from aria.engine.analysis.entity_correlations import summarize_entity_correlations
     from aria.engine.analysis.sequence_anomalies import MarkovChainDetector
+
     assert AppConfig is not None
     assert DataStore is not None
     assert summarize_entity_correlations is not None
@@ -18,6 +19,7 @@ def test_hub_imports_accessible():
     from aria.hub.core import IntelligenceHub, Module
     from aria.hub.cache import CacheManager
     from aria.hub.constants import CACHE_INTELLIGENCE
+
     assert IntelligenceHub is not None
     assert Module is not None
     assert CacheManager is not None
@@ -33,6 +35,7 @@ def test_module_imports_accessible():
     from aria.modules.ml_engine import MLEngine
     from aria.modules.patterns import PatternRecognition
     from aria.modules.orchestrator import OrchestratorModule
+
     assert IntelligenceModule is not None
     assert DiscoveryModule is not None
     assert ShadowEngine is not None
@@ -45,19 +48,21 @@ def test_module_imports_accessible():
 def test_engine_and_hub_share_namespace():
     """Verify engine and hub live under the same aria package."""
     import aria
-    assert hasattr(aria, '__version__')
+
+    assert hasattr(aria, "__version__")
 
     import aria.engine
     import aria.hub
     import aria.modules
 
     # Both are subpackages of the same top-level
-    assert aria.engine.__name__.startswith('aria.')
-    assert aria.hub.__name__.startswith('aria.')
-    assert aria.modules.__name__.startswith('aria.')
+    assert aria.engine.__name__.startswith("aria.")
+    assert aria.hub.__name__.startswith("aria.")
+    assert aria.modules.__name__.startswith("aria.")
 
 
 def test_cli_entry_point_importable():
     """Verify the CLI entry point can be imported."""
     from aria.cli import main
+
     assert callable(main)

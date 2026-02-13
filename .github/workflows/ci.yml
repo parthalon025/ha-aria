@@ -34,7 +34,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
       - name: Install dependencies
-        run: pip install -e ".[dev,ml-extra]" pytest-cov
+        run: pip install -e ".[dev,ml-extra,llm]" pytest-cov httpx
       - name: Run tests with coverage
         run: pytest tests/ --cov=aria --cov-report=xml -v --tb=short
       - name: Upload coverage
@@ -52,6 +52,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      - name: Install dependencies
+        run: npm ci
+        working-directory: aria/dashboard/spa
       - name: Verify dashboard builds
         run: |
           npx esbuild aria/dashboard/spa/src/index.jsx \

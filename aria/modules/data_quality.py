@@ -86,13 +86,9 @@ class DataQualityModule(Module):
             CONFIG_NOISE_EVENT_THRESHOLD, DEFAULT_NOISE_EVENT_THRESHOLD
         )
 
-        stale_days = await self.hub.cache.get_config_value(
-            CONFIG_STALE_DAYS_THRESHOLD, DEFAULT_STALE_DAYS_THRESHOLD
-        )
+        stale_days = await self.hub.cache.get_config_value(CONFIG_STALE_DAYS_THRESHOLD, DEFAULT_STALE_DAYS_THRESHOLD)
 
-        vehicle_patterns_str = await self.hub.cache.get_config_value(
-            CONFIG_VEHICLE_PATTERNS, DEFAULT_VEHICLE_PATTERNS
-        )
+        vehicle_patterns_str = await self.hub.cache.get_config_value(CONFIG_VEHICLE_PATTERNS, DEFAULT_VEHICLE_PATTERNS)
         vehicle_patterns = [p.strip().lower() for p in vehicle_patterns_str.split(",")]
 
         config_thresholds = {
@@ -135,8 +131,12 @@ class DataQualityModule(Module):
 
             metrics = self._compute_metrics(entity_id, entity_data, activity_windows)
             tier, status, reason, group_id = self._classify(
-                entity_id, metrics, config_thresholds, entities_data,
-                vehicle_entity_ids, vehicle_device_ids,
+                entity_id,
+                metrics,
+                config_thresholds,
+                entities_data,
+                vehicle_entity_ids,
+                vehicle_device_ids,
             )
 
             await self.hub.cache.upsert_curation(
@@ -151,9 +151,7 @@ class DataQualityModule(Module):
             )
             classified += 1
 
-        self.logger.info(
-            f"Classification complete: {classified} classified, {skipped} human-override skipped"
-        )
+        self.logger.info(f"Classification complete: {classified} classified, {skipped} human-override skipped")
 
     def _compute_metrics(
         self,
@@ -256,7 +254,8 @@ class DataQualityModule(Module):
         # Polling noise: high rate + very few unique states
         if event_rate > noise_threshold and unique_states < 3:
             return (
-                1, "auto_excluded",
+                1,
+                "auto_excluded",
                 f"Polling noise ({int(event_rate)}/day, {unique_states} states)",
                 "",
             )
@@ -277,7 +276,8 @@ class DataQualityModule(Module):
         # High rate with low variety (moderate noise)
         if event_rate > 500 and unique_states < 5:
             return (
-                2, "excluded",
+                2,
+                "excluded",
                 f"High event rate with low variety ({int(event_rate)}/day, {unique_states} states)",
                 "",
             )

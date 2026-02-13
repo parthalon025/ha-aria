@@ -35,7 +35,7 @@ class PatternRecognition(Module):
         log_dir: Path,
         min_pattern_frequency: int = 3,
         min_support: float = 0.7,
-        min_confidence: float = 0.8
+        min_confidence: float = 0.8,
     ):
         """Initialize pattern recognition module.
 
@@ -93,9 +93,7 @@ class PatternRecognition(Module):
             associations = await self._find_associations(sequences)
 
             # Generate patterns
-            patterns = await self._generate_patterns(
-                area, sequences, clusters, associations
-            )
+            patterns = await self._generate_patterns(area, sequences, clusters, associations)
 
             all_patterns.extend(patterns)
 
@@ -109,16 +107,20 @@ class PatternRecognition(Module):
                 pattern["llm_description"] = "Failed to generate LLM description"
 
         # 4. Store in hub cache
-        await self.hub.set_cache("patterns", {
-            "patterns": all_patterns,
-            "pattern_count": len(all_patterns),
-            "areas_analyzed": list(sequences_by_area.keys())
-        }, {
-            "source": "pattern_recognition",
-            "min_frequency": self.min_pattern_frequency,
-            "min_support": self.min_support,
-            "min_confidence": self.min_confidence
-        })
+        await self.hub.set_cache(
+            "patterns",
+            {
+                "patterns": all_patterns,
+                "pattern_count": len(all_patterns),
+                "areas_analyzed": list(sequences_by_area.keys()),
+            },
+            {
+                "source": "pattern_recognition",
+                "min_frequency": self.min_pattern_frequency,
+                "min_support": self.min_support,
+                "min_confidence": self.min_confidence,
+            },
+        )
 
         self.logger.info(f"Pattern detection complete: {len(all_patterns)} patterns stored")
         return all_patterns
@@ -149,9 +151,7 @@ class PatternRecognition(Module):
                         hour = snapshot.get("hour", 0)
 
                         # Parse snapshot into sequences
-                        snapshot_sequences = self._parse_snapshot_to_sequences(
-                            snapshot, date_dir.name, hour
-                        )
+                        snapshot_sequences = self._parse_snapshot_to_sequences(snapshot, date_dir.name, hour)
 
                         # Merge into sequences_by_area
                         for area, seq in snapshot_sequences.items():
@@ -189,10 +189,7 @@ class PatternRecognition(Module):
         return dict(sequences_by_area)
 
     def _parse_snapshot_to_sequences(
-        self,
-        snapshot: Dict[str, Any],
-        date_str: str,
-        hour: int
+        self, snapshot: Dict[str, Any], date_str: str, hour: int
     ) -> Dict[str, Dict[str, Any]]:
         """Parse intraday snapshot into sequences per area.
 
@@ -235,21 +232,19 @@ class PatternRecognition(Module):
             "transactions": [
                 f"{area}_light_on_h{hour}" if lights_on > 0 else f"{area}_light_off_h{hour}",
                 f"{area}_motion_on_h{hour}" if motion_active > 0 else f"{area}_motion_off_h{hour}",
-                f"{area}_occupied_h{hour}" if people_home_count > 0 else f"{area}_unoccupied_h{hour}"
+                f"{area}_occupied_h{hour}" if people_home_count > 0 else f"{area}_unoccupied_h{hour}",
             ],
             "event_count": lights_on + motion_active,
             "lights_on": lights_on,
             "motion_active": motion_active,
             "people_home_count": people_home_count,
-            "brightness": total_brightness
+            "brightness": total_brightness,
         }
 
         return sequences
 
     def _parse_events_to_sequences(
-        self,
-        events: List[Dict[str, Any]],
-        date: datetime.date
+        self, events: List[Dict[str, Any]], date: datetime.date
     ) -> Dict[str, Dict[str, Any]]:
         """Parse logbook events into daily sequences per area.
 
@@ -282,13 +277,9 @@ class PatternRecognition(Module):
             # Extract area from name (simple heuristic)
             area = self._extract_area_from_name(name, entity_id)
 
-            area_events[area].append({
-                "entity_id": entity_id,
-                "name": name,
-                "state": state,
-                "time": when.time(),
-                "timestamp": when
-            })
+            area_events[area].append(
+                {"entity_id": entity_id, "name": name, "state": state, "time": when.time(), "timestamp": when}
+            )
 
         # Convert to sequence format
         sequences = {}
@@ -323,7 +314,7 @@ class PatternRecognition(Module):
                 "light_times": light_times,
                 "motion_times": motion_times,
                 "transactions": list(transactions),
-                "event_count": len(events_list)
+                "event_count": len(events_list),
             }
 
         return sequences
@@ -340,8 +331,16 @@ class PatternRecognition(Module):
         """
         # Common area keywords
         areas = [
-            "bedroom", "kitchen", "living", "bathroom", "closet",
-            "office", "garage", "hallway", "dining", "basement"
+            "bedroom",
+            "kitchen",
+            "living",
+            "bathroom",
+            "closet",
+            "office",
+            "garage",
+            "hallway",
+            "dining",
+            "basement",
         ]
 
         name_lower = name.lower()
@@ -353,10 +352,7 @@ class PatternRecognition(Module):
 
         return "general"
 
-    async def _cluster_sequences(
-        self,
-        sequences: List[Dict[str, Any]]
-    ) -> Dict[int, List[int]]:
+    async def _cluster_sequences(self, sequences: List[Dict[str, Any]]) -> Dict[int, List[int]]:
         """Cluster sequences using hierarchical clustering with DTW distance.
 
         Args:
@@ -412,10 +408,10 @@ class PatternRecognition(Module):
             DTW distance
         """
         if not s1 or not s2:
-            return float('inf')
+            return float("inf")
 
         n, m = len(s1), len(s2)
-        dtw = np.full((n + 1, m + 1), float('inf'))
+        dtw = np.full((n + 1, m + 1), float("inf"))
         dtw[0, 0] = 0
 
         for i in range(1, n + 1):
@@ -425,10 +421,7 @@ class PatternRecognition(Module):
 
         return dtw[n, m]
 
-    async def _find_associations(
-        self,
-        sequences: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    async def _find_associations(self, sequences: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Find association rules using Apriori algorithm.
 
         Args:
@@ -456,22 +449,20 @@ class PatternRecognition(Module):
                 return []
 
             # Generate association rules
-            rules = association_rules(
-                frequent_itemsets,
-                metric="confidence",
-                min_threshold=self.min_confidence
-            )
+            rules = association_rules(frequent_itemsets, metric="confidence", min_threshold=self.min_confidence)
 
             # Convert to dict format
             associations = []
             for _, rule in rules.iterrows():
-                associations.append({
-                    "antecedents": list(rule["antecedents"]),
-                    "consequents": list(rule["consequents"]),
-                    "support": float(rule["support"]),
-                    "confidence": float(rule["confidence"]),
-                    "lift": float(rule["lift"])
-                })
+                associations.append(
+                    {
+                        "antecedents": list(rule["antecedents"]),
+                        "consequents": list(rule["consequents"]),
+                        "support": float(rule["support"]),
+                        "confidence": float(rule["confidence"]),
+                        "lift": float(rule["lift"]),
+                    }
+                )
 
             return associations
 
@@ -484,7 +475,7 @@ class PatternRecognition(Module):
         area: str,
         sequences: List[Dict[str, Any]],
         clusters: Dict[int, List[int]],
-        associations: List[Dict[str, Any]]
+        associations: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """Generate pattern metadata from clustering and associations.
 
@@ -538,7 +529,7 @@ class PatternRecognition(Module):
                 "total_days": len(sequences),
                 "confidence": len(seq_indices) / len(sequences),
                 "associated_signals": associated_signals,
-                "cluster_size": len(seq_indices)
+                "cluster_size": len(seq_indices),
             }
 
             patterns.append(pattern)
@@ -556,11 +547,11 @@ class PatternRecognition(Module):
         """
         prompt = f"""Analyze this behavioral pattern and provide a short, semantic label (1-3 words max):
 
-Area: {pattern['area']}
-Typical Time: {pattern['typical_time']}
-Variance: ±{pattern['variance_minutes']} minutes
-Frequency: {pattern['frequency']} out of {pattern['total_days']} days ({pattern['confidence']:.0%})
-Associated Signals: {', '.join(pattern['associated_signals']) if pattern['associated_signals'] else 'None'}
+Area: {pattern["area"]}
+Typical Time: {pattern["typical_time"]}
+Variance: ±{pattern["variance_minutes"]} minutes
+Frequency: {pattern["frequency"]} out of {pattern["total_days"]} days ({pattern["confidence"]:.0%})
+Associated Signals: {", ".join(pattern["associated_signals"]) if pattern["associated_signals"] else "None"}
 
 Examples: "Morning routine", "Bedtime", "Evening arrival", "Night light", "Weekend morning"
 
@@ -569,10 +560,7 @@ Label:"""
         try:
             # Call Ollama (use qwen2.5:7b for faster, simpler responses)
             response = await asyncio.to_thread(
-                ollama.generate,
-                model="qwen2.5:7b",
-                prompt=prompt,
-                options={"temperature": 0.3, "num_predict": 20}
+                ollama.generate, model="qwen2.5:7b", prompt=prompt, options={"temperature": 0.3, "num_predict": 20}
             )
 
             # Extract response - ollama.generate returns a GenerateResponse object
@@ -603,8 +591,9 @@ Label:"""
             Cleaned text
         """
         import re
+
         # Remove <think>...</think> blocks
-        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
         return text.strip()
 
     async def on_event(self, event_type: str, data: Dict[str, Any]):

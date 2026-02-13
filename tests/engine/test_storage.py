@@ -8,7 +8,8 @@ from pathlib import Path
 
 from aria.engine.config import HolidayConfig, PathConfig
 from aria.engine.collectors.snapshot import (
-    build_empty_snapshot, aggregate_intraday_to_daily,
+    build_empty_snapshot,
+    aggregate_intraday_to_daily,
 )
 from aria.engine.storage.data_store import DataStore
 
@@ -110,8 +111,11 @@ class TestSequenceModelStorage:
     def test_save_load_sequence_anomalies_roundtrip(self, store):
         summary = {
             "anomalies": [
-                {"sequence": ["light.office:on", "lock.back_door:unlocked"],
-                 "probability": 0.02, "expected": "lock.back_door:locked"},
+                {
+                    "sequence": ["light.office:on", "lock.back_door:unlocked"],
+                    "probability": 0.02,
+                    "expected": "lock.back_door:locked",
+                },
             ],
             "total_sequences": 150,
             "anomaly_count": 1,

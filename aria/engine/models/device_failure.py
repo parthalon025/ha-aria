@@ -12,8 +12,13 @@ except ImportError:
 
 # Domain encoding shared by train and predict
 DOMAIN_MAP = {
-    "sensor": 0, "switch": 1, "light": 2, "binary_sensor": 3,
-    "device_tracker": 4, "lock": 5, "climate": 6,
+    "sensor": 0,
+    "switch": 1,
+    "light": 2,
+    "binary_sensor": 3,
+    "device_tracker": 4,
+    "lock": 5,
+    "climate": 6,
 }
 
 
@@ -42,7 +47,7 @@ def train_device_failure_model(snapshots, model_dir):
     for device_id in all_devices:
         for i in range(len(snapshots) - 7):
             # Features: outage history up to this point
-            history = snapshots[:i + 1]
+            history = snapshots[: i + 1]
             outage_7d = sum(1 for s in history[-7:] if device_id in s.get("entities", {}).get("unavailable_list", []))
             outage_30d = sum(1 for s in history[-30:] if device_id in s.get("entities", {}).get("unavailable_list", []))
 
@@ -62,13 +67,16 @@ def train_device_failure_model(snapshots, model_dir):
             domain = device_id.split(".")[0]
 
             features = [
-                outage_7d, outage_30d, min(days_since, 365),
-                battery, DOMAIN_MAP.get(domain, 7),
+                outage_7d,
+                outage_30d,
+                min(days_since, 365),
+                battery,
+                DOMAIN_MAP.get(domain, 7),
             ]
             X.append(features)
 
             # Label: did this device go unavailable in the next 7 days?
-            future = snapshots[i + 1:i + 8]
+            future = snapshots[i + 1 : i + 8]
             went_unavailable = any(device_id in s.get("entities", {}).get("unavailable_list", []) for s in future)
             y.append(1 if went_unavailable else 0)
 
@@ -79,7 +87,10 @@ def train_device_failure_model(snapshots, model_dir):
     y_arr = np.array(y, dtype=int)
 
     model = RandomForestClassifier(
-        n_estimators=100, max_depth=6, min_samples_leaf=3, random_state=42,
+        n_estimators=100,
+        max_depth=6,
+        min_samples_leaf=3,
+        random_state=42,
     )
     model.fit(X_arr, y_arr)
 
@@ -129,23 +140,26 @@ def predict_device_failures(snapshots, model_dir):
                 battery = batt_data.get("level", -1) or -1
         domain = device_id.split(".")[0]
 
-        features = np.array([[outage_7d, outage_30d, min(days_since, 365),
-                               battery, DOMAIN_MAP.get(domain, 7)]], dtype=float)
+        features = np.array(
+            [[outage_7d, outage_30d, min(days_since, 365), battery, DOMAIN_MAP.get(domain, 7)]], dtype=float
+        )
         prob = model.predict_proba(features)[0]
         fail_prob = prob[1] if len(prob) > 1 else 0
 
         if fail_prob > 0.3:  # Only report if >30% chance
-            predictions.append({
-                "entity_id": device_id,
-                "failure_probability": round(float(fail_prob), 3),
-                "risk": "high" if fail_prob > 0.7 else ("medium" if fail_prob > 0.5 else "low"),
-                "outages_last_7d": outage_7d,
-                "battery": battery if battery >= 0 else None,
-            })
+            predictions.append(
+                {
+                    "entity_id": device_id,
+                    "failure_probability": round(float(fail_prob), 3),
+                    "risk": "high" if fail_prob > 0.7 else ("medium" if fail_prob > 0.5 else "low"),
+                    "outages_last_7d": outage_7d,
+                    "battery": battery if battery >= 0 else None,
+                }
+            )
 
     predictions.sort(key=lambda p: -p["failure_probability"])
     return predictions
 
 
 # Canonical home: aria.engine.models.isolation_forest
-from aria.engine.models.isolation_forest import detect_contextual_anomalies  # noqa: F401
+from aria.engine.models.isolation_forest import detect_contextual_anomalies  # noqa: F401, E402

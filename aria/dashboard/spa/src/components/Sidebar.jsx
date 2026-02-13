@@ -134,7 +134,7 @@ export default function Sidebar() {
       <nav class="hidden md:flex fixed left-0 top-0 bottom-0 w-60 bg-gray-900 flex-col z-30">
         {/* Brand */}
         <div class="px-5 py-5">
-          <h1 class="text-lg font-bold text-white">HA Intelligence Hub</h1>
+          <h1 class="text-lg font-bold text-white">ARIA</h1>
         </div>
 
         {/* Nav links */}

@@ -37,6 +37,9 @@ htmlcov/
 *.swp
 *.swo
 
+# Linting
+.ruff_cache/
+
 # Cache & data
 *.db
 *.sqlite
@@ -50,3 +53,6 @@ aria/dashboard/spa/node_modules/
 
 # Worktrees
 .worktrees/
+
+# Claude Code (machine-specific)
+CLAUDE.md

@@ -33,7 +33,6 @@ async def cache(tmp_path):
 
 
 class TestConfigDefaultsStructure:
-
     def test_all_entries_have_required_keys(self):
         required = {"key", "default_value", "value_type"}
         for param in CONFIG_DEFAULTS:
@@ -61,12 +60,8 @@ class TestConfigDefaultsStructure:
         for param in CONFIG_DEFAULTS:
             if param["value_type"] == "number":
                 val = float(param["default_value"])
-                assert val >= param["min_value"], (
-                    f"Param '{param['key']}': default {val} < min {param['min_value']}"
-                )
-                assert val <= param["max_value"], (
-                    f"Param '{param['key']}': default {val} > max {param['max_value']}"
-                )
+                assert val >= param["min_value"], f"Param '{param['key']}': default {val} < min {param['min_value']}"
+                assert val <= param["max_value"], f"Param '{param['key']}': default {val} > max {param['max_value']}"
 
 
 # ============================================================================
@@ -75,7 +70,6 @@ class TestConfigDefaultsStructure:
 
 
 class TestSeedConfigDefaults:
-
     @pytest.mark.asyncio
     async def test_seed_populates_all_params(self, cache):
         seeded = await seed_config_defaults(cache)

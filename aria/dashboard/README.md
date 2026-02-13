@@ -1,4 +1,4 @@
-# Dashboard - HA Intelligence Hub
+# Dashboard - ARIA
 
 Interactive web UI for visualizing hub data and managing automations.
 

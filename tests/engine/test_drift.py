@@ -24,10 +24,12 @@ class TestDriftDetector(unittest.TestCase):
 
     def test_insufficient_data_no_retrain(self):
         detector = DriftDetector(min_samples=5)
-        history = self._make_history([
-            ("2026-02-10", 80, 10),
-            ("2026-02-11", 82, 8),
-        ])
+        history = self._make_history(
+            [
+                ("2026-02-10", 80, 10),
+                ("2026-02-11", 82, 8),
+            ]
+        )
         result = detector.check(history)
         self.assertFalse(result["needs_retrain"])
         self.assertIn("insufficient", result["reason"])
@@ -35,10 +37,7 @@ class TestDriftDetector(unittest.TestCase):
     def test_stable_errors_no_retrain(self):
         detector = DriftDetector(window_days=7, threshold_multiplier=2.0)
         # All errors around 10 — no drift
-        history = self._make_history([
-            (f"2026-02-{d:02d}", 85, 10 + (d % 3))
-            for d in range(5, 13)
-        ])
+        history = self._make_history([(f"2026-02-{d:02d}", 85, 10 + (d % 3)) for d in range(5, 13)])
         result = detector.check(history)
         self.assertFalse(result["needs_retrain"])
         self.assertIn("no drift", result["reason"])
@@ -47,10 +46,7 @@ class TestDriftDetector(unittest.TestCase):
     def test_spike_triggers_retrain(self):
         detector = DriftDetector(window_days=7, threshold_multiplier=2.0)
         # Stable errors around 10, then a massive spike
-        scores = [
-            (f"2026-02-{d:02d}", 85, 10)
-            for d in range(5, 12)
-        ]
+        scores = [(f"2026-02-{d:02d}", 85, 10) for d in range(5, 12)]
         scores.append(("2026-02-12", 40, 50))  # Big spike
         history = self._make_history(scores)
         result = detector.check(history)
@@ -77,37 +73,25 @@ class TestDriftDetector(unittest.TestCase):
 
     def test_should_skip_retrain_when_stable_and_accurate(self):
         detector = DriftDetector(min_samples=5)
-        history = self._make_history([
-            (f"2026-02-{d:02d}", 85, 10)
-            for d in range(5, 13)
-        ])
+        history = self._make_history([(f"2026-02-{d:02d}", 85, 10) for d in range(5, 13)])
         self.assertTrue(detector.should_skip_scheduled_retrain(history))
 
     def test_should_not_skip_retrain_when_drift_detected(self):
         detector = DriftDetector(min_samples=5)
-        scores = [
-            (f"2026-02-{d:02d}", 85, 10)
-            for d in range(5, 12)
-        ]
+        scores = [(f"2026-02-{d:02d}", 85, 10) for d in range(5, 12)]
         scores.append(("2026-02-12", 40, 50))
         history = self._make_history(scores)
         self.assertFalse(detector.should_skip_scheduled_retrain(history))
 
     def test_should_not_skip_retrain_when_accuracy_low(self):
         detector = DriftDetector(min_samples=5)
-        history = self._make_history([
-            (f"2026-02-{d:02d}", 60, 20)
-            for d in range(5, 13)
-        ])
+        history = self._make_history([(f"2026-02-{d:02d}", 60, 20) for d in range(5, 13)])
         self.assertFalse(detector.should_skip_scheduled_retrain(history))
 
     def test_custom_threshold_multiplier(self):
         # With very strict threshold (1.5x), smaller spike triggers retrain
         detector = DriftDetector(window_days=7, threshold_multiplier=1.5)
-        scores = [
-            (f"2026-02-{d:02d}", 85, 10)
-            for d in range(5, 12)
-        ]
+        scores = [(f"2026-02-{d:02d}", 85, 10) for d in range(5, 12)]
         scores.append(("2026-02-12", 70, 20))  # 2x median, triggers at 1.5x
         history = self._make_history(scores)
         result = detector.check(history)

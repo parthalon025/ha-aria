@@ -4,13 +4,14 @@ import unittest
 from datetime import datetime
 
 from aria.engine.analysis.occupancy import (
-    BayesianOccupancy, learn_occupancy_priors, occupancy_to_features,
+    BayesianOccupancy,
+    learn_occupancy_priors,
+    occupancy_to_features,
     DEFAULT_PRIOR,
 )
 
 
-def _make_snapshot(people_home=None, motion=None, power_watts=0, outlets=None,
-                   media=None):
+def _make_snapshot(people_home=None, motion=None, power_watts=0, outlets=None, media=None):
     """Build a test snapshot with relevant occupancy signals."""
     return {
         "occupancy": {
@@ -69,8 +70,7 @@ class TestBayesianOccupancy(unittest.TestCase):
 
         result_low = estimator.estimate(low_power)
         result_high = estimator.estimate(high_power)
-        self.assertGreater(result_high["overall"]["probability"],
-                          result_low["overall"]["probability"])
+        self.assertGreater(result_high["overall"]["probability"], result_low["overall"]["probability"])
 
     def test_signals_included_in_output(self):
         estimator = BayesianOccupancy()
@@ -153,8 +153,11 @@ class TestLearnPriors(unittest.TestCase):
             {"occupancy": {"people_home": []}},
         ]
         timestamps = [
-            ("Monday", 14), ("Monday", 14), ("Monday", 14),
-            ("Monday", 3), ("Monday", 3),
+            ("Monday", 14),
+            ("Monday", 14),
+            ("Monday", 14),
+            ("Monday", 3),
+            ("Monday", 3),
         ]
         priors = learn_occupancy_priors(snapshots, timestamps)
         # 3 of 3 occupied at Monday 2pm

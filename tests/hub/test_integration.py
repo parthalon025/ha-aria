@@ -1,4 +1,4 @@
-"""Integration tests for HA Intelligence Hub.
+"""Integration tests for ARIA Hub.
 
 Tests end-to-end functionality of the hub with all modules integrated.
 """
@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
 
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from aria.hub.core import IntelligenceHub
@@ -26,6 +27,7 @@ from aria.modules.patterns import PatternRecognition
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def temp_dirs():
     """Create temporary directories for cache, models, and training data."""
@@ -37,12 +39,7 @@ def temp_dirs():
         training_dir.mkdir()
         daily_dir.mkdir()
 
-        yield {
-            "cache": cache_dir,
-            "models": str(models_dir),
-            "training": str(training_dir),
-            "daily": str(daily_dir)
-        }
+        yield {"cache": cache_dir, "models": str(models_dir), "training": str(training_dir), "daily": str(daily_dir)}
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -59,6 +56,7 @@ async def initialized_hub(temp_dirs):
 # Integration Tests
 # ============================================================================
 
+
 @pytest.mark.asyncio
 async def test_hub_initialization(initialized_hub):
     """Test hub initializes successfully."""
@@ -74,18 +72,11 @@ async def test_hub_initialization(initialized_hub):
 async def test_module_registration(initialized_hub):
     """Test modules can be registered with hub."""
     # Mock the discover script subprocess call
-    with patch('subprocess.run') as mock_run:
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=json.dumps({"capabilities": {}, "entities": []})
-        )
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps({"capabilities": {}, "entities": []}))
 
         # Create and register discovery module
-        discovery = DiscoveryModule(
-            initialized_hub,
-            "http://test:8123",
-            "test_token"
-        )
+        discovery = DiscoveryModule(initialized_hub, "http://test:8123", "test_token")
         initialized_hub.register_module(discovery)
 
         # Verify registration
@@ -100,33 +91,20 @@ async def test_discovery_to_cache_pipeline(initialized_hub):
     # Mock discovery script output
     mock_output = {
         "capabilities": {
-            "lighting": {
-                "count": 1,
-                "entities": ["light.living_room"]
-            },
-            "power_monitoring": {
-                "count": 1,
-                "entities": ["sensor.power_meter"]
-            }
+            "lighting": {"count": 1, "entities": ["light.living_room"]},
+            "power_monitoring": {"count": 1, "entities": ["sensor.power_meter"]},
         },
         "entities": [
             {"entity_id": "light.living_room", "domain": "light"},
-            {"entity_id": "sensor.power_meter", "domain": "sensor"}
-        ]
+            {"entity_id": "sensor.power_meter", "domain": "sensor"},
+        ],
     }
 
-    with patch('subprocess.run') as mock_run:
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=json.dumps(mock_output)
-        )
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps(mock_output))
 
         # Initialize discovery module
-        discovery = DiscoveryModule(
-            initialized_hub,
-            "http://test:8123",
-            "test_token"
-        )
+        discovery = DiscoveryModule(initialized_hub, "http://test:8123", "test_token")
         initialized_hub.register_module(discovery)
         await discovery.initialize()
 
@@ -141,33 +119,24 @@ async def test_discovery_to_cache_pipeline(initialized_hub):
 async def test_ml_engine_integration(initialized_hub, temp_dirs):
     """Test ML engine integrates with hub and cache."""
     # Create ML engine
-    ml_engine = MLEngine(
-        initialized_hub,
-        temp_dirs["models"],
-        temp_dirs["training"]
-    )
+    ml_engine = MLEngine(initialized_hub, temp_dirs["models"], temp_dirs["training"])
     initialized_hub.register_module(ml_engine)
     await ml_engine.initialize()
 
     # Create mock training data
     training_file = Path(temp_dirs["training"]) / f"{datetime.now().strftime('%Y-%m-%d')}.jsonl"
-    with open(training_file, 'w') as f:
+    with open(training_file, "w") as f:
         for i in range(100):
-            timestamp = datetime.now() - timedelta(hours=24-i*0.24)
+            timestamp = datetime.now() - timedelta(hours=24 - i * 0.24)
             data = {
                 "timestamp": timestamp.isoformat(),
                 "light.living_room": {"state": "on" if i % 2 == 0 else "off"},
-                "sensor.power_meter": {"state": str(100 + i * 2)}
+                "sensor.power_meter": {"state": str(100 + i * 2)},
             }
             f.write(json.dumps(data) + "\n")
 
     # Populate capabilities first (ML engine needs this)
-    await initialized_hub.cache.set("capabilities", {
-        "lighting": {
-            "entities": ["light.living_room"],
-            "count": 1
-        }
-    })
+    await initialized_hub.cache.set("capabilities", {"lighting": {"entities": ["light.living_room"], "count": 1}})
 
     # Train models
     await ml_engine.train_models()
@@ -180,7 +149,7 @@ async def test_ml_engine_integration(initialized_hub, temp_dirs):
 @pytest.mark.asyncio
 async def test_health_check(initialized_hub, temp_dirs):
     """Test health check reports status of all modules."""
-    with patch('subprocess.run') as mock_run:
+    with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout="{}")
 
         # Register modules
@@ -253,6 +222,7 @@ async def test_websocket_event_broadcasting(initialized_hub):
 @pytest.mark.asyncio
 async def test_concurrent_cache_access(initialized_hub):
     """Test cache handles concurrent access correctly."""
+
     # Create multiple concurrent write operations
     async def write_task(key_id):
         await initialized_hub.cache.set(f"concurrent_{key_id}", {"id": key_id})
@@ -298,7 +268,7 @@ async def test_cache_persistence_across_restarts(temp_dirs):
 async def test_error_recovery_discovery_failure(initialized_hub):
     """Test hub handles discovery failures gracefully."""
     # Mock discovery script to fail
-    with patch('subprocess.run') as mock_run:
+    with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=1, stderr="Connection failed")
 
         discovery = DiscoveryModule(initialized_hub, "http://test:8123", "test_token")
@@ -358,7 +328,7 @@ async def test_cache_performance(initialized_hub):
 @pytest.mark.asyncio
 async def test_module_initialization_order(initialized_hub, temp_dirs):
     """Test modules can initialize in any order."""
-    with patch('subprocess.run') as mock_run:
+    with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout="{}")
 
         # Create all modules

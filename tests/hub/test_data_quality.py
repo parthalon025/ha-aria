@@ -182,9 +182,7 @@ async def test_classify_auto_exclude_domain(module):
     }
     entities_data = {"update.core": make_entity("update.core", domain="update")}
 
-    tier, status, reason, group_id = module._classify(
-        "update.core", metrics, config, entities_data, set(), set()
-    )
+    tier, status, reason, group_id = module._classify("update.core", metrics, config, entities_data, set(), set())
 
     assert tier == 1
     assert status == "auto_excluded"
@@ -203,9 +201,7 @@ async def test_classify_stale_entity(module):
     }
     entities_data = {"sensor.stale": make_entity("sensor.stale")}
 
-    tier, status, reason, _ = module._classify(
-        "sensor.stale", metrics, config, entities_data, set(), set()
-    )
+    tier, status, reason, _ = module._classify("sensor.stale", metrics, config, entities_data, set(), set())
 
     assert tier == 1
     assert status == "auto_excluded"
@@ -224,9 +220,7 @@ async def test_classify_noise_entity(module):
     }
     entities_data = {"sensor.noisy": make_entity("sensor.noisy")}
 
-    tier, status, reason, _ = module._classify(
-        "sensor.noisy", metrics, config, entities_data, set(), set()
-    )
+    tier, status, reason, _ = module._classify("sensor.noisy", metrics, config, entities_data, set(), set())
 
     assert tier == 1
     assert status == "auto_excluded"
@@ -292,8 +286,12 @@ async def test_classify_vehicle_group(module):
     vehicle_device_ids = {"dev_tesla_001"}
 
     tier, status, reason, group_id = module._classify(
-        "sensor.charger_amps", metrics, config, entities_data,
-        vehicle_entity_ids, vehicle_device_ids,
+        "sensor.charger_amps",
+        metrics,
+        config,
+        entities_data,
+        vehicle_entity_ids,
+        vehicle_device_ids,
     )
 
     assert tier == 2
@@ -314,9 +312,7 @@ async def test_classify_high_rate_low_variety(module):
     }
     entities_data = {"sensor.power": make_entity("sensor.power")}
 
-    tier, status, reason, _ = module._classify(
-        "sensor.power", metrics, config, entities_data, set(), set()
-    )
+    tier, status, reason, _ = module._classify("sensor.power", metrics, config, entities_data, set(), set())
 
     assert tier == 2
     assert status == "excluded"
@@ -335,9 +331,7 @@ async def test_classify_presence_domain(module):
     }
     entities_data = {"person.justin": make_entity("person.justin", friendly_name="Justin")}
 
-    tier, status, reason, _ = module._classify(
-        "person.justin", metrics, config, entities_data, set(), set()
-    )
+    tier, status, reason, _ = module._classify("person.justin", metrics, config, entities_data, set(), set())
 
     assert tier == 2
     assert status == "included"
@@ -361,9 +355,7 @@ async def test_classify_default(module):
     }
     entities_data = {"light.kitchen": make_entity("light.kitchen")}
 
-    tier, status, reason, _ = module._classify(
-        "light.kitchen", metrics, config, entities_data, set(), set()
-    )
+    tier, status, reason, _ = module._classify("light.kitchen", metrics, config, entities_data, set(), set())
 
     assert tier == 3
     assert status == "included"
@@ -378,18 +370,22 @@ async def test_classify_default(module):
 @pytest.mark.asyncio
 async def test_human_override_preserved(hub, module):
     """Entity with human_override=True is skipped during classification."""
-    hub.set_entities({
-        "light.manual": make_entity("light.manual"),
-    })
+    hub.set_entities(
+        {
+            "light.manual": make_entity("light.manual"),
+        }
+    )
     hub.set_activity([])
 
     # Simulate existing curation with human override
-    hub.cache.get_curation = AsyncMock(return_value={
-        "entity_id": "light.manual",
-        "status": "included",
-        "tier": 3,
-        "human_override": True,
-    })
+    hub.cache.get_curation = AsyncMock(
+        return_value={
+            "entity_id": "light.manual",
+            "status": "included",
+            "tier": 3,
+            "human_override": True,
+        }
+    )
 
     await module.run_classification()
 
@@ -400,20 +396,24 @@ async def test_human_override_preserved(hub, module):
 @pytest.mark.asyncio
 async def test_run_classification_calls_upsert(hub, module):
     """Full pipeline with mock data calls upsert_curation for each entity."""
-    hub.set_entities({
-        "light.kitchen": make_entity("light.kitchen"),
-        "switch.porch": make_entity("switch.porch"),
-        "update.core": make_entity("update.core", domain="update"),
-    })
-    hub.set_activity([
-        make_window(
-            by_entity={"light.kitchen": 5, "switch.porch": 3},
-            events=[
-                {"entity_id": "light.kitchen", "to": "on"},
-                {"entity_id": "switch.porch", "to": "off"},
-            ],
-        )
-    ])
+    hub.set_entities(
+        {
+            "light.kitchen": make_entity("light.kitchen"),
+            "switch.porch": make_entity("switch.porch"),
+            "update.core": make_entity("update.core", domain="update"),
+        }
+    )
+    hub.set_activity(
+        [
+            make_window(
+                by_entity={"light.kitchen": 5, "switch.porch": 3},
+                events=[
+                    {"entity_id": "light.kitchen", "to": "on"},
+                    {"entity_id": "switch.porch", "to": "off"},
+                ],
+            )
+        ]
+    )
 
     await module.run_classification()
 
@@ -461,9 +461,11 @@ async def test_empty_entity_cache(hub, module):
 @pytest.mark.asyncio
 async def test_empty_activity_cache(hub, module):
     """Handles missing activity data gracefully — still classifies entities."""
-    hub.set_entities({
-        "light.kitchen": make_entity("light.kitchen"),
-    })
+    hub.set_entities(
+        {
+            "light.kitchen": make_entity("light.kitchen"),
+        }
+    )
     # No activity set
 
     await module.run_classification()
@@ -482,18 +484,22 @@ async def test_config_values_used(hub, module):
     # Override config: lower noise threshold
     hub._config_overrides[CONFIG_NOISE_EVENT_THRESHOLD] = 50
 
-    hub.set_entities({
-        "sensor.chatty": make_entity("sensor.chatty"),
-    })
-    hub.set_activity([
-        make_window(
-            by_entity={"sensor.chatty": 100},
-            events=[
-                {"entity_id": "sensor.chatty", "to": "on"},
-                {"entity_id": "sensor.chatty", "to": "off"},
-            ],
-        )
-    ])
+    hub.set_entities(
+        {
+            "sensor.chatty": make_entity("sensor.chatty"),
+        }
+    )
+    hub.set_activity(
+        [
+            make_window(
+                by_entity={"sensor.chatty": 100},
+                events=[
+                    {"entity_id": "sensor.chatty", "to": "on"},
+                    {"entity_id": "sensor.chatty", "to": "off"},
+                ],
+            )
+        ]
+    )
 
     await module.run_classification()
 

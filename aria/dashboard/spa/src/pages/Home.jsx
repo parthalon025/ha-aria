@@ -505,7 +505,12 @@ export default function Home() {
   return (
     <div class="space-y-6">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">Pipeline Dashboard</h1>
+        <pre class="text-xs leading-none text-gray-800 font-bold mb-2">{`   ████╗    ██████╗    ██╗    ████╗
+  ██╔═██╗   ██╔══██╗   ██║   ██╔═██╗
+ ██╔╝ ██║   ██████╔╝   ██║  ██╔╝ ██║
+ ████████║   ██╔══██╗   ██║  ████████║
+ ██╔╝ ╚██║   ██║  ██║   ██║  ██╔╝ ╚██║
+ ╚═╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝  ╚═╝   ╚═╝`}</pre>
         <p class="text-sm text-gray-500">Live system overview — data flow, module health, and your next steps.</p>
       </div>
 

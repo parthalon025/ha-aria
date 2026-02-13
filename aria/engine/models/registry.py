@@ -14,25 +14,25 @@ from abc import ABC, abstractmethod
 
 class ModelRegistry:
     """Registry for ML model classes using decorator-based registration."""
+
     _models: dict[str, type] = {}
 
     @classmethod
     def register(cls, name: str | None = None):
         """Decorator to register a model class."""
+
         def decorator(model_class):
             key = name or model_class.__name__.lower()
             cls._models[key] = model_class
             return model_class
+
         return decorator
 
     @classmethod
     def get(cls, name: str):
         """Get a model class by name."""
         if name not in cls._models:
-            raise KeyError(
-                f"Model '{name}' not registered. "
-                f"Available: {list(cls._models.keys())}"
-            )
+            raise KeyError(f"Model '{name}' not registered. Available: {list(cls._models.keys())}")
         return cls._models[name]
 
     @classmethod

@@ -12,37 +12,63 @@ DEFAULT_FEATURE_CONFIG = {
     "last_modified": "",
     "modified_by": "initial",
     "time_features": {
-        "hour_sin_cos": True, "dow_sin_cos": True, "month_sin_cos": True,
-        "day_of_year_sin_cos": True, "is_weekend": True, "is_holiday": True,
-        "is_night": True, "is_work_hours": True, "minutes_since_sunrise": True,
-        "minutes_until_sunset": True, "daylight_remaining_pct": True,
+        "hour_sin_cos": True,
+        "dow_sin_cos": True,
+        "month_sin_cos": True,
+        "day_of_year_sin_cos": True,
+        "is_weekend": True,
+        "is_holiday": True,
+        "is_night": True,
+        "is_work_hours": True,
+        "minutes_since_sunrise": True,
+        "minutes_until_sunset": True,
+        "daylight_remaining_pct": True,
     },
     "weather_features": {
-        "temp_f": True, "humidity_pct": True, "wind_mph": True,
+        "temp_f": True,
+        "humidity_pct": True,
+        "wind_mph": True,
     },
     "home_features": {
-        "people_home_count": True, "device_count_home": True,
-        "lights_on": True, "total_brightness": True,
-        "motion_active_count": True, "active_media_players": True,
-        "ev_battery_pct": True, "ev_is_charging": True,
+        "people_home_count": True,
+        "device_count_home": True,
+        "lights_on": True,
+        "total_brightness": True,
+        "motion_active_count": True,
+        "active_media_players": True,
+        "ev_battery_pct": True,
+        "ev_is_charging": True,
     },
     "lag_features": {
-        "prev_snapshot_power": True, "prev_snapshot_lights": True,
+        "prev_snapshot_power": True,
+        "prev_snapshot_lights": True,
         "prev_snapshot_occupancy": True,
-        "rolling_7d_power_mean": True, "rolling_7d_lights_mean": True,
+        "rolling_7d_power_mean": True,
+        "rolling_7d_lights_mean": True,
     },
     "interaction_features": {
-        "is_weekend_x_temp": False, "people_home_x_hour_sin": False,
+        "is_weekend_x_temp": False,
+        "people_home_x_hour_sin": False,
         "daylight_x_lights": False,
     },
     "target_metrics": [
-        "power_watts", "lights_on", "devices_home", "unavailable", "useful_events",
+        "power_watts",
+        "lights_on",
+        "devices_home",
+        "unavailable",
+        "useful_events",
     ],
 }
 
 # Required top-level sections in a valid feature config
-_REQUIRED_SECTIONS = {"time_features", "weather_features", "home_features", "lag_features",
-                      "interaction_features", "target_metrics"}
+_REQUIRED_SECTIONS = {
+    "time_features",
+    "weather_features",
+    "home_features",
+    "lag_features",
+    "interaction_features",
+    "target_metrics",
+}
 
 
 def validate_feature_config(config):
@@ -56,8 +82,7 @@ def validate_feature_config(config):
             errors.append(f"Missing required section: {section}")
 
     # Validate feature sections contain only bool values
-    for section in ["time_features", "weather_features", "home_features",
-                    "lag_features", "interaction_features"]:
+    for section in ["time_features", "weather_features", "home_features", "lag_features", "interaction_features"]:
         sub = config.get(section, {})
         if not isinstance(sub, dict):
             errors.append(f"Section '{section}' must be a dict")

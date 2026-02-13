@@ -8,12 +8,15 @@ import shutil
 from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
 from aria.engine.features.vector_builder import build_training_data
 from aria.engine.models.training import (
-    train_continuous_model, blend_predictions, count_days_of_data,
+    train_continuous_model,
+    blend_predictions,
+    count_days_of_data,
     predict_with_ml,
 )
 from aria.engine.models.isolation_forest import IsolationForestModel
 from aria.engine.models.device_failure import (
-    train_device_failure_model, predict_device_failures,
+    train_device_failure_model,
+    predict_device_failures,
     detect_contextual_anomalies,
 )
 from aria.engine.config import HolidayConfig, PathConfig
@@ -38,8 +41,7 @@ class TestSklearnTraining(unittest.TestCase):
             snapshots = make_synthetic_snapshots(120)
             config = DEFAULT_FEATURE_CONFIG
             names, X, targets = build_training_data(snapshots, config)
-            result = train_continuous_model(
-                "power_watts", names, X, targets["power_watts"], tmpdir)
+            result = train_continuous_model("power_watts", names, X, targets["power_watts"], tmpdir)
             self.assertNotIn("error", result)
             self.assertIn("r2", result)
             self.assertIn("mae", result)
@@ -96,8 +98,7 @@ class TestSklearnTraining(unittest.TestCase):
         try:
             snapshots = []
             for i in range(30):
-                snap = build_empty_snapshot(
-                    f"2026-02-{(i % 28) + 1:02d}", HolidayConfig())
+                snap = build_empty_snapshot(f"2026-02-{(i % 28) + 1:02d}", HolidayConfig())
                 snap["batteries"] = {"sensor.flaky": {"level": 30}}
                 if i % 5 == 0:
                     snap["entities"]["unavailable_list"] = ["sensor.flaky"]
@@ -118,8 +119,7 @@ class TestSklearnTraining(unittest.TestCase):
         try:
             snapshots = []
             for i in range(30):
-                snap = build_empty_snapshot(
-                    f"2026-02-{(i % 28) + 1:02d}", HolidayConfig())
+                snap = build_empty_snapshot(f"2026-02-{(i % 28) + 1:02d}", HolidayConfig())
                 snap["batteries"] = {"sensor.flaky": {"level": 10}}
                 if i % 3 == 0:
                     snap["entities"]["unavailable_list"] = ["sensor.flaky"]
@@ -140,8 +140,7 @@ class TestSklearnTraining(unittest.TestCase):
             snapshots = make_synthetic_snapshots(120)
             config = DEFAULT_FEATURE_CONFIG
             names, X, targets = build_training_data(snapshots, config)
-            train_continuous_model(
-                "power_watts", names, X, targets["power_watts"], tmpdir)
+            train_continuous_model("power_watts", names, X, targets["power_watts"], tmpdir)
 
             test_snap = snapshots[-1]
             preds = predict_with_ml(test_snap, config, models_dir=tmpdir)

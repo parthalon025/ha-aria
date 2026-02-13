@@ -6,7 +6,22 @@ build-backend = "setuptools.build_meta"
 name = "ha-aria"
 version = "1.0.0"
 description = "ARIA — Adaptive Residence Intelligence Architecture for Home Assistant"
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.12"
+authors = [
+    {name = "Justin McFarland", email = "parthalon025@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Home Automation",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "scikit-learn>=1.8.0",
     "numpy>=2.4.0",
@@ -26,6 +41,13 @@ llm = ["ollama>=0.3.0"]
 prophet = ["prophet", "cmdstanpy", "pandas", "matplotlib"]
 ml-extra = ["lightgbm>=4.0.0", "mlxtend>=0.23.0"]
 dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "ruff>=0.4.0"]
+
+[project.urls]
+Homepage = "https://github.com/parthalon025/ha-aria"
+Repository = "https://github.com/parthalon025/ha-aria"
+Issues = "https://github.com/parthalon025/ha-aria/issues"
+Documentation = "https://github.com/parthalon025/ha-aria/tree/main/docs"
+Changelog = "https://github.com/parthalon025/ha-aria/blob/main/CHANGELOG.md"
 
 [project.scripts]
 aria = "aria.cli:main"

@@ -39,8 +39,8 @@ class MockHub:
 # ============================================================================
 
 # Light-on times per area per day (minutes since midnight, ±1 min variation)
-_MORNING_TIMES = [389, 390, 391, 389, 390, 391, 390]   # ~06:29-06:31
-_MIDDAY_TIMES = [734, 735, 736, 734, 735, 736, 735]     # ~12:14-12:16
+_MORNING_TIMES = [389, 390, 391, 389, 390, 391, 390]  # ~06:29-06:31
+_MIDDAY_TIMES = [734, 735, 736, 734, 735, 736, 735]  # ~12:14-12:16
 _EVENING_TIMES = [1259, 1260, 1261, 1259, 1260, 1261, 1260]  # ~20:59-21:01
 
 
@@ -80,50 +80,62 @@ def log_dir(tmp_path):
         # Bedroom — morning light + motion
         m = _MORNING_TIMES[day_idx]
         h, mn = divmod(m, 60)
-        events.append({
-            "entity_id": "light.bedroom_main",
-            "name": "Bedroom Light",
-            "state": "on",
-            "when": f"{date_str}T{h:02d}:{mn:02d}:00",
-        })
-        events.append({
-            "entity_id": "binary_sensor.bedroom_motion",
-            "name": "Bedroom Motion",
-            "state": "on",
-            "when": f"{date_str}T{h:02d}:{max(0, mn - 2):02d}:00",
-        })
+        events.append(
+            {
+                "entity_id": "light.bedroom_main",
+                "name": "Bedroom Light",
+                "state": "on",
+                "when": f"{date_str}T{h:02d}:{mn:02d}:00",
+            }
+        )
+        events.append(
+            {
+                "entity_id": "binary_sensor.bedroom_motion",
+                "name": "Bedroom Motion",
+                "state": "on",
+                "when": f"{date_str}T{h:02d}:{max(0, mn - 2):02d}:00",
+            }
+        )
 
         # Kitchen — midday light + motion
         m = _MIDDAY_TIMES[day_idx]
         h, mn = divmod(m, 60)
-        events.append({
-            "entity_id": "light.kitchen_main",
-            "name": "Kitchen Light",
-            "state": "on",
-            "when": f"{date_str}T{h:02d}:{mn:02d}:00",
-        })
-        events.append({
-            "entity_id": "binary_sensor.kitchen_motion",
-            "name": "Kitchen Motion",
-            "state": "on",
-            "when": f"{date_str}T{h:02d}:{max(0, mn - 1):02d}:00",
-        })
+        events.append(
+            {
+                "entity_id": "light.kitchen_main",
+                "name": "Kitchen Light",
+                "state": "on",
+                "when": f"{date_str}T{h:02d}:{mn:02d}:00",
+            }
+        )
+        events.append(
+            {
+                "entity_id": "binary_sensor.kitchen_motion",
+                "name": "Kitchen Motion",
+                "state": "on",
+                "when": f"{date_str}T{h:02d}:{max(0, mn - 1):02d}:00",
+            }
+        )
 
         # Living room — evening light + motion
         m = _EVENING_TIMES[day_idx]
         h, mn = divmod(m, 60)
-        events.append({
-            "entity_id": "light.living_room_main",
-            "name": "Living Room Light",
-            "state": "on",
-            "when": f"{date_str}T{h:02d}:{mn:02d}:00",
-        })
-        events.append({
-            "entity_id": "binary_sensor.living_room_motion",
-            "name": "Living Room Motion",
-            "state": "on",
-            "when": f"{date_str}T{h:02d}:{max(0, mn - 3):02d}:00",
-        })
+        events.append(
+            {
+                "entity_id": "light.living_room_main",
+                "name": "Living Room Light",
+                "state": "on",
+                "when": f"{date_str}T{h:02d}:{mn:02d}:00",
+            }
+        )
+        events.append(
+            {
+                "entity_id": "binary_sensor.living_room_motion",
+                "name": "Living Room Motion",
+                "state": "on",
+                "when": f"{date_str}T{h:02d}:{max(0, mn - 3):02d}:00",
+            }
+        )
 
         (tmp_path / f"{date_str}.json").write_text(json.dumps(events))
 

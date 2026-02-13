@@ -17,8 +17,15 @@ def get_feature_names(config=None):
         names.extend(["month_sin", "month_cos"])
     if tc.get("day_of_year_sin_cos"):
         names.extend(["day_of_year_sin", "day_of_year_cos"])
-    for simple in ["is_weekend", "is_holiday", "is_night", "is_work_hours",
-                    "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct"]:
+    for simple in [
+        "is_weekend",
+        "is_holiday",
+        "is_night",
+        "is_work_hours",
+        "minutes_since_sunrise",
+        "minutes_until_sunset",
+        "daylight_remaining_pct",
+    ]:
         if tc.get(simple):
             names.append(simple)
 
@@ -66,8 +73,15 @@ def build_feature_vector(snapshot, config=None, prev_snapshot=None, rolling_stat
     if tc.get("day_of_year_sin_cos"):
         features["day_of_year_sin"] = tf.get("day_of_year_sin", 0)
         features["day_of_year_cos"] = tf.get("day_of_year_cos", 0)
-    for simple in ["is_weekend", "is_holiday", "is_night", "is_work_hours",
-                    "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct"]:
+    for simple in [
+        "is_weekend",
+        "is_holiday",
+        "is_night",
+        "is_work_hours",
+        "minutes_since_sunrise",
+        "minutes_until_sunset",
+        "daylight_remaining_pct",
+    ]:
         if tc.get(simple):
             val = tf.get(simple, 0)
             features[simple] = 1 if val is True else (0 if val is False else (val or 0))
@@ -81,8 +95,9 @@ def build_feature_vector(snapshot, config=None, prev_snapshot=None, rolling_stat
     # Home state features
     hc = config.get("home_features", {})
     if hc.get("people_home_count"):
-        features["people_home_count"] = snapshot.get("occupancy", {}).get("people_home_count",
-            len(snapshot.get("occupancy", {}).get("people_home", [])))
+        features["people_home_count"] = snapshot.get("occupancy", {}).get(
+            "people_home_count", len(snapshot.get("occupancy", {}).get("people_home", []))
+        )
     if hc.get("device_count_home"):
         features["device_count_home"] = snapshot.get("occupancy", {}).get("device_count_home", 0)
     if hc.get("lights_on"):
@@ -157,7 +172,7 @@ def build_training_data(snapshots, config=None):
         # Simple rolling stats
         rolling = {}
         if i >= 7:
-            recent = snapshots[max(0, i - 7):i]
+            recent = snapshots[max(0, i - 7) : i]
             rolling["power_mean_7d"] = sum(s.get("power", {}).get("total_watts", 0) for s in recent) / len(recent)
             rolling["lights_mean_7d"] = sum(s.get("lights", {}).get("on", 0) for s in recent) / len(recent)
 

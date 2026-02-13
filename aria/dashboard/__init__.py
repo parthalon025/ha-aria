@@ -1,4 +1,4 @@
-"""Dashboard module for HA Intelligence Hub."""
+"""Dashboard module for ARIA."""
 
 from aria.dashboard.routes import router as dashboard_router
 

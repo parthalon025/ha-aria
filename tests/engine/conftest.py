@@ -1,11 +1,16 @@
 """Shared test fixtures for ARIA engine test suite."""
 
-
 import pytest
 
 from aria.engine.config import (
-    AppConfig, HAConfig, PathConfig, ModelConfig, OllamaConfig,
-    WeatherConfig, SafetyConfig, HolidayConfig,
+    AppConfig,
+    HAConfig,
+    PathConfig,
+    ModelConfig,
+    OllamaConfig,
+    WeatherConfig,
+    SafetyConfig,
+    HolidayConfig,
 )
 from aria.engine.storage.data_store import DataStore
 from aria.engine.collectors.snapshot import build_empty_snapshot
@@ -15,64 +20,113 @@ from aria.engine.features.time_features import build_time_features
 # --- Common test data ---
 
 SAMPLE_STATES = [
-    {"entity_id": "sensor.usp_pdu_pro_ac_power_consumption", "state": "156.5",
-     "attributes": {"unit_of_measurement": "W", "friendly_name": "USP PDU Pro AC Power Consumption"}},
-    {"entity_id": "person.justin", "state": "home",
-     "attributes": {"friendly_name": "Justin", "source": "device_tracker.ipad_pro"}},
-    {"entity_id": "person.lisa", "state": "not_home",
-     "attributes": {"friendly_name": "Lisa"}},
-    {"entity_id": "climate.bedroom", "state": "cool",
-     "attributes": {"current_temperature": 72, "temperature": 68, "friendly_name": "Bedroom"}},
-    {"entity_id": "lock.back_door", "state": "unlocked",
-     "attributes": {"battery_level": 58, "friendly_name": "Back Door"}},
-    {"entity_id": "light.atrium", "state": "on",
-     "attributes": {"brightness": 143, "friendly_name": "Atrium"}},
+    {
+        "entity_id": "sensor.usp_pdu_pro_ac_power_consumption",
+        "state": "156.5",
+        "attributes": {"unit_of_measurement": "W", "friendly_name": "USP PDU Pro AC Power Consumption"},
+    },
+    {
+        "entity_id": "person.justin",
+        "state": "home",
+        "attributes": {"friendly_name": "Justin", "source": "device_tracker.ipad_pro"},
+    },
+    {"entity_id": "person.lisa", "state": "not_home", "attributes": {"friendly_name": "Lisa"}},
+    {
+        "entity_id": "climate.bedroom",
+        "state": "cool",
+        "attributes": {"current_temperature": 72, "temperature": 68, "friendly_name": "Bedroom"},
+    },
+    {
+        "entity_id": "lock.back_door",
+        "state": "unlocked",
+        "attributes": {"battery_level": 58, "friendly_name": "Back Door"},
+    },
+    {"entity_id": "light.atrium", "state": "on", "attributes": {"brightness": 143, "friendly_name": "Atrium"}},
     {"entity_id": "light.office", "state": "off", "attributes": {"friendly_name": "Office"}},
-    {"entity_id": "automation.arrive_justin", "state": "on",
-     "attributes": {"friendly_name": "Arrive Justin", "last_triggered": "2026-02-10T22:23:00"}},
-    {"entity_id": "sensor.luda_battery", "state": "71",
-     "attributes": {"unit_of_measurement": "%", "friendly_name": "TARS Battery"}},
-    {"entity_id": "sensor.luda_charger_power", "state": "4.0",
-     "attributes": {"unit_of_measurement": "kW", "friendly_name": "TARS Charger power"}},
-    {"entity_id": "sensor.luda_range", "state": "199.3",
-     "attributes": {"unit_of_measurement": "mi", "friendly_name": "TARS Range"}},
-    {"entity_id": "binary_sensor.hue_motion_sensor_2_motion", "state": "off",
-     "attributes": {"device_class": "motion", "friendly_name": "Closet motion Motion"}},
-    {"entity_id": "device_tracker.iphonea17", "state": "home",
-     "attributes": {"friendly_name": "iPhonea17"}},
+    {
+        "entity_id": "automation.arrive_justin",
+        "state": "on",
+        "attributes": {"friendly_name": "Arrive Justin", "last_triggered": "2026-02-10T22:23:00"},
+    },
+    {
+        "entity_id": "sensor.luda_battery",
+        "state": "71",
+        "attributes": {"unit_of_measurement": "%", "friendly_name": "TARS Battery"},
+    },
+    {
+        "entity_id": "sensor.luda_charger_power",
+        "state": "4.0",
+        "attributes": {"unit_of_measurement": "kW", "friendly_name": "TARS Charger power"},
+    },
+    {
+        "entity_id": "sensor.luda_range",
+        "state": "199.3",
+        "attributes": {"unit_of_measurement": "mi", "friendly_name": "TARS Range"},
+    },
+    {
+        "entity_id": "binary_sensor.hue_motion_sensor_2_motion",
+        "state": "off",
+        "attributes": {"device_class": "motion", "friendly_name": "Closet motion Motion"},
+    },
+    {"entity_id": "device_tracker.iphonea17", "state": "home", "attributes": {"friendly_name": "iPhonea17"}},
 ]
 
 EXTENDED_STATES = [
-    {"entity_id": "binary_sensor.front_door", "state": "off",
-     "attributes": {"device_class": "door", "friendly_name": "Front Door"}},
-    {"entity_id": "binary_sensor.garage_door_sensor", "state": "on",
-     "attributes": {"device_class": "garage_door", "friendly_name": "Garage Door"}},
-    {"entity_id": "binary_sensor.kitchen_window", "state": "off",
-     "attributes": {"device_class": "window", "friendly_name": "Kitchen Window"}},
-    {"entity_id": "binary_sensor.motion_1", "state": "on",
-     "attributes": {"device_class": "motion", "friendly_name": "Motion 1"}},
-    {"entity_id": "lock.back_door", "state": "locked",
-     "attributes": {"battery_level": 58, "friendly_name": "Back Door Lock"}},
-    {"entity_id": "sensor.hue_motion_battery", "state": "82",
-     "attributes": {"device_class": "battery", "unit_of_measurement": "%", "friendly_name": "Hue Motion Battery"}},
+    {
+        "entity_id": "binary_sensor.front_door",
+        "state": "off",
+        "attributes": {"device_class": "door", "friendly_name": "Front Door"},
+    },
+    {
+        "entity_id": "binary_sensor.garage_door_sensor",
+        "state": "on",
+        "attributes": {"device_class": "garage_door", "friendly_name": "Garage Door"},
+    },
+    {
+        "entity_id": "binary_sensor.kitchen_window",
+        "state": "off",
+        "attributes": {"device_class": "window", "friendly_name": "Kitchen Window"},
+    },
+    {
+        "entity_id": "binary_sensor.motion_1",
+        "state": "on",
+        "attributes": {"device_class": "motion", "friendly_name": "Motion 1"},
+    },
+    {
+        "entity_id": "lock.back_door",
+        "state": "locked",
+        "attributes": {"battery_level": 58, "friendly_name": "Back Door Lock"},
+    },
+    {
+        "entity_id": "sensor.hue_motion_battery",
+        "state": "82",
+        "attributes": {"device_class": "battery", "unit_of_measurement": "%", "friendly_name": "Hue Motion Battery"},
+    },
     {"entity_id": "device_tracker.iphone", "state": "home", "attributes": {}},
     {"entity_id": "device_tracker.ipad", "state": "home", "attributes": {}},
     {"entity_id": "device_tracker.macbook", "state": "not_home", "attributes": {}},
     {"entity_id": "device_tracker.unknown1", "state": "unavailable", "attributes": {}},
-    {"entity_id": "media_player.living_room", "state": "playing",
-     "attributes": {"friendly_name": "Living Room"}},
-    {"entity_id": "media_player.atrium", "state": "idle",
-     "attributes": {"friendly_name": "Atrium"}},
-    {"entity_id": "sun.sun", "state": "above_horizon",
-     "attributes": {"next_rising": "2026-02-11T06:42:00+00:00",
-                    "next_setting": "2026-02-10T17:58:00+00:00",
-                    "elevation": 32.5}},
-    {"entity_id": "vacuum.roborock", "state": "docked",
-     "attributes": {"battery_level": 100, "friendly_name": "Roborock"}},
+    {"entity_id": "media_player.living_room", "state": "playing", "attributes": {"friendly_name": "Living Room"}},
+    {"entity_id": "media_player.atrium", "state": "idle", "attributes": {"friendly_name": "Atrium"}},
+    {
+        "entity_id": "sun.sun",
+        "state": "above_horizon",
+        "attributes": {
+            "next_rising": "2026-02-11T06:42:00+00:00",
+            "next_setting": "2026-02-10T17:58:00+00:00",
+            "elevation": 32.5,
+        },
+    },
+    {
+        "entity_id": "vacuum.roborock",
+        "state": "docked",
+        "attributes": {"battery_level": 100, "friendly_name": "Roborock"},
+    },
 ]
 
 
 # --- Fixtures ---
+
 
 @pytest.fixture
 def holidays_config():
@@ -129,6 +183,7 @@ def make_snapshot(date_str, power=150, lights_on=30, devices_home=50):
 def make_synthetic_snapshots(n=50):
     """Generate N synthetic snapshots with known patterns."""
     import random
+
     random.seed(42)
     snapshots = []
     for i in range(n):
@@ -145,7 +200,6 @@ def make_synthetic_snapshots(n=50):
         snap["ev"] = {"TARS": {"battery_pct": 50 + random.randint(0, 50), "is_charging": False}}
         snap["entities"]["unavailable"] = 900
         snap["logbook_summary"] = {"useful_events": 2500}
-        snap["time_features"] = build_time_features(
-            f"{date_str}T16:00:00", None, date_str)
+        snap["time_features"] = build_time_features(f"{date_str}T16:00:00", None, date_str)
         snapshots.append(snap)
     return snapshots

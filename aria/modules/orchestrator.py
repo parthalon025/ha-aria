@@ -24,13 +24,7 @@ RESTRICTED_DOMAINS = {"lock", "cover", "alarm_control_panel"}
 class OrchestratorModule(Module):
     """Generates automation suggestions and executes approved automations."""
 
-    def __init__(
-        self,
-        hub: IntelligenceHub,
-        ha_url: str,
-        ha_token: str,
-        min_confidence: float = 0.7
-    ):
+    def __init__(self, hub: IntelligenceHub, ha_url: str, ha_token: str, min_confidence: float = 0.7):
         """Initialize orchestrator module.
 
         Args:
@@ -51,10 +45,7 @@ class OrchestratorModule(Module):
 
         # Create HTTP session
         self._session = aiohttp.ClientSession(
-            headers={
-                "Authorization": f"Bearer {self.ha_token}",
-                "Content-Type": "application/json"
-            }
+            headers={"Authorization": f"Bearer {self.ha_token}", "Content-Type": "application/json"}
         )
 
         # Generate initial automation suggestions
@@ -69,7 +60,7 @@ class OrchestratorModule(Module):
             task_id="orchestrator_suggestions",
             coro=self.generate_suggestions,
             interval=timedelta(hours=6),
-            run_immediately=False  # Already ran above
+            run_immediately=False,  # Already ran above
         )
 
     async def shutdown(self):
@@ -104,9 +95,7 @@ class OrchestratorModule(Module):
         self.logger.info("Generating automation suggestions from patterns...")
 
         # 1. Load patterns from cache (warn if older than 24 hours)
-        patterns_cache = await self.hub.get_cache_fresh(
-            "patterns", timedelta(hours=24), caller="orchestrator"
-        )
+        patterns_cache = await self.hub.get_cache_fresh("patterns", timedelta(hours=24), caller="orchestrator")
         if not patterns_cache or "data" not in patterns_cache:
             self.logger.warning("No patterns found in cache")
             return []
@@ -121,15 +110,9 @@ class OrchestratorModule(Module):
         self.logger.info(f"Found {len(patterns)} patterns in cache")
 
         # 2. Filter patterns by confidence
-        eligible_patterns = [
-            p for p in patterns
-            if p.get("confidence", 0) >= self.min_confidence
-        ]
+        eligible_patterns = [p for p in patterns if p.get("confidence", 0) >= self.min_confidence]
 
-        self.logger.info(
-            f"{len(eligible_patterns)} patterns meet confidence threshold "
-            f"(≥{self.min_confidence:.0%})"
-        )
+        self.logger.info(f"{len(eligible_patterns)} patterns meet confidence threshold (≥{self.min_confidence:.0%})")
 
         # 3. Generate suggestions
         suggestions = []
@@ -138,9 +121,7 @@ class OrchestratorModule(Module):
                 suggestion = await self._pattern_to_suggestion(pattern)
                 suggestions.append(suggestion)
             except Exception as e:
-                self.logger.error(
-                    f"Failed to generate suggestion for pattern {pattern.get('pattern_id')}: {e}"
-                )
+                self.logger.error(f"Failed to generate suggestion for pattern {pattern.get('pattern_id')}: {e}")
 
         # 4. Load existing suggestions to preserve status
         existing_suggestions_cache = await self.hub.get_cache("automation_suggestions")
@@ -163,15 +144,16 @@ class OrchestratorModule(Module):
             final_suggestions.append(suggestion)
 
         # 6. Store in cache
-        await self.hub.set_cache("automation_suggestions", {
-            "suggestions": final_suggestions,
-            "count": len(final_suggestions),
-            "eligible_patterns": len(eligible_patterns),
-            "total_patterns": len(patterns)
-        }, {
-            "source": "orchestrator",
-            "min_confidence": self.min_confidence
-        })
+        await self.hub.set_cache(
+            "automation_suggestions",
+            {
+                "suggestions": final_suggestions,
+                "count": len(final_suggestions),
+                "eligible_patterns": len(eligible_patterns),
+                "total_patterns": len(patterns),
+            },
+            {"source": "orchestrator", "min_confidence": self.min_confidence},
+        )
 
         self.logger.info(f"Generated {len(final_suggestions)} automation suggestions")
         return final_suggestions
@@ -204,14 +186,9 @@ class OrchestratorModule(Module):
         automation_yaml = {
             "alias": f"Pattern: {pattern.get('name', pattern_id)}",
             "description": f"Auto-generated from detected pattern. {llm_description}",
-            "trigger": [
-                {
-                    "platform": "time",
-                    "at": f"{hour:02d}:{minute:02d}:00"
-                }
-            ],
+            "trigger": [{"platform": "time", "at": f"{hour:02d}:{minute:02d}:00"}],
             "condition": [],
-            "action": []
+            "action": [],
         }
 
         # Extract actions from associated signals
@@ -222,9 +199,7 @@ class OrchestratorModule(Module):
         requires_explicit_approval = self._check_safety_guardrails(actions)
 
         # Generate unique suggestion ID (hash of pattern_id + timestamp)
-        suggestion_id = hashlib.sha256(
-            f"{pattern_id}_{typical_time}".encode()
-        ).hexdigest()[:16]
+        suggestion_id = hashlib.sha256(f"{pattern_id}_{typical_time}".encode()).hexdigest()[:16]
 
         # Calculate confidence (based on pattern frequency)
         confidence = frequency / total_days if total_days > 0 else 0
@@ -243,15 +218,12 @@ class OrchestratorModule(Module):
                 "variance_minutes": variance_minutes,
                 "frequency": frequency,
                 "total_days": total_days,
-                "llm_description": llm_description
-            }
+                "llm_description": llm_description,
+            },
         }
 
         if requires_explicit_approval:
-            self.logger.warning(
-                f"Suggestion {suggestion_id} requires explicit approval "
-                f"(restricted domains detected)"
-            )
+            self.logger.warning(f"Suggestion {suggestion_id} requires explicit approval (restricted domains detected)")
 
         return suggestion
 
@@ -286,29 +258,21 @@ class OrchestratorModule(Module):
             # Map to HA service calls
             if entity_type == "light":
                 if state == "on":
-                    actions.append({
-                        "service": "light.turn_on",
-                        "target": {
-                            "area_id": area
-                        }
-                    })
+                    actions.append({"service": "light.turn_on", "target": {"area_id": area}})
                 elif state == "off":
-                    actions.append({
-                        "service": "light.turn_off",
-                        "target": {
-                            "area_id": area
-                        }
-                    })
+                    actions.append({"service": "light.turn_off", "target": {"area_id": area}})
 
         # Default action if no signals parsed
         if not actions:
-            actions.append({
-                "service": "notify.persistent_notification",
-                "data": {
-                    "message": f"Pattern detected in {area} at typical time",
-                    "title": f"{area.title()} Pattern"
+            actions.append(
+                {
+                    "service": "notify.persistent_notification",
+                    "data": {
+                        "message": f"Pattern detected in {area} at typical time",
+                        "title": f"{area.title()} Pattern",
+                    },
                 }
-            })
+            )
 
         return actions
 
@@ -344,10 +308,7 @@ class OrchestratorModule(Module):
         # 1. Load suggestion from cache
         suggestions_cache = await self.hub.get_cache("automation_suggestions")
         if not suggestions_cache or "data" not in suggestions_cache:
-            return {
-                "success": False,
-                "error": "No suggestions found in cache"
-            }
+            return {"success": False, "error": "No suggestions found in cache"}
 
         suggestions = suggestions_cache["data"].get("suggestions", [])
         suggestion = None
@@ -357,17 +318,14 @@ class OrchestratorModule(Module):
                 break
 
         if not suggestion:
-            return {
-                "success": False,
-                "error": f"Suggestion {suggestion_id} not found"
-            }
+            return {"success": False, "error": f"Suggestion {suggestion_id} not found"}
 
         # 2. Check if already approved
         if suggestion["status"] == "approved":
             return {
                 "success": False,
                 "error": "Suggestion already approved",
-                "automation_id": suggestion.get("automation_id")
+                "automation_id": suggestion.get("automation_id"),
             }
 
         # 3. Create automation in HA
@@ -386,35 +344,28 @@ class OrchestratorModule(Module):
             suggestion["automation_id"] = automation_id
 
             # 5. Save updated suggestions
-            await self.hub.set_cache("automation_suggestions", {
-                "suggestions": suggestions,
-                "count": len(suggestions)
-            })
+            await self.hub.set_cache("automation_suggestions", {"suggestions": suggestions, "count": len(suggestions)})
 
             # 6. Track created automation
             await self._track_created_automation(automation_id, suggestion_id)
 
             # 7. Publish approval event
-            await self.hub.publish("automation_approved", {
-                "suggestion_id": suggestion_id,
-                "automation_id": automation_id,
-                "pattern_id": suggestion["pattern_id"]
-            })
+            await self.hub.publish(
+                "automation_approved",
+                {
+                    "suggestion_id": suggestion_id,
+                    "automation_id": automation_id,
+                    "pattern_id": suggestion["pattern_id"],
+                },
+            )
 
             self.logger.info(f"Suggestion {suggestion_id} approved, automation {automation_id} created")
 
-            return {
-                "success": True,
-                "automation_id": automation_id,
-                "suggestion_id": suggestion_id
-            }
+            return {"success": True, "automation_id": automation_id, "suggestion_id": suggestion_id}
 
         except Exception as e:
             self.logger.error(f"Failed to approve suggestion {suggestion_id}: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     async def reject_suggestion(self, suggestion_id: str) -> Dict[str, Any]:
         """Reject an automation suggestion.
@@ -430,10 +381,7 @@ class OrchestratorModule(Module):
         # 1. Load suggestion from cache
         suggestions_cache = await self.hub.get_cache("automation_suggestions")
         if not suggestions_cache or "data" not in suggestions_cache:
-            return {
-                "success": False,
-                "error": "No suggestions found in cache"
-            }
+            return {"success": False, "error": "No suggestions found in cache"}
 
         suggestions = suggestions_cache["data"].get("suggestions", [])
         suggestion = None
@@ -443,39 +391,25 @@ class OrchestratorModule(Module):
                 break
 
         if not suggestion:
-            return {
-                "success": False,
-                "error": f"Suggestion {suggestion_id} not found"
-            }
+            return {"success": False, "error": f"Suggestion {suggestion_id} not found"}
 
         # 2. Update status
         suggestion["status"] = "rejected"
         suggestion["rejected_at"] = datetime.now().isoformat()
 
         # 3. Save updated suggestions
-        await self.hub.set_cache("automation_suggestions", {
-            "suggestions": suggestions,
-            "count": len(suggestions)
-        })
+        await self.hub.set_cache("automation_suggestions", {"suggestions": suggestions, "count": len(suggestions)})
 
         # 4. Publish rejection event
-        await self.hub.publish("automation_rejected", {
-            "suggestion_id": suggestion_id,
-            "pattern_id": suggestion["pattern_id"]
-        })
+        await self.hub.publish(
+            "automation_rejected", {"suggestion_id": suggestion_id, "pattern_id": suggestion["pattern_id"]}
+        )
 
         self.logger.info(f"Suggestion {suggestion_id} rejected")
 
-        return {
-            "success": True,
-            "suggestion_id": suggestion_id
-        }
+        return {"success": True, "suggestion_id": suggestion_id}
 
-    async def _create_automation(
-        self,
-        automation_id: str,
-        automation_yaml: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def _create_automation(self, automation_id: str, automation_yaml: Dict[str, Any]) -> Dict[str, Any]:
         """Create automation in Home Assistant via REST API.
 
         NOTE: The /api/config/automation/config/{id} endpoint requires admin
@@ -501,10 +435,7 @@ class OrchestratorModule(Module):
             async with self._session.post(url, json=automation_yaml) as response:
                 if response.status in (200, 201):
                     self.logger.info(f"Created automation: {automation_id}")
-                    return {
-                        "success": True,
-                        "automation_id": automation_id
-                    }
+                    return {"success": True, "automation_id": automation_id}
                 elif response.status == 401:
                     # Expected for standard tokens - log automation for manual creation
                     self.logger.warning(
@@ -512,8 +443,7 @@ class OrchestratorModule(Module):
                         "Automation YAML logged for manual creation."
                     )
                     self.logger.info(
-                        f"Manual automation YAML for {automation_id}:\n"
-                        f"{json.dumps(automation_yaml, indent=2)}"
+                        f"Manual automation YAML for {automation_id}:\n{json.dumps(automation_yaml, indent=2)}"
                     )
 
                     # Store automation YAML in cache for dashboard to display
@@ -523,37 +453,23 @@ class OrchestratorModule(Module):
                         "success": True,  # Success = stored for manual creation
                         "automation_id": automation_id,
                         "manual_creation_required": True,
-                        "note": "Automation stored for manual creation (admin token required)"
+                        "note": "Automation stored for manual creation (admin token required)",
                     }
                 else:
                     error_text = await response.text()
                     self.logger.error(
-                        f"Failed to create automation {automation_id}: "
-                        f"HTTP {response.status} - {error_text}"
+                        f"Failed to create automation {automation_id}: HTTP {response.status} - {error_text}"
                     )
-                    return {
-                        "success": False,
-                        "error": f"HTTP {response.status}: {error_text}"
-                    }
+                    return {"success": False, "error": f"HTTP {response.status}: {error_text}"}
 
         except aiohttp.ClientError as e:
             self.logger.error(f"HTTP request failed for automation {automation_id}: {e}")
-            return {
-                "success": False,
-                "error": f"Network error: {str(e)}"
-            }
+            return {"success": False, "error": f"Network error: {str(e)}"}
         except Exception as e:
             self.logger.error(f"Unexpected error creating automation {automation_id}: {e}")
-            return {
-                "success": False,
-                "error": f"Unexpected error: {str(e)}"
-            }
+            return {"success": False, "error": f"Unexpected error: {str(e)}"}
 
-    async def _store_pending_automation(
-        self,
-        automation_id: str,
-        automation_yaml: Dict[str, Any]
-    ):
+    async def _store_pending_automation(self, automation_id: str, automation_yaml: Dict[str, Any]):
         """Store automation YAML in cache for manual creation.
 
         Args:
@@ -569,10 +485,7 @@ class OrchestratorModule(Module):
         if "automations" not in pending_data:
             pending_data["automations"] = {}
 
-        pending_data["automations"][automation_id] = {
-            "yaml": automation_yaml,
-            "created_at": datetime.now().isoformat()
-        }
+        pending_data["automations"][automation_id] = {"yaml": automation_yaml, "created_at": datetime.now().isoformat()}
 
         await self.hub.set_cache("pending_automations", pending_data)
 
@@ -597,18 +510,13 @@ class OrchestratorModule(Module):
         tracking_data["automations"][automation_id] = {
             "suggestion_id": suggestion_id,
             "created_at": datetime.now().isoformat(),
-            "status": "active"
+            "status": "active",
         }
 
         # Save tracking data
         await self.hub.set_cache("created_automations", tracking_data)
 
-    async def update_pattern_detection_sensor(
-        self,
-        pattern_name: str,
-        pattern_id: str,
-        confidence: float
-    ):
+    async def update_pattern_detection_sensor(self, pattern_name: str, pattern_id: str, confidence: float):
         """Update HA virtual sensor for pattern detection events.
 
         Args:
@@ -626,8 +534,8 @@ class OrchestratorModule(Module):
                 "confidence": confidence,
                 "last_triggered": datetime.now().isoformat(),
                 "friendly_name": "HA Hub Pattern Detected",
-                "icon": "mdi:brain"
-            }
+                "icon": "mdi:brain",
+            },
         }
 
         try:
@@ -636,17 +544,12 @@ class OrchestratorModule(Module):
                     self.logger.debug(f"Updated pattern sensor: {pattern_name}")
                 else:
                     error_text = await response.text()
-                    self.logger.warning(
-                        f"Failed to update pattern sensor: HTTP {response.status} - {error_text}"
-                    )
+                    self.logger.warning(f"Failed to update pattern sensor: HTTP {response.status} - {error_text}")
 
         except Exception as e:
             self.logger.error(f"Failed to update pattern sensor: {e}")
 
-    async def get_suggestions(
-        self,
-        status_filter: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    async def get_suggestions(self, status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get automation suggestions from cache.
 
         Args:

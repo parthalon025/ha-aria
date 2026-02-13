@@ -10,13 +10,24 @@ from datetime import datetime
 
 # Domains worth tracking for co-occurrence (skip noisy sensors)
 TRACKABLE_DOMAINS = {
-    "light", "switch", "lock", "cover", "media_player", "climate",
-    "automation", "binary_sensor", "input_boolean", "vacuum", "fan",
+    "light",
+    "switch",
+    "lock",
+    "cover",
+    "media_player",
+    "climate",
+    "automation",
+    "binary_sensor",
+    "input_boolean",
+    "vacuum",
+    "fan",
 }
 
 # Exclude noisy entities from correlation tracking
 EXCLUDED_PATTERNS = {
-    "sensor.time", "sensor.date", "binary_sensor.updater",
+    "sensor.time",
+    "sensor.date",
+    "binary_sensor.updater",
 }
 
 
@@ -33,8 +44,7 @@ def _is_trackable(entity_id: str) -> bool:
 
 def _parse_timestamp(ts_str: str) -> datetime | None:
     """Parse a logbook timestamp string into datetime."""
-    for fmt in ("%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z",
-                "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
         try:
             return datetime.strptime(ts_str, fmt)
         except (ValueError, TypeError):
@@ -117,15 +127,17 @@ def compute_co_occurrences(logbook_entries: list, window_minutes: int = 15) -> l
         hours = pair_hours[(entity_a, entity_b)]
         typical_hour = max(set(hours), key=hours.count) if hours else None
 
-        results.append({
-            "entity_a": entity_a,
-            "entity_b": entity_b,
-            "count": count,
-            "conditional_prob_a_given_b": prob_a_given_b,
-            "conditional_prob_b_given_a": prob_b_given_a,
-            "typical_hour": typical_hour,
-            "strength": _classify_strength(max(prob_a_given_b, prob_b_given_a)),
-        })
+        results.append(
+            {
+                "entity_a": entity_a,
+                "entity_b": entity_b,
+                "count": count,
+                "conditional_prob_a_given_b": prob_a_given_b,
+                "conditional_prob_b_given_a": prob_b_given_a,
+                "typical_hour": typical_hour,
+                "strength": _classify_strength(max(prob_a_given_b, prob_b_given_a)),
+            }
+        )
 
     results.sort(key=lambda r: -r["count"])
     return results[:50]  # Top 50 pairs
@@ -175,8 +187,7 @@ def compute_hourly_patterns(logbook_entries: list) -> dict:
     return patterns
 
 
-def summarize_entity_correlations(co_occurrences: list, hourly_patterns: dict,
-                                   top_n: int = 10) -> dict:
+def summarize_entity_correlations(co_occurrences: list, hourly_patterns: dict, top_n: int = 10) -> dict:
     """Produce a summary suitable for LLM context and storage.
 
     Returns dict with top patterns, key entities, and automation-worthy pairs.
@@ -185,11 +196,9 @@ def summarize_entity_correlations(co_occurrences: list, hourly_patterns: dict,
     top_pairs = co_occurrences[:top_n]
 
     # Automation-worthy: strong or very_strong with high conditional probability
-    automation_worthy = [
-        p for p in co_occurrences
-        if p["strength"] in ("strong", "very_strong")
-        and p["count"] >= 5
-    ][:top_n]
+    automation_worthy = [p for p in co_occurrences if p["strength"] in ("strong", "very_strong") and p["count"] >= 5][
+        :top_n
+    ]
 
     # Most active entities
     entity_activity = {}

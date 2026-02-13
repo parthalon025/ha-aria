@@ -1,5 +1,5 @@
 /**
- * API client for HA Intelligence Hub.
+ * API client for ARIA.
  *
  * - baseUrl derived from window.location.origin
  * - fetchJson() wrapper with error handling

@@ -55,8 +55,7 @@ def train_all_models(days=90, config=None, store=None):
     gb_model = GradientBoostingModel()
     for metric in (feature_config or {}).get("target_metrics", []):
         if metric in targets:
-            result = gb_model.train(metric, feature_names, X, targets[metric],
-                                    models_dir, config.model)
+            result = gb_model.train(metric, feature_names, X, targets[metric], models_dir, config.model)
             results["models"][metric] = result
             if "error" not in result:
                 print(f"  {metric}: MAE={result['mae']}, R\u00b2={result['r2']}")
@@ -83,8 +82,7 @@ def train_all_models(days=90, config=None, store=None):
     return results
 
 
-def predict_with_ml(snapshot, config=None, prev_snapshot=None, rolling_stats=None,
-                    models_dir=None, store=None):
+def predict_with_ml(snapshot, config=None, prev_snapshot=None, rolling_stats=None, models_dir=None, store=None):
     """Generate ML predictions for a snapshot using trained models.
 
     Args:
@@ -138,12 +136,13 @@ def train_continuous_model(metric_name, feature_names, X, y, model_dir, config=N
     meta_learning validation (which needs to train in temp dirs).
     """
     from aria.engine.models.gradient_boosting import GradientBoostingModel
+
     model = GradientBoostingModel()
     return model.train(metric_name, feature_names, X, y, model_dir, config)
 
 
 # Canonical home: aria.engine.predictions.predictor
-from aria.engine.predictions.predictor import blend_predictions  # noqa: F401
+from aria.engine.predictions.predictor import blend_predictions  # noqa: F401, E402
 
 
 def count_days_of_data(store_or_paths=None):

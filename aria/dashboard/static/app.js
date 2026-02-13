@@ -1,5 +1,5 @@
 /**
- * HA Intelligence Hub - Dashboard JavaScript
+ * ARIA - Dashboard JavaScript
  * Alpine.js helpers and utilities
  */
 

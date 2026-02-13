@@ -1,12 +1,19 @@
-"""FastAPI routes for Intelligence Hub REST API."""
+"""FastAPI routes for ARIA Hub REST API."""
 
 import os
 import sys
 import time
 from pathlib import Path
 from fastapi import (
-    APIRouter, Depends, FastAPI, HTTPException, Query, Request,
-    Security, WebSocket, WebSocketDisconnect,
+    APIRouter,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Request,
+    Security,
+    WebSocket,
+    WebSocketDisconnect,
 )
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
@@ -95,7 +102,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
     from aria import __version__
 
     app = FastAPI(
-        title="ARIA Intelligence Hub",
+        title="ARIA",
         description="REST API for ARIA — Adaptive Residence Intelligence Architecture",
         version=__version__,
     )
@@ -117,10 +124,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
 
     # Subscribe to hub events for WebSocket broadcasting
     async def broadcast_cache_update(data: Dict[str, Any]):
-        await ws_manager.broadcast({
-            "type": "cache_updated",
-            "data": data
-        })
+        await ws_manager.broadcast({"type": "cache_updated", "data": data})
 
     hub.subscribe("cache_updated", broadcast_cache_update)
 
@@ -135,7 +139,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
     @app.get("/")
     async def root():
         """API root - health check."""
-        return {"status": "ok", "service": "HA Intelligence Hub"}
+        return {"status": "ok", "service": "ARIA"}
 
     @app.get("/health")
     async def health():
@@ -143,12 +147,9 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         try:
             health_data = await hub.health_check()
             return JSONResponse(content=health_data)
-        except Exception as e:
+        except Exception:
             logger.exception("Health check failed")
-            return JSONResponse(
-                status_code=500,
-                content={"status": "error", "error": "Health check failed"}
-            )
+            return JSONResponse(status_code=500, content={"status": "error", "error": "Health check failed"})
 
     # --- New utility endpoints ---
 
@@ -169,13 +170,15 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             keys = []
             for cat in categories:
                 entry = await hub.cache.get(cat)
-                keys.append({
-                    "category": cat,
-                    "last_updated": entry.get("last_updated") if entry else None,
-                    "version": entry.get("version") if entry else None,
-                })
+                keys.append(
+                    {
+                        "category": cat,
+                        "last_updated": entry.get("last_updated") if entry else None,
+                        "version": entry.get("version") if entry else None,
+                    }
+                )
             return {"keys": keys, "count": len(keys)}
-        except Exception as e:
+        except Exception:
             logger.exception("Error listing cache keys")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -196,7 +199,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         try:
             categories = await hub.cache.list_categories()
             return {"categories": categories}
-        except Exception as e:
+        except Exception:
             logger.exception("Error listing cache categories")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -210,7 +213,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return data
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting cache '%s'", category)
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -232,14 +235,10 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             metadata = payload.get("metadata")
             version = await hub.set_cache(category, data, metadata)
 
-            return {
-                "status": "ok",
-                "category": category,
-                "version": version
-            }
+            return {"status": "ok", "category": category, "version": version}
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Error setting cache '%s'", category)
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -254,7 +253,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"status": "ok", "category": category, "deleted": True}
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Error deleting cache '%s'", category)
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -267,13 +266,9 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
     ):
         """Get recent events from event log."""
         try:
-            events = await hub.cache.get_events(
-                event_type=event_type,
-                category=category,
-                limit=limit
-            )
+            events = await hub.cache.get_events(event_type=event_type, category=category, limit=limit)
             return {"events": events, "count": len(events)}
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting events")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -282,15 +277,9 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
     async def list_modules():
         """List all registered modules."""
         try:
-            modules = [
-                {
-                    "module_id": module_id,
-                    "registered": True
-                }
-                for module_id in hub.modules.keys()
-            ]
+            modules = [{"module_id": module_id, "registered": True} for module_id in hub.modules.keys()]
             return {"modules": modules, "count": len(modules)}
-        except Exception as e:
+        except Exception:
             logger.exception("Error listing modules")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -302,13 +291,10 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             if module is None:
                 raise HTTPException(status_code=404, detail=f"Module '{module_id}' not found")
 
-            return {
-                "module_id": module.module_id,
-                "registered": True
-            }
+            return {"module_id": module.module_id, "registered": True}
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting module '%s'", module_id)
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -322,7 +308,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         try:
             predictions = await hub.cache.get_recent_predictions(limit=limit, offset=offset)
             return {"predictions": predictions, "count": len(predictions)}
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting shadow predictions")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -350,7 +336,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                 result["thompson_sampling"] = shadow_mod.get_thompson_stats()
 
             return result
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting shadow accuracy")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -358,17 +344,11 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
     async def get_shadow_disagreements(limit: int = Query(default=20, le=1000)):
         """Get top disagreements sorted by confidence (most informative first)."""
         try:
-            predictions = await hub.cache.get_recent_predictions(
-                limit=200, outcome_filter="disagreement"
-            )
+            predictions = await hub.cache.get_recent_predictions(limit=200, outcome_filter="disagreement")
             # Sort by confidence descending (highest confidence wrong = most informative)
-            sorted_preds = sorted(
-                predictions,
-                key=lambda p: p.get("confidence", 0),
-                reverse=True
-            )[:limit]
+            sorted_preds = sorted(predictions, key=lambda p: p.get("confidence", 0), reverse=True)[:limit]
             return {"disagreements": sorted_preds, "count": len(sorted_preds)}
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting shadow disagreements")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -388,7 +368,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                     "current_stage": "shadow",
                     "gates": {},
                     "stage_health": {},
-                    "message": "Pipeline state not yet initialized"
+                    "message": "Pipeline state not yet initialized",
                 }
 
             # Compute multi-metric stage health from accuracy stats
@@ -435,15 +415,15 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
 
             pipeline["stage_health"] = stage_health
             return pipeline
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting pipeline status")
             raise HTTPException(status_code=500, detail="Internal server error")
 
-    PIPELINE_STAGES = ['backtest', 'shadow', 'suggest', 'autonomous']
+    PIPELINE_STAGES = ["backtest", "shadow", "suggest", "autonomous"]
     PIPELINE_GATES = {
-        'backtest': {'field': 'backtest_accuracy', 'threshold': 0.40, 'label': 'backtest accuracy'},
-        'shadow': {'field': 'shadow_accuracy_7d', 'threshold': 0.50, 'label': '7-day shadow accuracy'},
-        'suggest': {'field': 'suggest_approval_rate_14d', 'threshold': 0.70, 'label': '14-day approval rate'},
+        "backtest": {"field": "backtest_accuracy", "threshold": 0.40, "label": "backtest accuracy"},
+        "shadow": {"field": "shadow_accuracy_7d", "threshold": 0.50, "label": "7-day shadow accuracy"},
+        "suggest": {"field": "suggest_approval_rate_14d", "threshold": 0.70, "label": "14-day approval rate"},
     }
 
     @router.post("/api/pipeline/advance")
@@ -463,16 +443,16 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             # Check gate requirement for current stage
             gate = PIPELINE_GATES.get(current)
             if gate:
-                current_value = pipeline.get(gate['field']) or 0
-                if current_value < gate['threshold']:
+                current_value = pipeline.get(gate["field"]) or 0
+                if current_value < gate["threshold"]:
                     return JSONResponse(
                         status_code=400,
                         content={
                             "error": "Gate not met",
-                            "gate": gate['label'],
-                            "required": gate['threshold'],
+                            "gate": gate["label"],
+                            "required": gate["threshold"],
                             "current": current_value,
-                        }
+                        },
                     )
 
             next_stage = PIPELINE_STAGES[idx + 1]
@@ -488,7 +468,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
 
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Error advancing pipeline")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -519,7 +499,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
 
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Error retreating pipeline")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -530,7 +510,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         try:
             configs = await hub.cache.get_all_config()
             return {"configs": configs}
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting all config")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -542,7 +522,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return config
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
+        except Exception:
             logger.exception("Error resetting config '%s'", key)
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -556,7 +536,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return config
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting config '%s'", key)
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -569,7 +549,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return config
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
+        except Exception:
             logger.exception("Error updating config '%s'", key)
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -582,7 +562,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         try:
             history = await hub.cache.get_config_history(key=key, limit=limit)
             return {"history": history, "count": len(history)}
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting config history")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -593,7 +573,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         try:
             curations = await hub.cache.get_all_curation()
             return {"curations": curations}
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting all curation")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -603,7 +583,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         try:
             summary = await hub.cache.get_curation_summary()
             return summary
-        except Exception as e:
+        except Exception:
             logger.exception("Error getting curation summary")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -618,7 +598,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return result
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
+        except Exception:
             logger.exception("Error updating curation for '%s'", entity_id)
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -631,7 +611,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             )
             await hub.publish("curation_updated", {"count": count, "status": body.status})
             return {"updated": count}
-        except Exception as e:
+        except Exception:
             logger.exception("Error bulk updating curation")
             raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -651,10 +631,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
 
         try:
             # Send initial connection message
-            await websocket.send_json({
-                "type": "connected",
-                "message": "Connected to HA Intelligence Hub"
-            })
+            await websocket.send_json({"type": "connected", "message": "Connected to ARIA"})
 
             # Keep connection alive
             while True:
@@ -672,10 +649,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                 except WebSocketDisconnect:
                     break
                 except json.JSONDecodeError:
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "Invalid JSON"
-                    })
+                    await websocket.send_json({"type": "error", "message": "Invalid JSON"})
                 except Exception as e:
                     logger.error(f"WebSocket error: {e}")
                     break

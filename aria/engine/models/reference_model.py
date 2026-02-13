@@ -23,7 +23,7 @@ import shutil
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from aria.engine.config import PathConfig
 from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
@@ -78,9 +78,7 @@ class ReferenceModel:
 
             tmpdir = tempfile.mkdtemp()
             try:
-                result = train_continuous_model(
-                    metric, feature_names, X, targets[metric], tmpdir
-                )
+                result = train_continuous_model(metric, feature_names, X, targets[metric], tmpdir)
                 if "error" not in result:
                     results["metrics"][metric] = {
                         "mae": result.get("mae"),
@@ -148,9 +146,7 @@ class ReferenceModel:
             else:
                 diagnosis[metric] = "stable"
 
-        return {"diagnosis": diagnosis, "reference_mae": {
-            m: d.get("mae") for m, d in ref_metrics.items()
-        }}
+        return {"diagnosis": diagnosis, "reference_mae": {m: d.get("mae") for m, d in ref_metrics.items()}}
 
     def _append_history(self, result: Dict[str, Any]):
         """Append a training result to the accuracy history file."""

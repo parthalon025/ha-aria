@@ -185,10 +185,7 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
-        cursor = await self._conn.execute(
-            "SELECT * FROM cache WHERE category = ?",
-            (category,)
-        )
+        cursor = await self._conn.execute("SELECT * FROM cache WHERE category = ?", (category,))
         row = await cursor.fetchone()
 
         if not row:
@@ -199,15 +196,10 @@ class CacheManager:
             "data": json.loads(row["data"]),
             "version": row["version"],
             "last_updated": row["last_updated"],
-            "metadata": json.loads(row["metadata"]) if row["metadata"] else None
+            "metadata": json.loads(row["metadata"]) if row["metadata"] else None,
         }
 
-    async def set(
-        self,
-        category: str,
-        data: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> int:
+    async def set(self, category: str, data: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None) -> int:
         """Set data in cache, incrementing version.
 
         Args:
@@ -241,8 +233,8 @@ class CacheManager:
                 json.dumps(data),
                 new_version,
                 datetime.now().isoformat(),
-                json.dumps(metadata) if metadata else None
-            )
+                json.dumps(metadata) if metadata else None,
+            ),
         )
 
         await self._conn.commit()
@@ -261,18 +253,12 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
-        cursor = await self._conn.execute(
-            "DELETE FROM cache WHERE category = ?",
-            (category,)
-        )
+        cursor = await self._conn.execute("DELETE FROM cache WHERE category = ?", (category,))
         await self._conn.commit()
 
         deleted = cursor.rowcount > 0
         if deleted:
-            await self.log_event(
-                event_type="cache_delete",
-                category=category
-            )
+            await self.log_event(event_type="cache_delete", category=category)
 
         return deleted
 
@@ -285,9 +271,7 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
-        cursor = await self._conn.execute(
-            "SELECT category FROM cache ORDER BY category"
-        )
+        cursor = await self._conn.execute("SELECT category FROM cache ORDER BY category")
         rows = await cursor.fetchall()
         return [row["category"] for row in rows]
 
@@ -296,7 +280,7 @@ class CacheManager:
         event_type: str,
         category: Optional[str] = None,
         data: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """Log an event to the events table.
 
@@ -319,16 +303,13 @@ class CacheManager:
                 event_type,
                 category,
                 json.dumps(data) if data else None,
-                json.dumps(metadata) if metadata else None
-            )
+                json.dumps(metadata) if metadata else None,
+            ),
         )
         await self._conn.commit()
 
     async def get_events(
-        self,
-        event_type: Optional[str] = None,
-        category: Optional[str] = None,
-        limit: int = 100
+        self, event_type: Optional[str] = None, category: Optional[str] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """Get recent events from the events table.
 
@@ -367,7 +348,7 @@ class CacheManager:
                 "event_type": row["event_type"],
                 "category": row["category"],
                 "data": json.loads(row["data"]) if row["data"] else None,
-                "metadata": json.loads(row["metadata"]) if row["metadata"] else None
+                "metadata": json.loads(row["metadata"]) if row["metadata"] else None,
             }
             for row in rows
         ]
@@ -382,9 +363,7 @@ class CacheManager:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
         cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat()
-        cursor = await self._conn.execute(
-            "DELETE FROM events WHERE timestamp < ?", (cutoff,)
-        )
+        cursor = await self._conn.execute("DELETE FROM events WHERE timestamp < ?", (cutoff,))
         await self._conn.commit()
         return cursor.rowcount
 
@@ -395,8 +374,7 @@ class CacheManager:
 
         cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat()
         cursor = await self._conn.execute(
-            "DELETE FROM predictions WHERE resolved_at IS NOT NULL AND resolved_at < ?",
-            (cutoff,)
+            "DELETE FROM predictions WHERE resolved_at IS NOT NULL AND resolved_at < ?", (cutoff,)
         )
         await self._conn.commit()
         return cursor.rowcount
@@ -634,9 +612,7 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
-        cursor = await self._conn.execute(
-            "SELECT * FROM pipeline_state WHERE id = 1"
-        )
+        cursor = await self._conn.execute("SELECT * FROM pipeline_state WHERE id = 1")
         row = await cursor.fetchone()
 
         if not row:
@@ -651,9 +627,7 @@ class CacheManager:
             )
             await self._conn.commit()
 
-            cursor = await self._conn.execute(
-                "SELECT * FROM pipeline_state WHERE id = 1"
-            )
+            cursor = await self._conn.execute("SELECT * FROM pipeline_state WHERE id = 1")
             row = await cursor.fetchone()
 
         return {
@@ -663,11 +637,7 @@ class CacheManager:
             "backtest_accuracy": row["backtest_accuracy"],
             "shadow_accuracy_7d": row["shadow_accuracy_7d"],
             "suggest_approval_rate_14d": row["suggest_approval_rate_14d"],
-            "autonomous_contexts": (
-                json.loads(row["autonomous_contexts"])
-                if row["autonomous_contexts"]
-                else None
-            ),
+            "autonomous_contexts": (json.loads(row["autonomous_contexts"]) if row["autonomous_contexts"] else None),
             "updated_at": row["updated_at"],
         }
 
@@ -735,9 +705,7 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
-        cursor = await self._conn.execute(
-            "SELECT * FROM config WHERE key = ?", (key,)
-        )
+        cursor = await self._conn.execute("SELECT * FROM config WHERE key = ?", (key,))
         row = await cursor.fetchone()
         if not row:
             return None
@@ -752,15 +720,11 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
-        cursor = await self._conn.execute(
-            "SELECT * FROM config ORDER BY category, key"
-        )
+        cursor = await self._conn.execute("SELECT * FROM config ORDER BY category, key")
         rows = await cursor.fetchall()
         return [self._config_from_row(row) for row in rows]
 
-    async def set_config(
-        self, key: str, value: str, changed_by: str = "user"
-    ) -> Dict[str, Any]:
+    async def set_config(self, key: str, value: str, changed_by: str = "user") -> Dict[str, Any]:
         """Update a config parameter value with validation and history.
 
         Args:
@@ -845,9 +809,18 @@ class CacheManager:
                 category, min_value, max_value, options, step, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                key, default_value, default_value, value_type, label,
-                description, category, min_value, max_value, options,
-                step, now,
+                key,
+                default_value,
+                default_value,
+                value_type,
+                label,
+                description,
+                category,
+                min_value,
+                max_value,
+                options,
+                step,
+                now,
             ),
         )
         await self._conn.commit()
@@ -906,9 +879,7 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
-        cursor = await self._conn.execute(
-            "SELECT * FROM entity_curation ORDER BY tier, entity_id"
-        )
+        cursor = await self._conn.execute("SELECT * FROM entity_curation ORDER BY tier, entity_id")
         rows = await cursor.fetchall()
         return [self._curation_from_row(row) for row in rows]
 
@@ -924,9 +895,7 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
-        cursor = await self._conn.execute(
-            "SELECT * FROM entity_curation WHERE entity_id = ?", (entity_id,)
-        )
+        cursor = await self._conn.execute("SELECT * FROM entity_curation WHERE entity_id = ?", (entity_id,))
         row = await cursor.fetchone()
         if not row:
             return None
@@ -1009,10 +978,16 @@ class CacheManager:
                    decided_by = excluded.decided_by
             """,
             (
-                entity_id, status, tier, reason, auto_classification,
+                entity_id,
+                status,
+                tier,
+                reason,
+                auto_classification,
                 human_override,
                 json.dumps(metrics) if metrics else None,
-                group_id, now, decided_by,
+                group_id,
+                now,
+                decided_by,
             ),
         )
         await self._conn.commit()
@@ -1070,9 +1045,7 @@ class CacheManager:
     # Phase 2: Config history
     # ========================================================================
 
-    async def get_config_history(
-        self, key: Optional[str] = None, limit: int = 50
-    ) -> List[Dict[str, Any]]:
+    async def get_config_history(self, key: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
         """Get config change history.
 
         Args:
@@ -1177,22 +1150,16 @@ class CacheManager:
             min_val = config.get("min_value")
             max_val = config.get("max_value")
             if min_val is not None and num < min_val:
-                raise ValueError(
-                    f"Value {num} below minimum {min_val}"
-                )
+                raise ValueError(f"Value {num} below minimum {min_val}")
             if max_val is not None and num > max_val:
-                raise ValueError(
-                    f"Value {num} above maximum {max_val}"
-                )
+                raise ValueError(f"Value {num} above maximum {max_val}")
 
         elif vtype == "select":
             options_str = config.get("options", "")
             if options_str:
                 valid = [o.strip() for o in options_str.split(",")]
                 if value not in valid:
-                    raise ValueError(
-                        f"Value '{value}' not in options: {valid}"
-                    )
+                    raise ValueError(f"Value '{value}' not in options: {valid}")
 
     def _prediction_from_row(self, row: aiosqlite.Row) -> Dict[str, Any]:
         """Convert a predictions table row to a dict."""

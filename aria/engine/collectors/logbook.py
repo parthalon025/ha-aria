@@ -2,8 +2,12 @@
 
 # Clock sensors to exclude from "useful events" count
 CLOCK_SENSORS = {
-    "sensor.date_time_utc", "sensor.date_time_iso", "sensor.time_date",
-    "sensor.time_utc", "sensor.time", "sensor.date_time",
+    "sensor.date_time_utc",
+    "sensor.date_time_iso",
+    "sensor.time_date",
+    "sensor.time_utc",
+    "sensor.time",
+    "sensor.date_time",
 }
 
 

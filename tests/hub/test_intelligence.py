@@ -125,13 +125,17 @@ class TestDataAssembly:
         """Daily snapshots populate data_maturity and trend_data."""
         for i in range(5):
             date = f"2025-01-{i + 1:02d}"
-            _write_daily_snapshot(intel_dir, date, {
-                "power": {"total_watts": 100 + i * 10},
-                "lights": {"on": i},
-                "occupancy": {"device_count_home": 2},
-                "entities": {"unavailable": 3},
-                "logbook_summary": {"useful_events": 50 + i},
-            })
+            _write_daily_snapshot(
+                intel_dir,
+                date,
+                {
+                    "power": {"total_watts": 100 + i * 10},
+                    "lights": {"on": i},
+                    "occupancy": {"device_count_home": 2},
+                    "entities": {"unavailable": 3},
+                    "logbook_summary": {"useful_events": 50 + i},
+                },
+            )
 
         data = module._read_intelligence_data()
         assert data["data_maturity"]["days_of_data"] == 5
@@ -160,9 +164,14 @@ class TestDataAssembly:
         """Intraday snapshots are counted across date directories."""
         today = datetime.now().strftime("%Y-%m-%d")
         for h in [8, 12, 16, 20]:
-            _write_intraday_snapshot(intel_dir, today, h, {
-                "power": {"total_watts": 200},
-            })
+            _write_intraday_snapshot(
+                intel_dir,
+                today,
+                h,
+                {
+                    "power": {"total_watts": 200},
+                },
+            )
 
         data = module._read_intelligence_data()
         assert data["data_maturity"]["intraday_count"] == 4
@@ -257,13 +266,17 @@ class TestTrendExtraction:
 
     def test_extracts_metrics(self, module, intel_dir):
         """Metrics are correctly extracted from daily snapshot files."""
-        _write_daily_snapshot(intel_dir, "2025-01-01", {
-            "power": {"total_watts": 150.7},
-            "lights": {"on": 3},
-            "occupancy": {"device_count_home": 2},
-            "entities": {"unavailable": 5},
-            "logbook_summary": {"useful_events": 42},
-        })
+        _write_daily_snapshot(
+            intel_dir,
+            "2025-01-01",
+            {
+                "power": {"total_watts": 150.7},
+                "lights": {"on": 3},
+                "occupancy": {"device_count_home": 2},
+                "entities": {"unavailable": 5},
+                "logbook_summary": {"useful_events": 42},
+            },
+        )
 
         daily_files = sorted((intel_dir / "daily").glob("*.json"))
         trends = module._extract_trend_data(daily_files)
@@ -280,9 +293,13 @@ class TestTrendExtraction:
         """Only the last 30 daily files are processed."""
         for i in range(40):
             date = f"2025-01-{i + 1:02d}" if i < 31 else f"2025-02-{i - 30:02d}"
-            _write_daily_snapshot(intel_dir, date, {
-                "power": {"total_watts": 100},
-            })
+            _write_daily_snapshot(
+                intel_dir,
+                date,
+                {
+                    "power": {"total_watts": 100},
+                },
+            )
 
         daily_files = sorted((intel_dir / "daily").glob("*.json"))
         trends = module._extract_trend_data(daily_files)
@@ -291,9 +308,13 @@ class TestTrendExtraction:
     def test_skips_malformed_files(self, module, intel_dir):
         """Malformed JSON files are skipped without crashing."""
         (intel_dir / "daily" / "2025-01-01.json").write_text("not json")
-        _write_daily_snapshot(intel_dir, "2025-01-02", {
-            "power": {"total_watts": 100},
-        })
+        _write_daily_snapshot(
+            intel_dir,
+            "2025-01-02",
+            {
+                "power": {"total_watts": 100},
+            },
+        )
 
         daily_files = sorted((intel_dir / "daily").glob("*.json"))
         trends = module._extract_trend_data(daily_files)
@@ -302,10 +323,14 @@ class TestTrendExtraction:
 
     def test_missing_metric_paths(self, module, intel_dir):
         """Missing metric paths result in absent keys, not errors."""
-        _write_daily_snapshot(intel_dir, "2025-01-01", {
-            "power": {"total_watts": 100},
-            # lights, occupancy, entities, logbook_summary all missing
-        })
+        _write_daily_snapshot(
+            intel_dir,
+            "2025-01-01",
+            {
+                "power": {"total_watts": 100},
+                # lights, occupancy, entities, logbook_summary all missing
+            },
+        )
 
         daily_files = sorted((intel_dir / "daily").glob("*.json"))
         trends = module._extract_trend_data(daily_files)
@@ -332,7 +357,7 @@ class TestDigestFormatting:
             "daily_insight": {},
         }
         result = module._format_digest(data)
-        assert "*HA Intelligence Daily Digest*" in result
+        assert "*ARIA Daily Digest*" in result
         assert "baselines" in result
         assert "10 days" in result
 
@@ -520,9 +545,13 @@ class TestInitializeAndDigest:
     @pytest.mark.asyncio
     async def test_initialize_populates_cache(self, module, hub, intel_dir):
         """initialize() reads files and sets cache."""
-        _write_daily_snapshot(intel_dir, "2025-01-01", {
-            "power": {"total_watts": 100},
-        })
+        _write_daily_snapshot(
+            intel_dir,
+            "2025-01-01",
+            {
+                "power": {"total_watts": 100},
+            },
+        )
 
         await module.initialize()
 

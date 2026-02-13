@@ -13,25 +13,25 @@ from abc import ABC, abstractmethod
 
 class CollectorRegistry:
     """Registry for data collectors using decorator-based registration."""
+
     _collectors: dict[str, type] = {}
 
     @classmethod
     def register(cls, name: str | None = None):
         """Decorator to register a collector class."""
+
         def decorator(collector_class):
             key = name or collector_class.__name__.lower().replace("collector", "")
             cls._collectors[key] = collector_class
             return collector_class
+
         return decorator
 
     @classmethod
     def get(cls, name: str):
         """Get a collector class by name."""
         if name not in cls._collectors:
-            raise KeyError(
-                f"Collector '{name}' not registered. "
-                f"Available: {list(cls._collectors.keys())}"
-            )
+            raise KeyError(f"Collector '{name}' not registered. Available: {list(cls._collectors.keys())}")
         return cls._collectors[name]
 
     @classmethod

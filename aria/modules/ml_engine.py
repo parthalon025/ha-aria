@@ -36,8 +36,8 @@ warnings.filterwarnings(
     module="sklearn",
 )
 
-from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG as _ENGINE_FEATURE_CONFIG
-from aria.hub.core import Module, IntelligenceHub
+from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG as _ENGINE_FEATURE_CONFIG  # noqa: E402
+from aria.hub.core import Module, IntelligenceHub  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
@@ -51,12 +51,7 @@ ROLLING_WINDOWS_HOURS = [1, 3, 6]
 class MLEngine(Module):
     """Machine learning prediction engine with adaptive capability mapping."""
 
-    def __init__(
-        self,
-        hub: IntelligenceHub,
-        models_dir: str,
-        training_data_dir: str
-    ):
+    def __init__(self, hub: IntelligenceHub, models_dir: str, training_data_dir: str):
         """Initialize ML engine.
 
         Args:
@@ -171,11 +166,7 @@ class MLEngine(Module):
 
             for target in prediction_targets:
                 try:
-                    await self._train_model_for_target(
-                        target,
-                        training_data,
-                        capability_name
-                    )
+                    await self._train_model_for_target(target, training_data, capability_name)
                 except Exception as e:
                     self.logger.error(f"Failed to train model for {target}: {e}")
 
@@ -204,8 +195,8 @@ class MLEngine(Module):
                 "capabilities_trained": list(capabilities.keys()),
                 "targets_trained": trained_targets,
                 "accuracy_summary": accuracy_summary,
-                "has_anomaly_detector": "anomaly_detector" in self.models
-            }
+                "has_anomaly_detector": "anomaly_detector" in self.models,
+            },
         )
 
         # Store feature configuration for reuse across restarts
@@ -240,12 +231,7 @@ class MLEngine(Module):
 
         return snapshots
 
-    async def _train_model_for_target(
-        self,
-        target: str,
-        training_data: List[Dict[str, Any]],
-        capability_name: str
-    ):
+    async def _train_model_for_target(self, target: str, training_data: List[Dict[str, Any]], capability_name: str):
         """Train a model for a specific prediction target.
 
         Args:
@@ -278,16 +264,12 @@ class MLEngine(Module):
             max_depth=4,
             min_samples_leaf=max(3, len(X_train) // 20),
             subsample=0.8,
-            random_state=42
+            random_state=42,
         )
         gb_model.fit(X_train, y_train, sample_weight=w_train)
 
         # Train RandomForest model
-        rf_model = RandomForestRegressor(
-            n_estimators=100,
-            max_depth=5,
-            random_state=42
-        )
+        rf_model = RandomForestRegressor(n_estimators=100, max_depth=5, random_state=42)
         rf_model.fit(X_train, y_train, sample_weight=w_train)
 
         # Train LightGBM model (always trained even if disabled in enabled_models,
@@ -301,16 +283,12 @@ class MLEngine(Module):
             subsample=0.8,
             random_state=42,
             verbosity=-1,  # Suppress LightGBM info logs
-            importance_type='gain',  # Gain-based importance (reduction in loss)
+            importance_type="gain",  # Gain-based importance (reduction in loss)
         )
         lgbm_model.fit(X_train, y_train, sample_weight=w_train)
 
         # Train IsolationForest for anomaly detection
-        iso_model = IsolationForest(
-            n_estimators=100,
-            contamination=0.05,
-            random_state=42
-        )
+        iso_model = IsolationForest(n_estimators=100, contamination=0.05, random_state=42)
         iso_model.fit(X_train)
 
         # Compute validation metrics
@@ -331,8 +309,7 @@ class MLEngine(Module):
         config = await self._get_feature_config()
         feature_names = await self._get_feature_names(config)
         feature_importance = {
-            name: round(float(importance), 4)
-            for name, importance in zip(feature_names, rf_model.feature_importances_)
+            name: round(float(importance), 4) for name, importance in zip(feature_names, rf_model.feature_importances_)
         }
 
         # Extract LightGBM feature importance (gain-based)
@@ -368,7 +345,7 @@ class MLEngine(Module):
                 "rf_r2": round(rf_r2, 3),
                 "lgbm_mae": round(lgbm_mae, 3),
                 "lgbm_r2": round(lgbm_r2, 3),
-            }
+            },
         }
 
         # Save to disk
@@ -411,19 +388,14 @@ class MLEngine(Module):
             # Compute rolling stats
             rolling_stats = {}
             if i >= 7:
-                recent = training_data[max(0, i - 7):i]
-                rolling_stats["power_mean_7d"] = sum(
-                    s.get("power", {}).get("total_watts", 0) for s in recent
-                ) / len(recent)
-                rolling_stats["lights_mean_7d"] = sum(
-                    s.get("lights", {}).get("on", 0) for s in recent
-                ) / len(recent)
+                recent = training_data[max(0, i - 7) : i]
+                rolling_stats["power_mean_7d"] = sum(s.get("power", {}).get("total_watts", 0) for s in recent) / len(
+                    recent
+                )
+                rolling_stats["lights_mean_7d"] = sum(s.get("lights", {}).get("on", 0) for s in recent) / len(recent)
 
             features = await self._extract_features(
-                snapshot,
-                config=config,
-                prev_snapshot=prev_snapshot,
-                rolling_stats=rolling_stats
+                snapshot, config=config, prev_snapshot=prev_snapshot, rolling_stats=rolling_stats
             )
 
             if features:
@@ -439,7 +411,7 @@ class MLEngine(Module):
         model = IsolationForest(
             n_estimators=100,
             contamination=0.05,  # Assume 5% of training data is anomalous
-            random_state=42
+            random_state=42,
         )
         model.fit(X)
 
@@ -448,7 +420,7 @@ class MLEngine(Module):
             "model": model,
             "trained_at": datetime.now().isoformat(),
             "num_samples": len(X),
-            "contamination": 0.05
+            "contamination": 0.05,
         }
 
         model_file = self.models_dir / "anomaly_detector.pkl"
@@ -458,14 +430,10 @@ class MLEngine(Module):
         # Cache in memory
         self.models["anomaly_detector"] = model_data
 
-        self.logger.info(
-            f"Anomaly detector trained: {len(X)} samples, contamination=0.05"
-        )
+        self.logger.info(f"Anomaly detector trained: {len(X)} samples, contamination=0.05")
 
     async def _build_training_dataset(
-        self,
-        snapshots: List[Dict[str, Any]],
-        target: str
+        self, snapshots: List[Dict[str, Any]], target: str
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Build training dataset from snapshots.
 
@@ -491,20 +459,15 @@ class MLEngine(Module):
             # Compute rolling stats for last 7 snapshots
             rolling_stats = {}
             if i >= 7:
-                recent = snapshots[max(0, i - 7):i]
-                rolling_stats["power_mean_7d"] = sum(
-                    s.get("power", {}).get("total_watts", 0) for s in recent
-                ) / len(recent)
-                rolling_stats["lights_mean_7d"] = sum(
-                    s.get("lights", {}).get("on", 0) for s in recent
-                ) / len(recent)
+                recent = snapshots[max(0, i - 7) : i]
+                rolling_stats["power_mean_7d"] = sum(s.get("power", {}).get("total_watts", 0) for s in recent) / len(
+                    recent
+                )
+                rolling_stats["lights_mean_7d"] = sum(s.get("lights", {}).get("on", 0) for s in recent) / len(recent)
 
             # Extract features
             features = await self._extract_features(
-                snapshot,
-                config=config,
-                prev_snapshot=prev_snapshot,
-                rolling_stats=rolling_stats
+                snapshot, config=config, prev_snapshot=prev_snapshot, rolling_stats=rolling_stats
             )
             if features is None:
                 continue
@@ -535,6 +498,7 @@ class MLEngine(Module):
         # Use canonical engine config as default — hub extends with rolling
         # window features in _get_feature_names(), not in the config dict.
         import copy
+
         default = copy.deepcopy(_ENGINE_FEATURE_CONFIG)
         default["modified_by"] = "ml_engine"
 
@@ -571,8 +535,15 @@ class MLEngine(Module):
             names.extend(["month_sin", "month_cos"])
         if tc.get("day_of_year_sin_cos"):
             names.extend(["day_of_year_sin", "day_of_year_cos"])
-        for simple in ["is_weekend", "is_holiday", "is_night", "is_work_hours",
-                       "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct"]:
+        for simple in [
+            "is_weekend",
+            "is_holiday",
+            "is_night",
+            "is_work_hours",
+            "minutes_since_sunrise",
+            "minutes_until_sunset",
+            "daylight_remaining_pct",
+        ]:
             if tc.get(simple):
                 names.append(simple)
 
@@ -623,12 +594,18 @@ class MLEngine(Module):
         if not date_str:
             # Return zeros for all features if no date
             return {
-                "hour_sin": 0, "hour_cos": 0,
-                "dow_sin": 0, "dow_cos": 0,
-                "month_sin": 0, "month_cos": 0,
-                "day_of_year_sin": 0, "day_of_year_cos": 0,
-                "is_weekend": 0, "is_holiday": 0,
-                "is_night": 0, "is_work_hours": 0,
+                "hour_sin": 0,
+                "hour_cos": 0,
+                "dow_sin": 0,
+                "dow_cos": 0,
+                "month_sin": 0,
+                "month_cos": 0,
+                "day_of_year_sin": 0,
+                "day_of_year_cos": 0,
+                "is_weekend": 0,
+                "is_holiday": 0,
+                "is_night": 0,
+                "is_work_hours": 0,
                 "minutes_since_sunrise": 0,
                 "minutes_until_sunset": 0,
                 "daylight_remaining_pct": 0,
@@ -698,9 +675,7 @@ class MLEngine(Module):
         }
 
     def _compute_decay_weights(
-        self,
-        snapshots: List[Dict[str, Any]],
-        reference_date: Optional[datetime] = None
+        self, snapshots: List[Dict[str, Any]], reference_date: Optional[datetime] = None
     ) -> np.ndarray:
         """Compute decay-based sample weights for training data.
 
@@ -744,10 +719,7 @@ class MLEngine(Module):
 
         return np.array(weights, dtype=float)
 
-    async def _compute_rolling_window_stats(
-        self,
-        activity_log: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, float]:
+    async def _compute_rolling_window_stats(self, activity_log: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
         """Compute rolling window statistics from activity log.
 
         For each window size (1h, 3h, 6h), computes:
@@ -826,9 +798,7 @@ class MLEngine(Module):
 
                 # Dominant domain percentage
                 max_count = max(domain_counts.values())
-                stats[f"rolling_{hours}h_dominant_domain_pct"] = round(
-                    max_count / total_events, 4
-                )
+                stats[f"rolling_{hours}h_dominant_domain_pct"] = round(max_count / total_events, 4)
             else:
                 stats[f"rolling_{hours}h_domain_entropy"] = 0
                 stats[f"rolling_{hours}h_dominant_domain_pct"] = 0
@@ -848,11 +818,11 @@ class MLEngine(Module):
                 else:
                     ratio = second_count / first_count
                     if ratio > 1.2:
-                        trend = 1.0   # increasing
+                        trend = 1.0  # increasing
                     elif ratio < 0.8:
                         trend = -1.0  # decreasing
                     else:
-                        trend = 0.0   # stable
+                        trend = 0.0  # stable
                 stats[f"rolling_{hours}h_trend"] = trend
             else:
                 stats[f"rolling_{hours}h_trend"] = 0.0
@@ -865,7 +835,7 @@ class MLEngine(Module):
         config: Optional[Dict[str, Any]] = None,
         prev_snapshot: Optional[Dict[str, Any]] = None,
         rolling_stats: Optional[Dict[str, float]] = None,
-        rolling_window_stats: Optional[Dict[str, float]] = None
+        rolling_window_stats: Optional[Dict[str, float]] = None,
     ) -> Optional[Dict[str, float]]:
         """Extract feature vector from snapshot using feature config.
 
@@ -903,8 +873,15 @@ class MLEngine(Module):
             features["day_of_year_cos"] = tf.get("day_of_year_cos", 0)
 
         # Time features - simple boolean/numeric
-        for simple in ["is_weekend", "is_holiday", "is_night", "is_work_hours",
-                       "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct"]:
+        for simple in [
+            "is_weekend",
+            "is_holiday",
+            "is_night",
+            "is_work_hours",
+            "minutes_since_sunrise",
+            "minutes_until_sunset",
+            "daylight_remaining_pct",
+        ]:
             if tc.get(simple):
                 val = tf.get(simple, 0)
                 features[simple] = 1 if val is True else (0 if val is False else (val or 0))
@@ -919,8 +896,7 @@ class MLEngine(Module):
         hc = config.get("home_features", {})
         if hc.get("people_home_count"):
             features["people_home_count"] = snapshot.get("occupancy", {}).get(
-                "people_home_count",
-                len(snapshot.get("occupancy", {}).get("people_home", []))
+                "people_home_count", len(snapshot.get("occupancy", {}).get("people_home", []))
             )
         if hc.get("device_count_home"):
             features["device_count_home"] = snapshot.get("occupancy", {}).get("device_count_home", 0)
@@ -1042,7 +1018,7 @@ class MLEngine(Module):
             config=config,
             prev_snapshot=prev_snapshot,
             rolling_stats=rolling_stats,
-            rolling_window_stats=rolling_window_stats
+            rolling_window_stats=rolling_window_stats,
         )
 
         if features is None:
@@ -1105,10 +1081,7 @@ class MLEngine(Module):
                 normalized_weights = {k: v / weight_sum for k, v in active_weights.items()}
 
                 # Blend predictions using normalized weights
-                blended_pred = sum(
-                    normalized_weights[k] * individual_preds[k]
-                    for k in individual_preds
-                )
+                blended_pred = sum(normalized_weights[k] * individual_preds[k] for k in individual_preds)
 
                 # Calculate confidence based on model agreement
                 # Standard deviation of predictions relative to mean
@@ -1145,12 +1118,9 @@ class MLEngine(Module):
 
                 predictions_dict[target] = pred_entry
 
-                model_details = ", ".join(
-                    f"{k.upper()}={v:.2f}" for k, v in individual_preds.items()
-                )
+                model_details = ", ".join(f"{k.upper()}={v:.2f}" for k, v in individual_preds.items())
                 self.logger.debug(
-                    f"Prediction for {target}: {blended_pred:.2f} "
-                    f"({model_details}, conf={confidence:.3f})"
+                    f"Prediction for {target}: {blended_pred:.2f} ({model_details}, conf={confidence:.3f})"
                 )
 
             except Exception as e:
@@ -1164,7 +1134,7 @@ class MLEngine(Module):
             "anomaly_detected": is_anomaly,
             "anomaly_score": round(anomaly_score, 3) if anomaly_score is not None else None,
             "feature_count": len(feature_names),
-            "model_count": len([k for k in self.models.keys() if k != "anomaly_detector"])
+            "model_count": len([k for k in self.models.keys() if k != "anomaly_detector"]),
         }
 
         # Store in cache
@@ -1172,13 +1142,10 @@ class MLEngine(Module):
             "ml_predictions",
             result,
             category="predictions",
-            ttl_seconds=86400  # 24 hours
+            ttl_seconds=86400,  # 24 hours
         )
 
-        self.logger.info(
-            f"Generated {len(predictions_dict)} predictions "
-            f"(anomaly_detected={is_anomaly})"
-        )
+        self.logger.info(f"Generated {len(predictions_dict)} predictions (anomaly_detected={is_anomaly})")
 
         return result
 
@@ -1283,6 +1250,7 @@ class MLEngine(Module):
         Args:
             interval_days: Days between training runs
         """
+
         async def training_task():
             try:
                 await self.train_models(days_history=60)
@@ -1293,7 +1261,7 @@ class MLEngine(Module):
             task_id="ml_training_periodic",
             coro=training_task,
             interval=timedelta(days=interval_days),
-            run_immediately=False
+            run_immediately=False,
         )
 
         self.logger.info(f"Scheduled periodic training every {interval_days} days")

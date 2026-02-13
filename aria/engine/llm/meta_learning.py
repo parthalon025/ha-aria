@@ -30,8 +30,8 @@ MAX_CHANGES_PER_RUN = 3
 # Hysteresis thresholds: require improvement > ACCEPT_THRESHOLD before accepting,
 # and degradation > REVERT_THRESHOLD before reverting. The asymmetry prevents
 # oscillation where small noise causes accept/revert/accept cycles.
-ACCEPT_IMPROVEMENT_PCT = 2.0   # Must improve accuracy by >2% to accept
-REVERT_DEGRADATION_PCT = 5.0   # Must degrade by >5% to trigger revert
+ACCEPT_IMPROVEMENT_PCT = 2.0  # Must improve accuracy by >2% to accept
+REVERT_DEGRADATION_PCT = 5.0  # Must degrade by >5% to trigger revert
 
 META_LEARNING_PROMPT = """You are a data scientist analyzing a home automation prediction system.
 Your job is to find patterns in prediction errors and suggest improvements.
@@ -78,6 +78,7 @@ Output as a JSON array of suggestion objects. Example:
 
 # --- Suggestion Parsing ---
 
+
 def parse_suggestions(llm_response):
     """Parse JSON suggestion array from LLM response.
 
@@ -109,6 +110,7 @@ def parse_suggestions(llm_response):
 
 
 # --- Config Application ---
+
 
 def apply_suggestion_to_config(suggestion, config):
     """Apply a single suggestion to a feature config (in-place).
@@ -143,6 +145,7 @@ def apply_suggestion_to_config(suggestion, config):
 
 
 # --- Validation ---
+
 
 def validate_suggestion(suggestion, snapshots, config):
     """Validate a suggestion by retraining with modified config and comparing accuracy.
@@ -201,6 +204,7 @@ def validate_suggestion(suggestion, snapshots, config):
 
 # --- Safety Guards ---
 
+
 def check_revert_needed(accuracy_history: dict, applied_history: dict) -> dict:
     """Check if recent meta-learner changes should be reverted.
 
@@ -233,6 +237,7 @@ def check_revert_needed(accuracy_history: dict, applied_history: dict) -> dict:
         return {"revert_needed": False, "reason": "not enough data around change point"}
 
     import statistics
+
     before_mean = statistics.mean(before_scores[-5:])
     after_mean = statistics.mean(after_scores[-5:])
     degradation = before_mean - after_mean
@@ -240,8 +245,7 @@ def check_revert_needed(accuracy_history: dict, applied_history: dict) -> dict:
     if degradation > REVERT_DEGRADATION_PCT:
         return {
             "revert_needed": True,
-            "reason": f"accuracy degraded {degradation:.1f}% since last change "
-                      f"(threshold: {REVERT_DEGRADATION_PCT}%)",
+            "reason": f"accuracy degraded {degradation:.1f}% since last change (threshold: {REVERT_DEGRADATION_PCT}%)",
             "degradation_pct": round(degradation, 2),
             "before_accuracy": round(before_mean, 2),
             "after_accuracy": round(after_mean, 2),
@@ -249,13 +253,13 @@ def check_revert_needed(accuracy_history: dict, applied_history: dict) -> dict:
 
     return {
         "revert_needed": False,
-        "reason": f"degradation {degradation:.1f}% within tolerance "
-                  f"(threshold: {REVERT_DEGRADATION_PCT}%)",
+        "reason": f"degradation {degradation:.1f}% within tolerance (threshold: {REVERT_DEGRADATION_PCT}%)",
         "degradation_pct": round(degradation, 2),
     }
 
 
 # --- Main Pipeline ---
+
 
 def run_meta_learning(config: AppConfig = None, store: DataStore = None):
     """Run weekly meta-learning analysis and auto-apply guardrailed suggestions."""
@@ -266,6 +270,7 @@ def run_meta_learning(config: AppConfig = None, store: DataStore = None):
 
     try:
         from sklearn.ensemble import GradientBoostingRegressor  # noqa: F401
+
         has_sklearn = True
     except ImportError:
         has_sklearn = False
@@ -332,11 +337,13 @@ def run_meta_learning(config: AppConfig = None, store: DataStore = None):
     suggestions = parse_suggestions(response)
     print(f"Parsed {len(suggestions)} suggestions from LLM")
 
+    week_str = datetime.now().strftime("%Y-W%W")
+
     # Safety guard: check if previous changes need reverting
     revert_check = check_revert_needed(accuracy_history, applied_history)
     if revert_check.get("revert_needed"):
         print(f"  SAFETY: {revert_check['reason']}")
-        print(f"  Reverting to default config and skipping new suggestions.")
+        print("  Reverting to default config and skipping new suggestions.")
         default_config = DEFAULT_FEATURE_CONFIG.copy()
         default_config["last_modified"] = datetime.now().isoformat()
         store.save_feature_config(default_config)
@@ -381,23 +388,26 @@ def run_meta_learning(config: AppConfig = None, store: DataStore = None):
             store.save_feature_config(modified_config)
             feature_config = modified_config  # Use updated config for next suggestion
             applied_count += 1
-            results.append({
-                "suggestion": suggestion,
-                "applied": True,
-                "improvement": improvement,
-            })
+            results.append(
+                {
+                    "suggestion": suggestion,
+                    "applied": True,
+                    "improvement": improvement,
+                }
+            )
             print(f"  Applied: {suggestion.get('action')} {suggestion.get('target')} (+{improvement:.1f}%)")
         else:
-            results.append({
-                "suggestion": suggestion,
-                "applied": False,
-                "reason": f"improvement {improvement:.1f}% < {ACCEPT_IMPROVEMENT_PCT}% threshold",
-                "accuracy_delta": improvement,
-            })
+            results.append(
+                {
+                    "suggestion": suggestion,
+                    "applied": False,
+                    "reason": f"improvement {improvement:.1f}% < {ACCEPT_IMPROVEMENT_PCT}% threshold",
+                    "accuracy_delta": improvement,
+                }
+            )
             print(f"  Rejected: {suggestion.get('target')} ({improvement:+.1f}%, need >={ACCEPT_IMPROVEMENT_PCT}%)")
 
     # Save weekly report
-    week_str = datetime.now().strftime("%Y-W%W")
     weekly_report = {
         "week": week_str,
         "generated_at": datetime.now().isoformat(),
@@ -413,11 +423,13 @@ def run_meta_learning(config: AppConfig = None, store: DataStore = None):
     # Update applied history
     for r in results:
         if r.get("applied"):
-            applied_history["applied"].append({
-                "date": datetime.now().isoformat(),
-                "suggestion": r["suggestion"],
-                "improvement": r["improvement"],
-            })
+            applied_history["applied"].append(
+                {
+                    "date": datetime.now().isoformat(),
+                    "suggestion": r["suggestion"],
+                    "improvement": r["improvement"],
+                }
+            )
     applied_history["total_applied"] = len(applied_history["applied"])
     store.save_applied_suggestions(applied_history)
 

@@ -45,7 +45,6 @@ def client(hub):
 
 
 class TestGetPredictions:
-
     def test_get_predictions_empty(self, hub, client):
         """Returns empty list when no predictions exist."""
         hub.cache.get_recent_predictions = AsyncMock(return_value=[])
@@ -119,20 +118,23 @@ class TestGetPredictions:
 
 
 class TestGetAccuracy:
-
     def test_get_accuracy_empty(self, hub, client):
         """Returns zeroes when no data exists."""
-        hub.cache.get_accuracy_stats = AsyncMock(return_value={
-            "overall_accuracy": 0.0,
-            "total_resolved": 0,
-            "per_outcome": {},
-            "daily_trend": [],
-        })
-        hub.cache.get_pipeline_state = AsyncMock(return_value={
-            "current_stage": "backtest",
-            "stage_entered_at": "2026-02-12T00:00:00",
-            "updated_at": "2026-02-12T00:00:00",
-        })
+        hub.cache.get_accuracy_stats = AsyncMock(
+            return_value={
+                "overall_accuracy": 0.0,
+                "total_resolved": 0,
+                "per_outcome": {},
+                "daily_trend": [],
+            }
+        )
+        hub.cache.get_pipeline_state = AsyncMock(
+            return_value={
+                "current_stage": "backtest",
+                "stage_entered_at": "2026-02-12T00:00:00",
+                "updated_at": "2026-02-12T00:00:00",
+            }
+        )
 
         response = client.get("/api/shadow/accuracy")
         assert response.status_code == 200
@@ -148,23 +150,27 @@ class TestGetAccuracy:
 
     def test_get_accuracy_with_stats(self, hub, client):
         """Returns accuracy breakdown with correct mapping."""
-        hub.cache.get_accuracy_stats = AsyncMock(return_value={
-            "overall_accuracy": 0.75,
-            "total_resolved": 20,
-            "per_outcome": {
-                "correct": 15,
-                "disagreement": 3,
-                "nothing": 2,
-            },
-            "daily_trend": [
-                {"date": "2026-02-12", "correct": 15, "total": 20, "accuracy": 0.75},
-            ],
-        })
-        hub.cache.get_pipeline_state = AsyncMock(return_value={
-            "current_stage": "shadow",
-            "stage_entered_at": "2026-02-10T00:00:00",
-            "updated_at": "2026-02-12T00:00:00",
-        })
+        hub.cache.get_accuracy_stats = AsyncMock(
+            return_value={
+                "overall_accuracy": 0.75,
+                "total_resolved": 20,
+                "per_outcome": {
+                    "correct": 15,
+                    "disagreement": 3,
+                    "nothing": 2,
+                },
+                "daily_trend": [
+                    {"date": "2026-02-12", "correct": 15, "total": 20, "accuracy": 0.75},
+                ],
+            }
+        )
+        hub.cache.get_pipeline_state = AsyncMock(
+            return_value={
+                "current_stage": "shadow",
+                "stage_entered_at": "2026-02-10T00:00:00",
+                "updated_at": "2026-02-12T00:00:00",
+            }
+        )
 
         response = client.get("/api/shadow/accuracy")
         assert response.status_code == 200
@@ -192,7 +198,6 @@ class TestGetAccuracy:
 
 
 class TestGetDisagreements:
-
     def test_get_disagreements_empty(self, hub, client):
         """Returns empty list when no disagreements exist."""
         hub.cache.get_recent_predictions = AsyncMock(return_value=[])
@@ -225,10 +230,7 @@ class TestGetDisagreements:
 
     def test_get_disagreements_respects_limit(self, hub, client):
         """Limit param caps the number of returned disagreements."""
-        disagreements = [
-            {"id": f"p{i}", "confidence": i * 0.1, "outcome": "disagreement"}
-            for i in range(10)
-        ]
+        disagreements = [{"id": f"p{i}", "confidence": i * 0.1, "outcome": "disagreement"} for i in range(10)]
         hub.cache.get_recent_predictions = AsyncMock(return_value=disagreements)
 
         response = client.get("/api/shadow/disagreements?limit=3")
@@ -243,9 +245,7 @@ class TestGetDisagreements:
 
         client.get("/api/shadow/disagreements")
 
-        hub.cache.get_recent_predictions.assert_called_once_with(
-            limit=200, outcome_filter="disagreement"
-        )
+        hub.cache.get_recent_predictions.assert_called_once_with(limit=200, outcome_filter="disagreement")
 
     def test_get_disagreements_error(self, hub, client):
         """Returns 500 on cache error."""
@@ -261,7 +261,6 @@ class TestGetDisagreements:
 
 
 class TestGetPipeline:
-
     def test_get_pipeline_not_initialized(self, hub, client):
         """Returns default state when pipeline is None."""
         hub.cache.get_pipeline_state = AsyncMock(return_value=None)
@@ -311,7 +310,6 @@ class TestGetPipeline:
 
 
 class TestPipelineAdvance:
-
     def _pipeline(self, stage="backtest", **overrides):
         """Build a pipeline state dict."""
         state = {
@@ -379,7 +377,6 @@ class TestPipelineAdvance:
 
 
 class TestPipelineRetreat:
-
     def _pipeline(self, stage="shadow", **overrides):
         """Build a pipeline state dict."""
         state = {

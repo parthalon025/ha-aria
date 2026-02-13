@@ -45,7 +45,6 @@ def client(hub):
 
 
 class TestGetAllConfig:
-
     def test_get_all_config_empty(self, hub, client):
         """Returns empty list when no config exists."""
         hub.cache.get_all_config = AsyncMock(return_value=[])
@@ -79,7 +78,6 @@ class TestGetAllConfig:
 
 
 class TestGetConfig:
-
     def test_get_config_found(self, hub, client):
         """Returns config dict when key exists."""
         config = {"key": "shadow.min_confidence", "value": "0.3", "source": "default"}
@@ -106,7 +104,6 @@ class TestGetConfig:
 
 
 class TestPutConfig:
-
     def test_put_config_success(self, hub, client):
         """Updates config and returns result."""
         result = {"key": "shadow.min_confidence", "value": "0.5", "source": "user"}
@@ -120,15 +117,11 @@ class TestPutConfig:
 
         data = response.json()
         assert data["value"] == "0.5"
-        hub.cache.set_config.assert_called_once_with(
-            "shadow.min_confidence", "0.5", changed_by="user"
-        )
+        hub.cache.set_config.assert_called_once_with("shadow.min_confidence", "0.5", changed_by="user")
 
     def test_put_config_validation_error(self, hub, client):
         """Returns 400 on ValueError from set_config."""
-        hub.cache.set_config = AsyncMock(
-            side_effect=ValueError("Value must be between 0 and 1")
-        )
+        hub.cache.set_config = AsyncMock(side_effect=ValueError("Value must be between 0 and 1"))
 
         response = client.put(
             "/api/config/shadow.min_confidence",
@@ -139,9 +132,7 @@ class TestPutConfig:
 
     def test_put_config_not_found(self, hub, client):
         """Returns 400 when key doesn't exist (ValueError from set_config)."""
-        hub.cache.set_config = AsyncMock(
-            side_effect=ValueError("Unknown config key: bad.key")
-        )
+        hub.cache.set_config = AsyncMock(side_effect=ValueError("Unknown config key: bad.key"))
 
         response = client.put(
             "/api/config/bad.key",
@@ -166,7 +157,6 @@ class TestPutConfig:
 
 
 class TestResetConfig:
-
     def test_reset_config_success(self, hub, client):
         """Resets config and returns default value."""
         result = {"key": "shadow.min_confidence", "value": "0.3", "source": "default"}
@@ -181,9 +171,7 @@ class TestResetConfig:
 
     def test_reset_config_not_found(self, hub, client):
         """Returns 400 when key doesn't exist."""
-        hub.cache.reset_config = AsyncMock(
-            side_effect=ValueError("Unknown config key: bad.key")
-        )
+        hub.cache.reset_config = AsyncMock(side_effect=ValueError("Unknown config key: bad.key"))
 
         response = client.post("/api/config/reset/bad.key")
         assert response.status_code == 400
@@ -195,7 +183,6 @@ class TestResetConfig:
 
 
 class TestGetConfigHistory:
-
     def test_get_history_empty(self, hub, client):
         """Returns empty list when no history exists."""
         hub.cache.get_config_history = AsyncMock(return_value=[])
@@ -233,9 +220,7 @@ class TestGetConfigHistory:
 
         client.get("/api/config-history?key=shadow.min_confidence&limit=10")
 
-        hub.cache.get_config_history.assert_called_once_with(
-            key="shadow.min_confidence", limit=10
-        )
+        hub.cache.get_config_history.assert_called_once_with(key="shadow.min_confidence", limit=10)
 
 
 # ============================================================================
@@ -244,7 +229,6 @@ class TestGetConfigHistory:
 
 
 class TestGetAllCuration:
-
     def test_get_all_curation_empty(self, hub, client):
         """Returns empty list when no curations exist."""
         hub.cache.get_all_curation = AsyncMock(return_value=[])
@@ -277,7 +261,6 @@ class TestGetAllCuration:
 
 
 class TestGetCurationSummary:
-
     def test_get_curation_summary(self, hub, client):
         """Returns tier/status count summary."""
         summary = {
@@ -301,7 +284,6 @@ class TestGetCurationSummary:
 
 
 class TestPutCuration:
-
     def test_put_curation_override(self, hub, client):
         """Upserts with human_override=True."""
         result = {
@@ -334,7 +316,6 @@ class TestPutCuration:
 
 
 class TestBulkUpdateCuration:
-
     def test_bulk_update_success(self, hub, client):
         """Returns count of updated entities."""
         hub.cache.bulk_update_curation = AsyncMock(return_value=3)
@@ -372,7 +353,6 @@ class TestBulkUpdateCuration:
 
 
 class TestErrorHandling:
-
     def test_config_get_all_500_on_error(self, hub, client):
         """Config endpoints return 500 on cache exception."""
         hub.cache.get_all_config = AsyncMock(side_effect=RuntimeError("db error"))

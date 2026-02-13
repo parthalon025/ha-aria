@@ -15,17 +15,16 @@ import numpy as np
 
 
 # Default thresholds for cycle detection
-DEFAULT_ON_THRESHOLD = 5.0     # Watts — outlet is "active" above this
-DEFAULT_OFF_THRESHOLD = 2.0    # Watts — outlet is "idle" below this
+DEFAULT_ON_THRESHOLD = 5.0  # Watts — outlet is "active" above this
+DEFAULT_OFF_THRESHOLD = 2.0  # Watts — outlet is "idle" below this
 DEFAULT_MIN_CYCLE_MINUTES = 1  # Minimum cycle duration
-DEFAULT_MAX_CYCLE_HOURS = 24   # Maximum cycle duration
+DEFAULT_MAX_CYCLE_HOURS = 24  # Maximum cycle duration
 
 
 class ApplianceProfile:
     """Learned power profile for a single outlet/appliance."""
 
-    def __init__(self, name, reference_watts=None, typical_duration_minutes=None,
-                 peak_watts=None, idle_watts=None):
+    def __init__(self, name, reference_watts=None, typical_duration_minutes=None, peak_watts=None, idle_watts=None):
         self.name = name
         self.reference_watts = reference_watts or []
         self.typical_duration_minutes = typical_duration_minutes
@@ -60,9 +59,12 @@ class ApplianceProfiler:
     monitoring.
     """
 
-    def __init__(self, on_threshold=DEFAULT_ON_THRESHOLD,
-                 off_threshold=DEFAULT_OFF_THRESHOLD,
-                 min_cycle_minutes=DEFAULT_MIN_CYCLE_MINUTES):
+    def __init__(
+        self,
+        on_threshold=DEFAULT_ON_THRESHOLD,
+        off_threshold=DEFAULT_OFF_THRESHOLD,
+        min_cycle_minutes=DEFAULT_MIN_CYCLE_MINUTES,
+    ):
         self.on_threshold = on_threshold
         self.off_threshold = off_threshold
         self.min_cycle_minutes = min_cycle_minutes
@@ -101,9 +103,7 @@ class ApplianceProfiler:
                 in_cycle = False
                 duration = (ts - cycle_start).total_seconds() / 60
                 if duration >= self.min_cycle_minutes and cycle_readings:
-                    cycles.append(self._build_cycle(
-                        cycle_start, ts, cycle_readings, duration
-                    ))
+                    cycles.append(self._build_cycle(cycle_start, ts, cycle_readings, duration))
                 cycle_readings = []
             elif in_cycle:
                 cycle_readings.append(watts)
@@ -300,9 +300,13 @@ class ApplianceProfiler:
     @staticmethod
     def _parse_ts(ts_str):
         """Parse a timestamp string."""
-        for fmt in ("%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z",
-                    "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S",
-                    "%Y-%m-%d"):
+        for fmt in (
+            "%Y-%m-%dT%H:%M:%S.%f%z",
+            "%Y-%m-%dT%H:%M:%S%z",
+            "%Y-%m-%dT%H:%M:%S.%f",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%d",
+        ):
             try:
                 return datetime.strptime(ts_str, fmt)
             except (ValueError, TypeError):

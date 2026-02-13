@@ -54,12 +54,10 @@ def cmd_snapshot_intraday():
     from aria.engine.collectors.snapshot import build_intraday_snapshot
     from aria.engine.features.time_features import build_time_features
 
-    snapshot = build_intraday_snapshot(hour=None, date_str=None,
-                                       config=config, store=store)
+    snapshot = build_intraday_snapshot(hour=None, date_str=None, config=config, store=store)
     # Add time features (wiring that was deferred during migration)
     timestamp = snapshot.get("timestamp", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"))
-    snapshot["time_features"] = build_time_features(
-        timestamp, snapshot.get("sun"), snapshot.get("date"))
+    snapshot["time_features"] = build_time_features(timestamp, snapshot.get("sun"), snapshot.get("date"))
 
     path = store.save_intraday_snapshot(snapshot)
     entities = snapshot.get("entities", {}).get("total", 0)
@@ -116,18 +114,19 @@ def cmd_analyze():
         fv = build_feature_vector(snapshot, feature_config)
         feature_names = get_feature_names(feature_config)
         features_list = [fv.get(name, 0) for name in feature_names]
-        ctx_anomaly = detect_contextual_anomalies(
-            features_list, str(config.paths.models_dir))
+        ctx_anomaly = detect_contextual_anomalies(features_list, str(config.paths.models_dir))
         if ctx_anomaly and ctx_anomaly.get("is_anomaly"):
-            anomalies.append({
-                "metric": "contextual",
-                "description": (
-                    f"ML anomaly detected (score: {ctx_anomaly['anomaly_score']}, "
-                    f"severity: {ctx_anomaly['severity']})"
-                ),
-                "z_score": abs(ctx_anomaly["anomaly_score"]) * 5,
-                "source": "isolation_forest",
-            })
+            anomalies.append(
+                {
+                    "metric": "contextual",
+                    "description": (
+                        f"ML anomaly detected (score: {ctx_anomaly['anomaly_score']}, "
+                        f"severity: {ctx_anomaly['severity']})"
+                    ),
+                    "z_score": abs(ctx_anomaly["anomaly_score"]) * 5,
+                    "source": "isolation_forest",
+                }
+            )
 
     print(f"Analysis complete: {len(anomalies)} anomalies, {len(correlations)} correlations")
     if anomalies:
@@ -147,7 +146,8 @@ def cmd_predict():
     from aria.engine.features.feature_config import load_feature_config
     from aria.engine.models.training import predict_with_ml, count_days_of_data
     from aria.engine.models.device_failure import (
-        predict_device_failures, detect_contextual_anomalies,
+        predict_device_failures,
+        detect_contextual_anomalies,
     )
     from aria.engine.predictions.predictor import generate_predictions
 
@@ -175,14 +175,12 @@ def cmd_predict():
         tomorrow_snap["occupancy"]["device_count_home"] = bl.get("devices_home", {}).get("mean", 0)
         if weather:
             tomorrow_snap["weather"] = weather
-        tomorrow_snap["time_features"] = build_time_features(
-            f"{tomorrow}T12:00:00", None, tomorrow)
+        tomorrow_snap["time_features"] = build_time_features(f"{tomorrow}T12:00:00", None, tomorrow)
         tomorrow_snap["media"] = {"total_active": 0}
         tomorrow_snap["motion"] = {"active_count": 0}
         tomorrow_snap["ev"] = {}
 
-        ml_preds = predict_with_ml(tomorrow_snap, store=store,
-                                    models_dir=str(config.paths.models_dir))
+        ml_preds = predict_with_ml(tomorrow_snap, store=store, models_dir=str(config.paths.models_dir))
         if ml_preds:
             print(f"ML predictions available ({len(ml_preds)} metrics)")
 
@@ -202,17 +200,23 @@ def cmd_predict():
             fv = build_feature_vector(today_snap, feature_config)
             feature_names = get_feature_names(feature_config)
             features_list = [fv.get(name, 0) for name in feature_names]
-            ctx_anomalies = detect_contextual_anomalies(
-                features_list, str(config.paths.models_dir))
+            ctx_anomalies = detect_contextual_anomalies(features_list, str(config.paths.models_dir))
             if ctx_anomalies and ctx_anomalies.get("is_anomaly"):
-                print(f"  ! Contextual anomaly detected "
-                      f"(score: {ctx_anomalies['anomaly_score']}, "
-                      f"severity: {ctx_anomalies['severity']})")
+                print(
+                    f"  ! Contextual anomaly detected "
+                    f"(score: {ctx_anomalies['anomaly_score']}, "
+                    f"severity: {ctx_anomalies['severity']})"
+                )
 
     predictions = generate_predictions(
-        tomorrow, baselines, correlations, weather,
-        ml_predictions=ml_preds, device_failures=device_failures,
-        contextual_anomalies=ctx_anomalies, paths=config.paths,
+        tomorrow,
+        baselines,
+        correlations,
+        weather,
+        ml_predictions=ml_preds,
+        device_failures=device_failures,
+        contextual_anomalies=ctx_anomalies,
+        paths=config.paths,
     )
     store.save_predictions(predictions)
     print(f"Predictions for {tomorrow} ({predictions.get('prediction_method', 'statistical')}):")
@@ -273,8 +277,13 @@ def cmd_report(dry_run=False):
     accuracy = store.load_accuracy_history()
 
     report = generate_insight_report(
-        snapshot, anomalies, predictions, reliability,
-        correlations, accuracy, config=config.ollama,
+        snapshot,
+        anomalies,
+        predictions,
+        reliability,
+        correlations,
+        accuracy,
+        config=config.ollama,
     )
     if dry_run:
         print(report)
@@ -362,7 +371,8 @@ def cmd_entity_correlations():
     config, store = _init()
 
     from aria.engine.analysis.entity_correlations import (
-        compute_co_occurrences, compute_hourly_patterns,
+        compute_co_occurrences,
+        compute_hourly_patterns,
         summarize_entity_correlations,
     )
 
@@ -378,12 +388,16 @@ def cmd_entity_correlations():
     # Save enriched correlations
     store.save_entity_correlations(summary)
 
-    print(f"Entity correlations: {summary['total_pairs_found']} pairs found, "
-          f"{len(summary['automation_worthy_pairs'])} automation-worthy")
+    print(
+        f"Entity correlations: {summary['total_pairs_found']} pairs found, "
+        f"{len(summary['automation_worthy_pairs'])} automation-worthy"
+    )
     for pair in summary["top_co_occurrences"][:5]:
-        print(f"  {pair['entity_a']} ↔ {pair['entity_b']}: "
-              f"{pair['count']}x ({pair['strength']}, "
-              f"P={max(pair['conditional_prob_a_given_b'], pair['conditional_prob_b_given_a']):.0%})")
+        print(
+            f"  {pair['entity_a']} ↔ {pair['entity_b']}: "
+            f"{pair['count']}x ({pair['strength']}, "
+            f"P={max(pair['conditional_prob_a_given_b'], pair['conditional_prob_b_given_a']):.0%})"
+        )
 
     return summary
 
@@ -415,7 +429,9 @@ def cmd_train_prophet():
     config, store = _init()
 
     from aria.engine.models.prophet_forecaster import (
-        train_prophet_models, predict_with_prophet, HAS_PROPHET,
+        train_prophet_models,
+        predict_with_prophet,
+        HAS_PROPHET,
     )
 
     if not HAS_PROPHET:
@@ -429,6 +445,7 @@ def cmd_train_prophet():
         return None
 
     import os
+
     snapshots = []
     for fname in sorted(os.listdir(daily_dir)):
         if not fname.endswith(".json"):
@@ -460,7 +477,8 @@ def cmd_occupancy():
     config, store = _init()
 
     from aria.engine.analysis.occupancy import (
-        BayesianOccupancy, occupancy_to_features,
+        BayesianOccupancy,
+        occupancy_to_features,
     )
     from aria.engine.collectors.snapshot import build_snapshot
 
@@ -473,8 +491,7 @@ def cmd_occupancy():
     result = estimator.estimate(snapshot)
 
     overall = result.get("overall", {})
-    print(f"Occupancy: {overall.get('probability', 0):.0%} "
-          f"(confidence: {overall.get('confidence', 'none')})")
+    print(f"Occupancy: {overall.get('probability', 0):.0%} (confidence: {overall.get('confidence', 'none')})")
     for signal in overall.get("signals", []):
         print(f"  {signal['type']}: {signal['value']:.0%} — {signal['detail']}")
 
@@ -491,6 +508,7 @@ def cmd_power_profiles():
 
     # Load daily snapshots
     import os
+
     daily_dir = config.paths.daily_dir
     if not daily_dir.is_dir():
         print("No daily snapshots available.")
@@ -519,15 +537,16 @@ def cmd_power_profiles():
     profiler = ApplianceProfiler()
     result = profiler.analyze_snapshot_outlets(snapshots)
 
-    print(f"Power analysis: {result['active_count']} active outlets, "
-          f"{result['profiles_learned']} profiles learned")
+    print(f"Power analysis: {result['active_count']} active outlets, {result['profiles_learned']} profiles learned")
     for name, info in result["outlets"].items():
         if info["is_active"]:
             health = info.get("health", {})
             health_str = f", health={health['score']}" if health.get("score") is not None else ""
-            print(f"  {name}: avg={info['avg_watts']}W, "
-                  f"max={info['max_watts']}W, "
-                  f"cycles={info['cycles_detected']}{health_str}")
+            print(
+                f"  {name}: avg={info['avg_watts']}W, "
+                f"max={info['max_watts']}W, "
+                f"cycles={info['cycles_detected']}{health_str}"
+            )
             for alert in health.get("alerts", []):
                 print(f"    ! {alert}")
 
@@ -556,9 +575,11 @@ def cmd_train_sequences():
     result = detector.train(entries)
 
     store.save_sequence_model(detector.to_dict())
-    print(f"Sequence model: {result['status']} "
-          f"({result['transitions']} transitions, "
-          f"{result['unique_entities']} entities)")
+    print(
+        f"Sequence model: {result['status']} "
+        f"({result['transitions']} transitions, "
+        f"{result['unique_entities']} entities)"
+    )
     if result["threshold"] is not None:
         print(f"  Anomaly threshold: {result['threshold']:.4f}")
     return result
@@ -589,15 +610,14 @@ def cmd_sequence_anomalies():
         return None
 
     anomalies = detector.detect(entries)
-    summary = summarize_sequence_anomalies(
-        anomalies, total_windows_checked=max(1, len(entries) // 5))
+    summary = summarize_sequence_anomalies(anomalies, total_windows_checked=max(1, len(entries) // 5))
     store.save_sequence_anomalies(summary)
 
-    print(f"Sequence anomalies: {summary['anomalies_found']} found "
-          f"({summary['total_windows_checked']} windows checked)")
+    print(
+        f"Sequence anomalies: {summary['anomalies_found']} found ({summary['total_windows_checked']} windows checked)"
+    )
     for a in anomalies[:5]:
-        print(f"  {a['time_start']} -> {a['time_end']}: "
-              f"score={a['score']} ({a['severity']})")
+        print(f"  {a['time_start']} -> {a['time_end']}: score={a['score']} ({a['severity']})")
         print(f"    entities: {', '.join(a['entities'][:5])}")
     return summary
 

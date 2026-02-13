@@ -15,11 +15,11 @@ from datetime import datetime
 
 # Sensor type weights and decay rates (seconds)
 SENSOR_CONFIG = {
-    "motion": {"weight": 0.9, "decay_seconds": 300},     # High confidence, 5 min decay
-    "door": {"weight": 0.6, "decay_seconds": 600},        # Medium, 10 min decay
-    "media": {"weight": 0.4, "decay_seconds": 1800},      # Low, 30 min decay (TV stays on)
-    "power": {"weight": 0.3, "decay_seconds": 3600},       # Low, 1 hour decay
-    "device_tracker": {"weight": 0.5, "decay_seconds": 0}, # Binary, no decay
+    "motion": {"weight": 0.9, "decay_seconds": 300},  # High confidence, 5 min decay
+    "door": {"weight": 0.6, "decay_seconds": 600},  # Medium, 10 min decay
+    "media": {"weight": 0.4, "decay_seconds": 1800},  # Low, 30 min decay (TV stays on)
+    "power": {"weight": 0.3, "decay_seconds": 3600},  # Low, 1 hour decay
+    "device_tracker": {"weight": 0.5, "decay_seconds": 0},  # Binary, no decay
 }
 
 # Prior probability of occupancy when no sensor data available
@@ -111,8 +111,7 @@ class BayesianOccupancy:
 
         # Media signal
         media = snapshot.get("media", {})
-        active_media = sum(1 for v in media.values()
-                          if isinstance(v, str) and v in ("playing", "on"))
+        active_media = sum(1 for v in media.values() if isinstance(v, str) and v in ("playing", "on"))
         if active_media > 0:
             signals.append(("media", 0.9, f"{active_media} media playing"))
 
@@ -123,8 +122,7 @@ class BayesianOccupancy:
         return {
             "probability": round(probability, 3),
             "confidence": self._classify_confidence(probability, len(signals)),
-            "signals": [{"type": t, "value": round(v, 2), "detail": d}
-                        for t, v, d in signals],
+            "signals": [{"type": t, "value": round(v, 2), "detail": d} for t, v, d in signals],
             "prior": round(prior, 3),
         }
 
@@ -162,8 +160,7 @@ class BayesianOccupancy:
         return {
             "probability": round(probability, 3),
             "confidence": self._classify_confidence(probability, len(signals)),
-            "signals": [{"type": t, "value": round(v, 2), "detail": d}
-                        for t, v, d in signals],
+            "signals": [{"type": t, "value": round(v, 2), "detail": d} for t, v, d in signals],
             "prior": round(prior, 3),
         }
 

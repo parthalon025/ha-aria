@@ -47,10 +47,14 @@ class IntelligenceModule(Module):
         try:
             data = self._read_intelligence_data()
             data["activity"] = await self._read_activity_data()
-            await self.hub.set_cache(CACHE_INTELLIGENCE, data, {
-                "source": "intelligence_module",
-                "file_count": self._count_source_files(),
-            })
+            await self.hub.set_cache(
+                CACHE_INTELLIGENCE,
+                data,
+                {
+                    "source": "intelligence_module",
+                    "file_count": self._count_source_files(),
+                },
+            )
             self.logger.info("Intelligence data loaded into cache")
 
             # Track current insight date so we don't re-send on first refresh
@@ -62,14 +66,19 @@ class IntelligenceModule(Module):
 
     async def schedule_refresh(self):
         """Schedule periodic refresh every 15 minutes."""
+
         async def refresh():
             try:
                 data = self._read_intelligence_data()
                 data["activity"] = await self._read_activity_data()
-                await self.hub.set_cache(CACHE_INTELLIGENCE, data, {
-                    "source": "intelligence_module",
-                    "file_count": self._count_source_files(),
-                })
+                await self.hub.set_cache(
+                    CACHE_INTELLIGENCE,
+                    data,
+                    {
+                        "source": "intelligence_module",
+                        "file_count": self._count_source_files(),
+                    },
+                )
                 self.logger.debug("Intelligence cache refreshed")
 
                 # Check for new daily insight → send digest
@@ -122,9 +131,7 @@ class IntelligenceModule(Module):
         # Determine learning phase
         ml_active = (self.intel_dir / "models" / "training_log.json").exists()
         meta_active = (self.intel_dir / "meta-learning" / "applied.json").exists()
-        phase, next_milestone = self._determine_phase(
-            days_of_data, ml_active, meta_active
-        )
+        phase, next_milestone = self._determine_phase(days_of_data, ml_active, meta_active)
 
         phase_descriptions = {
             "collecting": (
@@ -177,9 +184,7 @@ class IntelligenceModule(Module):
             "automation_suggestions": self._read_latest_automation_suggestion(),
         }
 
-    def _determine_phase(
-        self, days: int, ml_active: bool, meta_active: bool
-    ) -> tuple:
+    def _determine_phase(self, days: int, ml_active: bool, meta_active: bool) -> tuple:
         """Return (phase_name, next_milestone_text)."""
         if ml_active and meta_active:
             return ("ml-active", "System is fully operational")
@@ -252,7 +257,9 @@ class IntelligenceModule(Module):
             data = json.loads(log_path.read_text())
             return {
                 "count": len(data) if isinstance(data, list) else data.get("count", 0),
-                "last_trained": data[-1].get("timestamp") if isinstance(data, list) and data else data.get("last_trained"),
+                "last_trained": data[-1].get("timestamp")
+                if isinstance(data, list) and data
+                else data.get("last_trained"),
                 "scores": data[-1].get("scores", {}) if isinstance(data, list) and data else data.get("scores", {}),
             }
         except Exception:
@@ -287,32 +294,38 @@ class IntelligenceModule(Module):
         daily_dir = self.intel_dir / "daily"
         if daily_dir.exists():
             for f in sorted(daily_dir.glob("*.json"), reverse=True)[:5]:
-                runs.append({
-                    "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-                    "type": "daily",
-                    "status": "ok",
-                })
+                runs.append(
+                    {
+                        "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                        "type": "daily",
+                        "status": "ok",
+                    }
+                )
 
         # Scan today's intraday
         today = datetime.now().strftime("%Y-%m-%d")
         intraday_dir = self.intel_dir / "intraday" / today
         if intraday_dir.exists():
             for f in sorted(intraday_dir.glob("*.json"), reverse=True):
-                runs.append({
-                    "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-                    "type": "intraday",
-                    "status": "ok",
-                })
+                runs.append(
+                    {
+                        "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                        "type": "intraday",
+                        "status": "ok",
+                    }
+                )
 
         # Scan insight reports
         insights_dir = self.intel_dir / "insights"
         if insights_dir.exists():
             for f in sorted(insights_dir.glob("*.json"), reverse=True)[:3]:
-                runs.append({
-                    "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-                    "type": "full_pipeline",
-                    "status": "ok",
-                })
+                runs.append(
+                    {
+                        "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                        "type": "full_pipeline",
+                        "status": "ok",
+                    }
+                )
 
         # Parse log for errors (last 50 lines)
         if self.log_path.exists():
@@ -322,12 +335,14 @@ class IntelligenceModule(Module):
                     if "ERROR" in line or "FAILED" in line:
                         # Try to extract timestamp from log line
                         ts_match = re.match(r"(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})", line)
-                        runs.append({
-                            "timestamp": ts_match.group(1) if ts_match else None,
-                            "type": "error",
-                            "status": "error",
-                            "message": line.strip()[:200],
-                        })
+                        runs.append(
+                            {
+                                "timestamp": ts_match.group(1) if ts_match else None,
+                                "type": "error",
+                                "status": "error",
+                                "message": line.strip()[:200],
+                            }
+                        )
             except Exception:
                 pass
 
@@ -347,7 +362,8 @@ class IntelligenceModule(Module):
                 "<90d": 0.5,
                 ">=90d": 0.7,
             },
-            "feature_config": feature_config or {
+            "feature_config": feature_config
+            or {
                 "time_features": True,
                 "weather_features": True,
                 "home_state_features": True,
@@ -387,8 +403,14 @@ class IntelligenceModule(Module):
     def _count_source_files(self) -> int:
         """Count total intelligence files on disk."""
         count = 0
-        for pattern in ["*.json", "daily/*.json", "intraday/*/*.json",
-                        "insights/*.json", "models/*.json", "meta-learning/*.json"]:
+        for pattern in [
+            "*.json",
+            "daily/*.json",
+            "intraday/*/*.json",
+            "insights/*.json",
+            "models/*.json",
+            "meta-learning/*.json",
+        ]:
             count += len(list(self.intel_dir.glob(pattern)))
         return count
 
@@ -426,7 +448,7 @@ class IntelligenceModule(Module):
         predictions = data.get("predictions", {})
         insight = data.get("daily_insight", {})
 
-        lines = ["*HA Intelligence Daily Digest*", ""]
+        lines = ["*ARIA Daily Digest*", ""]
 
         # Phase & maturity
         phase = maturity.get("phase", "unknown")

@@ -3,12 +3,13 @@
 import unittest
 
 from aria.engine.analysis.power_profiles import (
-    ApplianceProfiler, ApplianceProfile, profile_correlation,
+    ApplianceProfiler,
+    ApplianceProfile,
+    profile_correlation,
 )
 
 
-def _make_cycle_series(n_cycles=3, on_watts=100, off_watts=1,
-                       cycle_points=5, gap_points=3):
+def _make_cycle_series(n_cycles=3, on_watts=100, off_watts=1, cycle_points=5, gap_points=3):
     """Build a synthetic power time series with N on/off cycles."""
     series = []
     t = 0
@@ -131,15 +132,14 @@ class TestHealthAssessment(unittest.TestCase):
         profiler.learn_profile("outlet_1", cycles)
 
         # Create cycles with much longer duration (simulate degradation)
-        long_series = _make_cycle_series(n_cycles=3, on_watts=100,
-                                          cycle_points=15)  # 3x longer cycles
+        long_series = _make_cycle_series(n_cycles=3, on_watts=100, cycle_points=15)  # 3x longer cycles
         long_cycles = profiler.detect_cycles(long_series)
 
         health = profiler.assess_health("outlet_1", long_cycles)
         # Should have lower score or alert about duration
         self.assertTrue(
             health["score"] < 90 or len(health["alerts"]) > 0,
-            f"Expected degradation signal: score={health['score']}, alerts={health['alerts']}"
+            f"Expected degradation signal: score={health['score']}, alerts={health['alerts']}",
         )
 
 
@@ -156,7 +156,7 @@ class TestSnapshotAnalysis(unittest.TestCase):
                     }
                 }
             }
-            snapshots.append((f"2026-02-{i+1:02d}", snap))
+            snapshots.append((f"2026-02-{i + 1:02d}", snap))
 
         result = profiler.analyze_snapshot_outlets(snapshots)
         self.assertIn("NVR Outlet", result["outlets"])

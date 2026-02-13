@@ -5,18 +5,17 @@ safety guardrails, approval/rejection flow, cache interaction,
 lifecycle, and event handling.
 """
 
-import hashlib
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from aria.modules.orchestrator import OrchestratorModule, RESTRICTED_DOMAINS
+from aria.modules.orchestrator import OrchestratorModule
 
 
 # ============================================================================
@@ -512,10 +511,12 @@ class TestApprovalFlow:
         suggestion_id = suggestions[0]["suggestion_id"]
 
         # Mock _create_automation to succeed
-        module._create_automation = AsyncMock(return_value={
-            "success": True,
-            "automation_id": f"pattern_{suggestion_id}",
-        })
+        module._create_automation = AsyncMock(
+            return_value={
+                "success": True,
+                "automation_id": f"pattern_{suggestion_id}",
+            }
+        )
         # Mock session to avoid real HTTP
         module._session = MagicMock()
 
@@ -525,10 +526,7 @@ class TestApprovalFlow:
         assert result["automation_id"] == f"pattern_{suggestion_id}"
 
         # Verify event published
-        approval_events = [
-            e for e in hub._published_events
-            if e["event_type"] == "automation_approved"
-        ]
+        approval_events = [e for e in hub._published_events if e["event_type"] == "automation_approved"]
         assert len(approval_events) == 1
 
     @pytest.mark.asyncio
@@ -543,15 +541,20 @@ class TestApprovalFlow:
     @pytest.mark.asyncio
     async def test_approve_already_approved(self, module, hub):
         """Approving an already-approved suggestion returns error."""
-        await hub.set_cache("automation_suggestions", {
-            "suggestions": [{
-                "suggestion_id": "abc",
-                "pattern_id": "p1",
-                "status": "approved",
-                "automation_id": "pattern_abc",
-                "automation_yaml": {},
-            }]
-        })
+        await hub.set_cache(
+            "automation_suggestions",
+            {
+                "suggestions": [
+                    {
+                        "suggestion_id": "abc",
+                        "pattern_id": "p1",
+                        "status": "approved",
+                        "automation_id": "pattern_abc",
+                        "automation_yaml": {},
+                    }
+                ]
+            },
+        )
 
         result = await module.approve_suggestion("abc")
         assert result["success"] is False
@@ -566,14 +569,19 @@ class TestApprovalFlow:
     @pytest.mark.asyncio
     async def test_reject_suggestion(self, module, hub):
         """Rejecting a suggestion updates status and publishes event."""
-        await hub.set_cache("automation_suggestions", {
-            "suggestions": [{
-                "suggestion_id": "abc",
-                "pattern_id": "p1",
-                "status": "pending",
-                "automation_yaml": {},
-            }]
-        })
+        await hub.set_cache(
+            "automation_suggestions",
+            {
+                "suggestions": [
+                    {
+                        "suggestion_id": "abc",
+                        "pattern_id": "p1",
+                        "status": "pending",
+                        "automation_yaml": {},
+                    }
+                ]
+            },
+        )
 
         result = await module.reject_suggestion("abc")
         assert result["success"] is True
@@ -583,10 +591,7 @@ class TestApprovalFlow:
         assert cached["data"]["suggestions"][0]["status"] == "rejected"
 
         # Verify event published
-        rejection_events = [
-            e for e in hub._published_events
-            if e["event_type"] == "automation_rejected"
-        ]
+        rejection_events = [e for e in hub._published_events if e["event_type"] == "automation_rejected"]
         assert len(rejection_events) == 1
 
     @pytest.mark.asyncio
@@ -652,12 +657,15 @@ class TestGetSuggestions:
     @pytest.mark.asyncio
     async def test_get_all_suggestions(self, module, hub):
         """get_suggestions() returns all suggestions without filter."""
-        await hub.set_cache("automation_suggestions", {
-            "suggestions": [
-                {"suggestion_id": "a", "status": "pending"},
-                {"suggestion_id": "b", "status": "approved"},
-            ]
-        })
+        await hub.set_cache(
+            "automation_suggestions",
+            {
+                "suggestions": [
+                    {"suggestion_id": "a", "status": "pending"},
+                    {"suggestion_id": "b", "status": "approved"},
+                ]
+            },
+        )
 
         result = await module.get_suggestions()
         assert len(result) == 2
@@ -665,12 +673,15 @@ class TestGetSuggestions:
     @pytest.mark.asyncio
     async def test_get_pending_only(self, module, hub):
         """get_suggestions(status_filter='pending') returns only pending."""
-        await hub.set_cache("automation_suggestions", {
-            "suggestions": [
-                {"suggestion_id": "a", "status": "pending"},
-                {"suggestion_id": "b", "status": "approved"},
-            ]
-        })
+        await hub.set_cache(
+            "automation_suggestions",
+            {
+                "suggestions": [
+                    {"suggestion_id": "a", "status": "pending"},
+                    {"suggestion_id": "b", "status": "approved"},
+                ]
+            },
+        )
 
         result = await module.get_suggestions(status_filter="pending")
         assert len(result) == 1
@@ -768,6 +779,7 @@ class TestCreateAutomation:
     async def test_network_error_returns_failure(self, module, hub):
         """Network error returns failure."""
         import aiohttp
+
         mock_session = MagicMock()
         mock_session.post = MagicMock(side_effect=aiohttp.ClientError("Connection refused"))
         module._session = mock_session

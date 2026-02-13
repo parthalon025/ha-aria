@@ -52,6 +52,7 @@ class MockHub:
         # infinite non-yielding loop that blocks the event loop and leaks memory.
         async def _config_fallback(key, fallback=None):
             return fallback
+
         self.cache.get_config_value = AsyncMock(side_effect=_config_fallback)
         self.cache.get_included_entity_ids = AsyncMock(return_value=set())
 
@@ -87,9 +88,7 @@ class MockHub:
 
     def unsubscribe(self, event_type: str, callback):
         if event_type in self._subscribers:
-            self._subscribers[event_type] = [
-                cb for cb in self._subscribers[event_type] if cb != callback
-            ]
+            self._subscribers[event_type] = [cb for cb in self._subscribers[event_type] if cb != callback]
 
     async def publish(self, event_type: str, data: Dict[str, Any]):
         pass
@@ -877,9 +876,7 @@ class TestEventHandling:
         assert hub.cache.insert_prediction.call_count == 1
 
         # Simulate cooldown expiration
-        engine._last_prediction_time = datetime.now() - timedelta(
-            seconds=PREDICTION_COOLDOWN_S + 1
-        )
+        engine._last_prediction_time = datetime.now() - timedelta(seconds=PREDICTION_COOLDOWN_S + 1)
 
         event2 = make_state_changed_event(entity_id="light.bedroom")
         await engine._on_state_changed(event2)
@@ -1087,9 +1084,7 @@ class TestExpiredWindowResolution:
     @pytest.mark.asyncio
     async def test_handles_cache_error_gracefully(self, engine, hub):
         """Should handle errors from get_pending_predictions gracefully."""
-        hub.cache.get_pending_predictions = AsyncMock(
-            side_effect=Exception("DB error")
-        )
+        hub.cache.get_pending_predictions = AsyncMock(side_effect=Exception("DB error"))
 
         # Should not raise
         await engine._resolve_expired_predictions()
@@ -1295,15 +1290,18 @@ class TestActivityMonitorIntegration:
             # It appends to its own buffers then fires asyncio.create_task(hub.publish(...))
             # We replicate the publish call directly since _handle_state_changed
             # requires a fully wired ActivityMonitor with ha_url/ha_token.
-            await hub.publish("state_changed", {
-                "entity_id": "light.kitchen",
-                "domain": "light",
-                "device_class": "",
-                "from": "off",
-                "to": "on",
-                "timestamp": datetime.now().isoformat(),
-                "friendly_name": "Kitchen Light",
-            })
+            await hub.publish(
+                "state_changed",
+                {
+                    "entity_id": "light.kitchen",
+                    "domain": "light",
+                    "device_class": "",
+                    "from": "off",
+                    "to": "on",
+                    "timestamp": datetime.now().isoformat(),
+                    "friendly_name": "Kitchen Light",
+                },
+            )
 
             # Shadow engine should have buffered the event
             assert len(shadow._recent_events) == 1
@@ -1331,15 +1329,18 @@ class TestActivityMonitorIntegration:
             ]
 
             for entity_id, domain, from_s, to_s, name in entities:
-                await hub.publish("state_changed", {
-                    "entity_id": entity_id,
-                    "domain": domain,
-                    "device_class": "",
-                    "from": from_s,
-                    "to": to_s,
-                    "timestamp": datetime.now().isoformat(),
-                    "friendly_name": name,
-                })
+                await hub.publish(
+                    "state_changed",
+                    {
+                        "entity_id": entity_id,
+                        "domain": domain,
+                        "device_class": "",
+                        "from": from_s,
+                        "to": to_s,
+                        "timestamp": datetime.now().isoformat(),
+                        "friendly_name": name,
+                    },
+                )
 
             assert len(shadow._recent_events) == 3
             assert shadow._recent_events[0]["entity_id"] == "light.kitchen"
@@ -1362,15 +1363,18 @@ class TestActivityMonitorIntegration:
         await shadow.initialize()
 
         try:
-            await hub.publish("state_changed", {
-                "entity_id": "light.kitchen",
-                "domain": "light",
-                "device_class": "",
-                "from": "off",
-                "to": "on",
-                "timestamp": datetime.now().isoformat(),
-                "friendly_name": "Kitchen Light",
-            })
+            await hub.publish(
+                "state_changed",
+                {
+                    "entity_id": "light.kitchen",
+                    "domain": "light",
+                    "device_class": "",
+                    "from": "off",
+                    "to": "on",
+                    "timestamp": datetime.now().isoformat(),
+                    "friendly_name": "Kitchen Light",
+                },
+            )
 
             # Should be exactly 1, not 2 (proves on_event is a no-op)
             assert len(shadow._recent_events) == 1
@@ -1385,6 +1389,7 @@ class TestActivityMonitorIntegration:
 
         # Create activity monitor with dummy HA credentials
         from aria.modules.activity_monitor import ActivityMonitor
+
         activity_mon = ActivityMonitor(hub, "http://dummy:8123", "dummy_token")
         hub.register_module(activity_mon)
 
@@ -1434,9 +1439,7 @@ class TestConfigStoreIntegration:
     async def test_excluded_entity_skipped(self, hub, engine):
         """Events from excluded entities should be silently dropped."""
         # Set up: only light.kitchen is included
-        hub.cache.get_included_entity_ids = AsyncMock(
-            return_value={"light.kitchen"}
-        )
+        hub.cache.get_included_entity_ids = AsyncMock(return_value={"light.kitchen"})
 
         # Send event from an excluded entity
         event = make_state_changed_event(entity_id="light.bedroom")
@@ -1448,9 +1451,7 @@ class TestConfigStoreIntegration:
     @pytest.mark.asyncio
     async def test_included_entity_processed(self, hub, engine):
         """Events from included entities should be processed normally."""
-        hub.cache.get_included_entity_ids = AsyncMock(
-            return_value={"light.kitchen"}
-        )
+        hub.cache.get_included_entity_ids = AsyncMock(return_value={"light.kitchen"})
 
         event = make_state_changed_event(entity_id="light.kitchen")
         await engine._on_state_changed(event)
@@ -1473,6 +1474,7 @@ class TestConfigStoreIntegration:
     @pytest.mark.asyncio
     async def test_config_value_overrides_min_confidence(self, hub, engine):
         """Min confidence from config store should filter predictions."""
+
         # Set very high threshold via config
         async def mock_config_value(key, fallback=None):
             if key == "shadow.min_confidence":
@@ -1485,8 +1487,13 @@ class TestConfigStoreIntegration:
 
         # Set up some recent events so frequency prediction has data
         engine._recent_events = [
-            {"domain": "light", "entity": "light.kitchen", "state": "on",
-             "timestamp": datetime.now().isoformat(), "seconds_ago": 10},
+            {
+                "domain": "light",
+                "entity": "light.kitchen",
+                "state": "on",
+                "timestamp": datetime.now().isoformat(),
+                "seconds_ago": 10,
+            },
         ]
 
         # Build context and generate predictions
@@ -1510,6 +1517,7 @@ class TestConfigStoreIntegration:
     @pytest.mark.asyncio
     async def test_config_value_overrides_cooldown(self, hub, engine):
         """Prediction cooldown from config store should be respected."""
+
         # Set very long cooldown via config
         async def mock_config_value(key, fallback=None):
             if key == "shadow.prediction_cooldown_s":
@@ -1524,15 +1532,18 @@ class TestConfigStoreIntegration:
         hub.cache.get_included_entity_ids = AsyncMock(return_value=set())
 
         # Set up summary cache for predictions
-        await hub.set_cache(CACHE_ACTIVITY_SUMMARY, {
-            "event_predictions": {
-                "predicted_next_domain": "light",
-                "probability": 0.8,
-                "method": "test",
+        await hub.set_cache(
+            CACHE_ACTIVITY_SUMMARY,
+            {
+                "event_predictions": {
+                    "predicted_next_domain": "light",
+                    "probability": 0.8,
+                    "method": "test",
+                },
+                "occupancy": {"anyone_home": True},
+                "recent_activity": [],
             },
-            "occupancy": {"anyone_home": True},
-            "recent_activity": [],
-        })
+        )
 
         # First event — should generate predictions (no last_prediction_time)
         event1 = make_state_changed_event(entity_id="light.kitchen")
@@ -1548,6 +1559,7 @@ class TestConfigStoreIntegration:
     @pytest.mark.asyncio
     async def test_config_value_overrides_window_seconds(self, hub, engine):
         """Window seconds from config store should appear in predictions."""
+
         async def mock_config_value(key, fallback=None):
             if key == "shadow.default_window_seconds":
                 return 1200  # 20 minutes instead of default 600
@@ -1559,15 +1571,18 @@ class TestConfigStoreIntegration:
         hub.cache.get_included_entity_ids = AsyncMock(return_value=set())
 
         # Set up summary with event_predictions so _predict_next_domain returns a result
-        await hub.set_cache(CACHE_ACTIVITY_SUMMARY, {
-            "event_predictions": {
-                "predicted_next_domain": "light",
-                "probability": 0.8,
-                "method": "frequency",
+        await hub.set_cache(
+            CACHE_ACTIVITY_SUMMARY,
+            {
+                "event_predictions": {
+                    "predicted_next_domain": "light",
+                    "probability": 0.8,
+                    "method": "frequency",
+                },
+                "occupancy": {"anyone_home": True},
+                "recent_activity": [],
             },
-            "occupancy": {"anyone_home": True},
-            "recent_activity": [],
-        })
+        )
 
         context = {
             "timestamp": datetime.now().isoformat(),

@@ -10,9 +10,13 @@ from aria.engine.cli import cmd_train_sequences, cmd_sequence_anomalies
 def _make_logbook_entries(n=200):
     """Generate enough logbook entries to train a Markov chain."""
     entities = [
-        "light.living_room", "light.kitchen", "light.bedroom",
-        "switch.fan", "binary_sensor.motion_hallway",
-        "lock.front_door", "light.hallway",
+        "light.living_room",
+        "light.kitchen",
+        "light.bedroom",
+        "switch.fan",
+        "binary_sensor.motion_hallway",
+        "lock.front_door",
+        "light.hallway",
     ]
     entries = []
     for i in range(n):
@@ -82,6 +86,7 @@ class TestCmdSequenceAnomalies(unittest.TestCase):
 
         # Train a real model to get valid model_data
         from aria.engine.analysis.sequence_anomalies import MarkovChainDetector
+
         entries = _make_logbook_entries(200)
         detector = MarkovChainDetector(window_seconds=300, min_transitions=50)
         detector.train(entries)
@@ -141,6 +146,7 @@ class TestCmdSequenceAnomalies(unittest.TestCase):
         mock_store = MagicMock()
 
         from aria.engine.analysis.sequence_anomalies import MarkovChainDetector
+
         entries = _make_logbook_entries(200)
         detector = MarkovChainDetector(window_seconds=300, min_transitions=50)
         detector.train(entries)
@@ -161,6 +167,7 @@ class TestDispatch(unittest.TestCase):
     def test_dispatch_train_sequences(self, mock_cmd):
         """--train-sequences dispatches to cmd_train_sequences."""
         from aria.engine.cli import main
+
         with patch("sys.argv", ["aria", "--train-sequences"]):
             main()
         mock_cmd.assert_called_once()
@@ -169,6 +176,7 @@ class TestDispatch(unittest.TestCase):
     def test_dispatch_sequence_anomalies(self, mock_cmd):
         """--sequence-anomalies dispatches to cmd_sequence_anomalies."""
         from aria.engine.cli import main
+
         with patch("sys.argv", ["aria", "--sequence-anomalies"]):
             main()
         mock_cmd.assert_called_once()

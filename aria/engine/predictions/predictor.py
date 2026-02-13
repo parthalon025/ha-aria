@@ -40,9 +40,16 @@ def count_days_of_data(paths=None):
     return len([f for f in os.listdir(daily_dir) if f.endswith(".json")])
 
 
-def generate_predictions(target_date, baselines, correlations=None, weather_forecast=None,
-                         ml_predictions=None, device_failures=None, contextual_anomalies=None,
-                         paths=None):
+def generate_predictions(
+    target_date,
+    baselines,
+    correlations=None,
+    weather_forecast=None,
+    ml_predictions=None,
+    device_failures=None,
+    contextual_anomalies=None,
+    paths=None,
+):
     """Generate predictions for a target date with optional ML blending.
 
     Args:

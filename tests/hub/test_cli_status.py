@@ -40,6 +40,7 @@ async def hub(temp_cache):
 async def test_module_status_starts_registered(hub):
     """Module status is 'registered' after register_module."""
     from aria.hub.core import Module
+
     mod = Module("test_mod", hub)
     hub.register_module(mod)
     assert hub.module_status["test_mod"] == "registered"
@@ -49,6 +50,7 @@ async def test_module_status_starts_registered(hub):
 async def test_mark_module_running(hub):
     """mark_module_running sets status to 'running'."""
     from aria.hub.core import Module
+
     mod = Module("test_mod", hub)
     hub.register_module(mod)
     hub.mark_module_running("test_mod")
@@ -59,6 +61,7 @@ async def test_mark_module_running(hub):
 async def test_mark_module_failed(hub):
     """mark_module_failed sets status to 'failed'."""
     from aria.hub.core import Module
+
     mod = Module("test_mod", hub)
     hub.register_module(mod)
     hub.mark_module_failed("test_mod")
@@ -92,6 +95,7 @@ async def test_health_check_includes_status(hub):
 async def test_health_check_module_status(hub):
     """Health check reflects module status correctly."""
     from aria.hub.core import Module
+
     mod1 = Module("mod_a", hub)
     mod2 = Module("mod_b", hub)
     hub.register_module(mod1)
@@ -110,7 +114,6 @@ async def test_health_check_module_status(hub):
 
 
 class TestStatusCommand:
-
     def test_status_json_no_hub(self, capsys, tmp_path):
         """status --json works when hub is not running."""
         from aria.cli import _status
@@ -172,16 +175,17 @@ class TestStatusCommand:
 
     def test_status_json_with_hub_running(self, capsys, tmp_path):
         """status shows hub info when hub is running."""
-        import urllib.request
         from aria.cli import _status
 
-        health_response = json.dumps({
-            "status": "ok",
-            "uptime_seconds": 7200,
-            "modules": {"discovery": "running", "ml_engine": "running"},
-            "cache": {"categories": ["entities", "areas", "capabilities"]},
-            "timestamp": "2026-02-13T10:00:00",
-        }).encode()
+        health_response = json.dumps(
+            {
+                "status": "ok",
+                "uptime_seconds": 7200,
+                "modules": {"discovery": "running", "ml_engine": "running"},
+                "cache": {"categories": ["entities", "areas", "capabilities"]},
+                "timestamp": "2026-02-13T10:00:00",
+            }
+        ).encode()
 
         mock_resp = MagicMock()
         mock_resp.read.return_value = health_response

@@ -4,7 +4,8 @@ import json
 import unittest
 
 from aria.engine.llm.automation_suggestions import (
-    parse_automation_suggestions, _validate_yaml_structure,
+    parse_automation_suggestions,
+    _validate_yaml_structure,
     _format_co_occurrences,
 )
 
@@ -28,13 +29,17 @@ class TestYAMLValidation(unittest.TestCase):
 
 class TestParseAutomationSuggestions(unittest.TestCase):
     def test_parse_valid_suggestion(self):
-        response = json.dumps([{
-            "description": "Motion triggers hallway light",
-            "trigger_entity": "binary_sensor.motion_hallway",
-            "action_entity": "light.hallway",
-            "confidence": "high",
-            "yaml": "alias: Test\ntrigger:\n  - platform: state\naction:\n  - service: light.turn_on",
-        }])
+        response = json.dumps(
+            [
+                {
+                    "description": "Motion triggers hallway light",
+                    "trigger_entity": "binary_sensor.motion_hallway",
+                    "action_entity": "light.hallway",
+                    "confidence": "high",
+                    "yaml": "alias: Test\ntrigger:\n  - platform: state\naction:\n  - service: light.turn_on",
+                }
+            ]
+        )
         result = parse_automation_suggestions(response)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["confidence"], "high")
@@ -56,33 +61,40 @@ Based on the data:
         self.assertEqual(result, [])
 
     def test_filters_invalid_yaml(self):
-        response = json.dumps([
-            {
-                "description": "Valid",
-                "yaml": "trigger:\n  - platform: state\naction:\n  - service: light.turn_on",
-            },
-            {
-                "description": "Invalid — no trigger or action",
-                "yaml": "just some text",
-            },
-        ])
+        response = json.dumps(
+            [
+                {
+                    "description": "Valid",
+                    "yaml": "trigger:\n  - platform: state\naction:\n  - service: light.turn_on",
+                },
+                {
+                    "description": "Invalid — no trigger or action",
+                    "yaml": "just some text",
+                },
+            ]
+        )
         result = parse_automation_suggestions(response)
         self.assertEqual(len(result), 1)
 
     def test_max_3_suggestions(self):
-        suggestions = [{
-            "description": f"Suggestion {i}",
-            "yaml": "trigger:\n  - platform: state\naction:\n  - service: light.turn_on",
-        } for i in range(5)]
+        suggestions = [
+            {
+                "description": f"Suggestion {i}",
+                "yaml": "trigger:\n  - platform: state\naction:\n  - service: light.turn_on",
+            }
+            for i in range(5)
+        ]
         result = parse_automation_suggestions(json.dumps(suggestions))
         self.assertEqual(len(result), 3)
 
     def test_missing_required_fields_filtered(self):
-        response = json.dumps([
-            {"description": "Has desc but no yaml"},
-            {"yaml": "trigger:\naction:\n"},  # Missing description
-            {"description": "Valid", "yaml": "trigger:\n  test\naction:\n  test"},
-        ])
+        response = json.dumps(
+            [
+                {"description": "Has desc but no yaml"},
+                {"yaml": "trigger:\naction:\n"},  # Missing description
+                {"description": "Valid", "yaml": "trigger:\n  test\naction:\n  test"},
+            ]
+        )
         result = parse_automation_suggestions(response)
         self.assertEqual(len(result), 1)
 
