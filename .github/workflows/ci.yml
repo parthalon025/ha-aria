@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check aria/ tests/
+      - run: ruff format --check aria/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: pip install -e ".[dev,ml-extra]"
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+      - name: Run tests with coverage
+        if: matrix.python-version == '3.12'
+        run: |
+          pip install pytest-cov
+          pytest tests/ --cov=aria --cov-report=xml --cov-report=term-missing
+      - uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'
+        with:
+          file: coverage.xml
+        continue-on-error: true
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Verify dashboard builds
+        run: |
+          npx esbuild aria/dashboard/spa/src/index.jsx \
+            --bundle \
+            --outfile=/tmp/bundle.js \
+            --jsx-factory=h \
+            --jsx-fragment=Fragment \
+            --inject:aria/dashboard/spa/src/preact-shim.js \
+            --loader:.jsx=jsx \
+            --minify

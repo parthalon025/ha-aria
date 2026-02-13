@@ -1,252 +1,124 @@
-# HA Intelligence Hub
+# ARIA — Adaptive Residence Intelligence Architecture
 
-> **Adaptive intelligence layer for Home Assistant — Phase 2**
->
-> Dynamic capability discovery + ML predictions + pattern recognition + automation generation
+[![CI](https://github.com/parthalon025/ha-aria/actions/workflows/ci.yml/badge.svg)](https://github.com/parthalon025/ha-aria/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://pypi.org/project/ha-aria/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Overview
+> ML-powered intelligence for Home Assistant. Learns your home's patterns, predicts what's coming, and spots anomalies — all running locally.
 
-The HA Intelligence Hub is a modular, hub-and-spoke architecture that extends Home Assistant with adaptive intelligence. It discovers capabilities dynamically, trains ML models for predictions, recognizes behavioral patterns using LLMs, and generates automation proposals.
+## Features
 
-### Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Intelligence Hub                        │
-│  ┌─────────────┐  ┌──────────┐  ┌──────────────────────┐  │
-│  │   Cache     │  │   API    │  │  Event Broadcasting  │  │
-│  │  (SQLite)   │  │ (FastAPI)│  │     (WebSocket)      │  │
-│  └─────────────┘  └──────────┘  └──────────────────────┘  │
-│                          │                                  │
-│  ┌───────────────────────┴──────────────────────────────┐  │
-│  │                    Modules                           │  │
-│  │  ┌──────────────┐  ┌──────────┐  ┌────────────────┐ │  │
-│  │  │  Discovery   │  │   ML     │  │   Patterns     │ │  │
-│  │  └──────────────┘  │  Engine  │  └────────────────┘ │  │
-│  │  ┌──────────────┐  └──────────┘  ┌────────────────┐ │  │
-│  │  │ Orchestrator │                │   Dashboard    │ │  │
-│  │  └──────────────┘                └────────────────┘ │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                ┌─────────┴─────────┐
-                │  Home Assistant   │
-                │  (via REST + WS)  │
-                └───────────────────┘
-```
-
-### Modules
-
-1. **Discovery** - Scans HA for entities, devices, capabilities (runs every 24h)
-2. **ML Engine** - Trains models for state prediction using scikit-learn (weekly retraining)
-3. **Pattern Recognition** - Detects behavioral patterns via LLM (Ollama qwen2.5:7b)
-4. **Orchestrator** - Generates and manages automation proposals
-5. **Dashboard** - Web UI for viewing predictions, patterns, and approving automations
+- **15 entity collectors** — power, climate, occupancy, locks, motion, EV, media, and more
+- **ML prediction engine** — GradientBoosting, RandomForest, IsolationForest, Prophet
+- **Anomaly detection** — statistical baselines, Markov chain sequence analysis, concept drift
+- **Real-time monitoring** — WebSocket activity tracking with 15-minute windowed analysis
+- **Shadow mode** — predict-compare-score loop that validates ML accuracy before automating
+- **LLM insights** — Ollama-powered daily reports, meta-learning, automation suggestions
+- **Interactive dashboard** — Preact + Tailwind SPA with live WebSocket updates
+- **Entity correlation** — discover which devices activate together and when
+- **Bayesian occupancy** — multi-sensor room occupancy estimation
+- **Power profiling** — per-outlet consumption analysis and cycle detection
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.12+
-- Home Assistant instance (accessible via network)
-- Environment variables: `HA_URL`, `HA_TOKEN` (in `~/.env`)
-
-### Installation
+### Install
 
 ```bash
-# Clone repo
-cd ~/Documents/projects/ha-intelligence-hub-phase2
-
-# Create virtualenv
-python3 -m venv venv
-. venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
+pip install ha-aria
 ```
 
-### Run Hub
+Or install from source:
 
 ```bash
-# Source environment
-. ~/.env
-
-# Start hub (default: http://localhost:8000)
-./venv/bin/python bin/ha-hub.py
-
-# Or specify port and log level
-./venv/bin/python bin/ha-hub.py --port 8001 --log-level DEBUG
+git clone https://github.com/parthalon025/ha-aria.git
+cd ha-aria
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[all]"
 ```
 
-### Access Dashboard
+### Configure
 
-Navigate to: `http://localhost:8000/ui`
-
-Dashboard pages:
-- `/ui` - Home (system health, recent events)
-- `/ui/discovery` - Discovered capabilities and entities
-- `/ui/capabilities` - Capability details and statistics
-- `/ui/predictions` - ML predictions and confidence scores
-- `/ui/patterns` - Detected behavioral patterns
-- `/ui/automations` - Automation proposals (approve/reject)
-- `/ui/insights` - Cross-module insights and correlations
-
-## API Reference
-
-### Health Check
+Set your Home Assistant connection:
 
 ```bash
-curl http://localhost:8000/health
+export ARIA_HA_URL="http://your-ha-instance:8123"
+export ARIA_HA_TOKEN="your-long-lived-access-token"
 ```
 
-Returns:
-```json
-{
-  "hub": {
-    "running": true,
-    "modules_count": 5,
-    "tasks_count": 2
-  },
-  "modules": {
-    "discovery": { "registered": true },
-    "ml_engine": { "registered": true },
-    "patterns": { "registered": true },
-    "orchestrator": { "registered": true }
-  },
-  "cache": {
-    "categories": ["capabilities", "entities", "ml_predictions", "patterns"]
-  },
-  "timestamp": "2026-02-11T..."
-}
-```
-
-### Cache API
+### Run
 
 ```bash
-# Get capabilities
-curl http://localhost:8000/api/cache/capabilities
+# Collect a snapshot of your home's current state
+aria snapshot
 
-# Get ML predictions
-curl http://localhost:8000/api/cache/ml_predictions
+# Run the full daily pipeline (snapshot -> predict -> report)
+aria full
 
-# Get detected patterns
-curl http://localhost:8000/api/cache/detected_patterns
-
-# Get automation proposals
-curl http://localhost:8000/api/cache/automation_proposals
+# Start the real-time dashboard
+aria serve
+# Open http://localhost:8001 in your browser
 ```
 
-### WebSocket Events
-
-Connect to `ws://localhost:8000/ws` to receive real-time updates:
-
-```javascript
-const ws = new WebSocket('ws://localhost:8000/ws');
-
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  if (data.type === 'cache_updated') {
-    console.log('Cache updated:', data.data);
-  }
-};
-```
-
-## Configuration
-
-### Cache Location
-
-Default: `~/ha-logs/intelligence/cache/hub.db`
-
-Override with `--cache-dir`:
-```bash
-./venv/bin/python bin/ha-hub.py --cache-dir /custom/path
-```
-
-### Module Schedules
-
-- **Discovery**: Every 24 hours (configurable in `bin/ha-hub.py`)
-- **ML Training**: Every 7 days (configurable in `bin/ha-hub.py`)
-- **Pattern Detection**: On-demand via dashboard or API
-
-### Environment Variables
-
-Required in `~/.env`:
-```bash
-HA_URL=http://192.168.1.35:8123
-HA_TOKEN=your_long_lived_access_token
-```
-
-## Development
-
-### Run Tests
-
-```bash
-# All tests
-./venv/bin/pytest tests/ -v
-
-# Integration tests only
-./venv/bin/pytest tests/test_integration.py -v
-
-# Specific test
-./venv/bin/pytest tests/test_discover.py::test_capability_detection -v
-```
-
-### Project Structure
+## Architecture
 
 ```
-ha-intelligence-hub-phase2/
-├── bin/
-│   ├── discover.py         # Standalone discovery script
-│   └── ha-hub.py          # Main hub entry point
-├── hub/
-│   ├── core.py            # Hub orchestration
-│   ├── cache.py           # SQLite cache manager
-│   └── api.py             # FastAPI routes
-├── modules/
-│   ├── discovery.py       # Discovery module
-│   ├── ml_engine.py       # ML training/prediction
-│   ├── patterns.py        # Pattern recognition
-│   └── orchestrator.py    # Automation management
-├── dashboard/
-│   ├── routes.py          # Dashboard HTTP routes
-│   ├── templates/         # Jinja2 templates
-│   └── static/            # CSS/JS assets
-├── tests/
-│   ├── test_integration.py  # Integration tests (14 tests)
-│   ├── test_discover.py     # Discovery tests
-│   ├── test_ml_training.py  # ML engine tests
-│   └── test_patterns.py     # Pattern recognition tests
-├── requirements.txt
-└── README.md
+                    Home Assistant
+               (REST API + WebSocket)
+              /                       \
+     +---------+                +---------+
+     |  Engine  |               |   Hub   |
+     | (batch)  |               | (live)  |
+     |          |               |         |
+     | Collect  |               | Discover|
+     | Analyze  |               | Monitor |
+     | Train    |               | Shadow  |
+     | Predict  |               | Pattern |
+     | LLM      |               | ML      |
+     +----+-----+               +----+----+
+          |                          |
+          +----------+---------------+
+                     |
+              +------+------+
+              |  Dashboard  |
+              | (Preact SPA)|
+              +-------------+
 ```
 
-## Deployment
+- **Engine** runs as batch jobs via cron — collects data, trains models, generates predictions
+- **Hub** runs as a service — monitors real-time activity, serves dashboard, validates predictions
+- **Dashboard** shows live intelligence, predictions vs actuals, shadow mode accuracy, and more
 
-See [docs/deployment.md](docs/deployment.md) for production deployment with systemd and Tailscale Serve.
+## CLI Reference
 
-## User Guide
+| Command | Description |
+|---------|-------------|
+| `aria snapshot` | Collect current HA state |
+| `aria predict` | Generate predictions from latest snapshot |
+| `aria full` | Full daily pipeline (snapshot + predict + report) |
+| `aria score` | Score yesterday's predictions |
+| `aria retrain` | Retrain ML models |
+| `aria serve` | Start real-time hub + dashboard |
+| `aria correlations` | Entity co-occurrence analysis |
+| `aria sequences train` | Train Markov chain model |
+| `aria sequences detect` | Detect anomalous sequences |
+| `aria suggest-automations` | LLM-generated automation YAML |
+| `aria meta-learn` | LLM meta-learning |
+| `aria check-drift` | Concept drift detection |
+| `aria prophet` | Train Prophet seasonal forecasters |
+| `aria occupancy` | Bayesian occupancy estimation |
+| `aria power-profiles` | Power consumption profiling |
 
-See [docs/user-guide.md](docs/user-guide.md) for:
-- How to interpret predictions
-- How to approve automations
-- Understanding pattern analysis
-- Troubleshooting
+## Requirements
 
-## Roadmap
+- Python >= 3.12
+- Home Assistant instance with a long-lived access token
+- Optional: [Ollama](https://ollama.ai/) for LLM features (reports, meta-learning, automation suggestions)
 
-**Phase 2 (Current)**: Hub-and-spoke architecture with 5 modules ✅
-**Phase 3 (Next)**: Advanced features
-- Meta-learning (confidence calibration)
-- Multi-model blending
-- Anomaly detection improvements
-- Voice interface integration
+## Contributing
 
-See `~/Documents/docs/plans/2026-02-11-ha-hub-lean-roadmap.md` for full roadmap.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-Personal project - no formal license.
-
-## Author
-
-Justin McFarland (https://github.com/your-username)
+[MIT](LICENSE) — Justin McFarland, 2026
