@@ -36,7 +36,7 @@ class IntelligenceModule(Module):
     def __init__(self, hub: IntelligenceHub, intelligence_dir: str):
         super().__init__("intelligence", hub)
         self.intel_dir = Path(intelligence_dir)
-        self.log_path = Path.home() / ".local" / "log" / "ha-intelligence.log"
+        self.log_path = Path.home() / ".local" / "log" / "aria.log"
         self._last_digest_date: Optional[str] = None
         self._telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
         self._telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID")

@@ -1,4 +1,4 @@
-"""Shared test fixtures for ha-intelligence test suite."""
+"""Shared test fixtures for ARIA engine test suite."""
 
 
 import pytest

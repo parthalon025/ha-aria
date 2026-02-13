@@ -333,7 +333,7 @@ class TestMLEngine:
         assert isinstance(weights, np.ndarray)
 
     def test_model_hyperparameters(self, ml_engine, mock_hub, mock_capabilities, synthetic_snapshots):
-        """Verify model hyperparameters match ha-intelligence."""
+        """Verify model hyperparameters match ARIA engine defaults."""
         # This test verifies the code, not runtime (runtime test needs real sklearn)
         # Check the code uses correct hyperparameters by inspection
 

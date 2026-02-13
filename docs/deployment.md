@@ -1,6 +1,8 @@
-# Deployment Guide
+# Deployment Guide (Pre-ARIA)
 
-Production deployment guide for HA Intelligence Hub using systemd and optional Tailscale Serve for remote access.
+> **SUPERSEDED 2026-02-13.** The hub is now deployed as `aria-hub.service` via `systemd/install.sh`. See `CLAUDE.md` for current deployment instructions.
+
+Original deployment guide for HA Intelligence Hub using systemd and optional Tailscale Serve for remote access.
 
 ## Prerequisites
 

@@ -161,7 +161,7 @@ class TestDispatch(unittest.TestCase):
     def test_dispatch_train_sequences(self, mock_cmd):
         """--train-sequences dispatches to cmd_train_sequences."""
         from aria.engine.cli import main
-        with patch("sys.argv", ["ha-intelligence", "--train-sequences"]):
+        with patch("sys.argv", ["aria", "--train-sequences"]):
             main()
         mock_cmd.assert_called_once()
 
@@ -169,7 +169,7 @@ class TestDispatch(unittest.TestCase):
     def test_dispatch_sequence_anomalies(self, mock_cmd):
         """--sequence-anomalies dispatches to cmd_sequence_anomalies."""
         from aria.engine.cli import main
-        with patch("sys.argv", ["ha-intelligence", "--sequence-anomalies"]):
+        with patch("sys.argv", ["aria", "--sequence-anomalies"]):
             main()
         mock_cmd.assert_called_once()
 

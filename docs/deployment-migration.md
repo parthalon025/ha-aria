@@ -1,5 +1,7 @@
 # Deployment Migration Guide: ha-intelligence + ha-intelligence-hub → ARIA
 
+> **COMPLETED 2026-02-13.** Migration fully executed. Old services removed, ARIA services active. This document is retained as a historical record of the migration process.
+
 Migration guide for systemd services and timers from the old two-repo setup to the unified ARIA CLI.
 
 ## Current Service/Timer Inventory

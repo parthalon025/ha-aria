@@ -1,6 +1,6 @@
 # User Guide
 
-Complete guide to using the HA Intelligence Hub dashboard and understanding its outputs.
+Complete guide to using the ARIA dashboard and understanding its outputs.
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@ Complete guide to using the HA Intelligence Hub dashboard and understanding its 
 
 1. Start the hub (if not already running):
    ```bash
-   systemctl --user start ha-intelligence-hub.service
+   systemctl --user start aria-hub.service
    ```
 
 2. Open your browser and navigate to:
@@ -318,7 +318,7 @@ Once approved:
 
 **Check hub is running:**
 ```bash
-systemctl --user status ha-intelligence-hub.service
+systemctl --user status aria-hub.service
 ```
 
 **Test health endpoint:**
@@ -328,7 +328,7 @@ curl http://localhost:8000/health
 
 **Check logs:**
 ```bash
-journalctl --user -u ha-intelligence-hub.service -n 50
+journalctl --user -u aria-hub.service -n 50
 ```
 
 ### No Predictions Showing
@@ -359,7 +359,7 @@ journalctl --user -u ha-intelligence-hub.service -n 50
 
 **Check logs:**
 ```bash
-journalctl --user -u ha-intelligence-hub.service | grep -i "automation"
+journalctl --user -u aria-hub.service | grep -i "automation"
 ```
 
 **Common issues:**
@@ -375,7 +375,7 @@ journalctl --user -u ha-intelligence-hub.service | grep -i "automation"
 
 **SQLite database locked:**
 ```bash
-systemctl --user restart ha-intelligence-hub.service
+systemctl --user restart aria-hub.service
 ```
 
 **Corrupted cache:**
@@ -387,14 +387,14 @@ cp ~/ha-logs/intelligence/cache/hub.db ~/ha-logs/intelligence/cache/hub.db.backu
 rm ~/ha-logs/intelligence/cache/hub.db
 
 # Restart hub (will recreate cache)
-systemctl --user restart ha-intelligence-hub.service
+systemctl --user restart aria-hub.service
 ```
 
 ### High Memory Usage
 
 **Check memory:**
 ```bash
-systemctl --user status ha-intelligence-hub.service | grep Memory
+systemctl --user status aria-hub.service | grep Memory
 ```
 
 **Reduce memory:**
