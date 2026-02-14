@@ -298,6 +298,100 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             logger.exception("Error getting module '%s'", module_id)
             raise HTTPException(status_code=500, detail="Internal server error")
 
+    # ML endpoints
+    @router.get("/api/ml/drift")
+    async def get_ml_drift():
+        """Get drift detection status per metric."""
+        try:
+            intel = await hub.cache.get("intelligence")
+            if not intel:
+                return {"metrics": {}, "needs_retrain": False, "method": "none", "days_analyzed": 0}
+            drift = intel.get("drift_status", {})
+            return {
+                "needs_retrain": drift.get("needs_retrain", False),
+                "reason": drift.get("reason", "no data"),
+                "drifted_metrics": drift.get("drifted_metrics", []),
+                "rolling_mae": drift.get("rolling_mae", {}),
+                "current_mae": drift.get("current_mae", {}),
+                "threshold": drift.get("threshold", {}),
+                "page_hinkley": drift.get("page_hinkley", {}),
+                "adwin": drift.get("adwin", {}),
+                "days_analyzed": drift.get("days_analyzed", 0),
+            }
+        except Exception:
+            logger.exception("Error getting ML drift status")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    @router.get("/api/ml/features")
+    async def get_ml_features():
+        """Get mRMR feature selection results."""
+        try:
+            intel = await hub.cache.get("intelligence")
+            if not intel:
+                return {"selected": [], "total": 0, "method": "none"}
+            features = intel.get("feature_selection", {})
+            return {
+                "selected": features.get("selected_features", []),
+                "total": features.get("total_features", 0),
+                "method": features.get("method", "mrmr"),
+                "max_features": features.get("max_features", 30),
+                "last_computed": features.get("last_computed"),
+            }
+        except Exception:
+            logger.exception("Error getting ML features")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    @router.get("/api/ml/models")
+    async def get_ml_models():
+        """Get model health: reference comparison, incremental status, forecaster."""
+        try:
+            intel = await hub.cache.get("intelligence")
+            if not intel:
+                return {"reference": None, "incremental": None, "forecaster": None, "ml_models": None}
+            return {
+                "reference": intel.get("reference_model", None),
+                "incremental": intel.get("incremental_training", None),
+                "forecaster": intel.get("forecaster_backend", None),
+                "ml_models": intel.get("ml_models", None),
+            }
+        except Exception:
+            logger.exception("Error getting ML models")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    @router.get("/api/ml/anomalies")
+    async def get_ml_anomalies():
+        """Get recent anomaly detection results."""
+        try:
+            intel = await hub.cache.get("intelligence")
+            if not intel:
+                return {"anomalies": [], "autoencoder": {"enabled": False}, "isolation_forest": {}}
+            return {
+                "anomalies": intel.get("anomaly_alerts", []),
+                "autoencoder": intel.get("autoencoder_status", {"enabled": False}),
+                "isolation_forest": intel.get("isolation_forest_status", {}),
+            }
+        except Exception:
+            logger.exception("Error getting ML anomalies")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    @router.get("/api/ml/shap")
+    async def get_ml_shap():
+        """Get SHAP feature attributions for latest predictions."""
+        try:
+            intel = await hub.cache.get("intelligence")
+            if not intel:
+                return {"attributions": [], "available": False}
+            shap_data = intel.get("shap_attributions", {})
+            return {
+                "available": bool(shap_data),
+                "attributions": shap_data.get("attributions", []),
+                "model_type": shap_data.get("model_type"),
+                "computed_at": shap_data.get("computed_at"),
+            }
+        except Exception:
+            logger.exception("Error getting SHAP attributions")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
     # Shadow engine endpoints
     @router.get("/api/shadow/predictions")
     async def get_shadow_predictions(
@@ -350,6 +444,29 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"disagreements": sorted_preds, "count": len(sorted_preds)}
         except Exception:
             logger.exception("Error getting shadow disagreements")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    @router.get("/api/shadow/propagation")
+    async def get_shadow_propagation():
+        """Get correction propagation stats from shadow engine."""
+        try:
+            shadow_mod = hub.modules.get("shadow_engine")
+            if not shadow_mod or not hasattr(shadow_mod, "propagator"):
+                return {"enabled": False, "stats": {}}
+            prop = shadow_mod.propagator
+            if prop is None:
+                return {"enabled": False, "stats": {}}
+            return {
+                "enabled": True,
+                "stats": {
+                    "replay_buffer_size": len(prop._replay_buffer) if hasattr(prop, "_replay_buffer") else 0,
+                    "replay_buffer_capacity": prop.buffer_size if hasattr(prop, "buffer_size") else 0,
+                    "cell_observations": len(prop._cell_observations) if hasattr(prop, "_cell_observations") else 0,
+                    "bandwidth": getattr(prop, "bandwidth", 1.0),
+                },
+            }
+        except Exception:
+            logger.exception("Error getting shadow propagation stats")
             raise HTTPException(status_code=500, detail="Internal server error")
 
     @router.get("/api/pipeline")
