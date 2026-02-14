@@ -1,7 +1,7 @@
 import { Section, Callout } from './utils.jsx';
 import TimeChart from '../../components/TimeChart.jsx';
 
-function toUPlotData(records, timeKey, metrics) {
+function toUPlotData(records, timeKey, metric) {
   const timestamps = records.map(r => {
     if (timeKey === 'date') {
       return Math.floor(new Date(r.date).getTime() / 1000);
@@ -10,8 +10,21 @@ function toUPlotData(records, timeKey, metrics) {
       return Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate(), r.hour).getTime() / 1000);
     }
   });
-  const series = metrics.map(m => records.map(r => r[m] ?? null));
-  return [timestamps, ...series];
+  const values = records.map(r => r[metric] ?? null);
+  return [timestamps, values];
+}
+
+function MetricChart({ label, data, color, height = 80 }) {
+  return (
+    <div>
+      <div class="text-xs font-bold uppercase" style={{ color: 'var(--text-tertiary)' }}>{label}</div>
+      <TimeChart
+        data={data}
+        series={[{ label, color }]}
+        height={height}
+      />
+    </div>
+  );
 }
 
 export function TrendsOverTime({ trendData, intradayTrend }) {
@@ -46,41 +59,50 @@ export function TrendsOverTime({ trendData, intradayTrend }) {
     if (changes.length > 0) trendNote = changes.join('. ') + '.';
   }
 
-  const dailySeries = [
-    { label: 'Power (W)', color: 'var(--accent)' },
-    { label: 'Lights On', color: 'var(--accent-warm)' },
-    { label: 'Unavailable', color: 'var(--status-error)' },
-  ];
-
-  const intradaySeries = [
-    { label: 'Power (W)', color: 'var(--accent-dim)' },
-    { label: 'Unavailable', color: 'var(--status-error)' },
-  ];
-
   return (
     <Section
       title="Trends Over Time"
       subtitle="Spot when something changed — a new device, a routine shift, or a problem building."
     >
       {trendNote && <Callout>{trendNote}</Callout>}
+      <p class="text-xs" style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+        Each chart tracks one measurement over time. Power is your home's total electricity usage.
+        Lights is how many are on. Unavailable means devices that stopped reporting — a spike
+        usually means a network issue.
+      </p>
       <div class="t-frame" data-label="trends">
         {hasTrend && (
-          <div class="space-y-3">
-            <div class="text-xs font-bold uppercase" style="color: var(--text-tertiary)">Daily (30d)</div>
-            <TimeChart
-              data={toUPlotData(trendData, 'date', ['power_watts', 'lights_on', 'unavailable'])}
-              series={dailySeries}
-              height={140}
+          <div class="space-y-2">
+            <div class="text-xs font-bold uppercase" style={{ color: 'var(--text-tertiary)' }}>Daily (30d)</div>
+            <MetricChart
+              label="Power (W)"
+              data={toUPlotData(trendData, 'date', 'power_watts')}
+              color="var(--accent)"
+            />
+            <MetricChart
+              label="Lights On"
+              data={toUPlotData(trendData, 'date', 'lights_on')}
+              color="var(--accent-warm)"
+            />
+            <MetricChart
+              label="Unavailable"
+              data={toUPlotData(trendData, 'date', 'unavailable')}
+              color="var(--status-error)"
             />
           </div>
         )}
         {hasIntraday && (
-          <div class="space-y-3">
-            <div class="text-xs font-bold uppercase" style="color: var(--text-tertiary)">Today (Intraday)</div>
-            <TimeChart
-              data={toUPlotData(intradayTrend, 'hour', ['power_watts', 'unavailable'])}
-              series={intradaySeries}
-              height={100}
+          <div class="space-y-2">
+            <div class="text-xs font-bold uppercase" style={{ color: 'var(--text-tertiary)' }}>Today (Intraday)</div>
+            <MetricChart
+              label="Power (W)"
+              data={toUPlotData(intradayTrend, 'hour', 'power_watts')}
+              color="var(--accent-dim)"
+            />
+            <MetricChart
+              label="Unavailable"
+              data={toUPlotData(intradayTrend, 'hour', 'unavailable')}
+              color="var(--status-error)"
             />
           </div>
         )}
