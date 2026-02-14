@@ -54,6 +54,9 @@ def main():
     status_parser = subparsers.add_parser("status", help="Show ARIA hub status")
     status_parser.add_argument("--json", action="store_true", dest="json_output", help="Output as JSON")
 
+    # Organic discovery
+    subparsers.add_parser("discover-organic", help="Run organic capability discovery pipeline")
+
     # Log sync
     subparsers.add_parser("sync-logs", help="Sync HA logbook to local JSON")
 
@@ -118,6 +121,9 @@ def _dispatch(args):
 
     elif args.command == "status":
         _status(json_output=args.json_output)
+
+    elif args.command == "discover-organic":
+        _discover_organic()
 
     elif args.command == "sync-logs":
         _sync_logs()
@@ -431,6 +437,45 @@ def _status(json_output: bool = False):
     print(f"  Cache categories: {result['cache_categories']}")
     print(f"  Last snapshot:    {result['last_snapshot'] or 'none'}")
     print(f"  Last training:    {result['last_training'] or 'none'}")
+
+
+def _discover_organic():
+    """Run the organic capability discovery pipeline (batch mode)."""
+    import asyncio
+    import logging
+    import os
+    from pathlib import Path
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    logger = logging.getLogger("aria.discover-organic")
+
+    async def run():
+        cache_dir = Path(os.path.expanduser("~/ha-logs/intelligence/cache"))
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = str(cache_dir / "hub.db")
+
+        from aria.hub.core import IntelligenceHub
+        from aria.modules.organic_discovery.module import OrganicDiscoveryModule
+
+        hub = IntelligenceHub(cache_path)
+        await hub.initialize()
+
+        try:
+            module = OrganicDiscoveryModule(hub)
+            hub.register_module(module)
+            await module.initialize()
+
+            result = await module.run_discovery()
+            logger.info(f"Organic discovery complete: {result}")
+        finally:
+            if hub.is_running():
+                await hub.shutdown()
+
+    asyncio.run(run())
 
 
 def _sync_logs():
