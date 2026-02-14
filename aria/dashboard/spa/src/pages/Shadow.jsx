@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import { fetchJson, baseUrl } from '../api.js';
 import { relativeTime } from './intelligence/utils.jsx';
+import HeroCard from '../components/HeroCard.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 
@@ -43,7 +44,7 @@ function PipelineStage({ pipeline, onAdvance, onRetreat, advanceError }) {
   return (
     <section class="space-y-3">
       <div class="t-section-header" style="padding-bottom: 6px;"><h2 class="text-lg font-bold" style="color: var(--text-primary)">Pipeline Stage</h2></div>
-      <div class="t-card" style="padding: 1rem;">
+      <div class="t-frame" data-label={`stage: ${stage}`} style="padding: 1rem;">
         <div class="space-y-4">
           <div>
             <div class="flex justify-between text-xs mb-1" style="color: var(--text-tertiary)">
@@ -118,9 +119,9 @@ function AccuracySummary({ accuracy, pipeline }) {
         <h2 class="text-lg font-bold" style="color: var(--text-primary)">Accuracy</h2>
         <span class="text-xs font-medium rounded-full px-2.5 py-0.5 capitalize" style="background: var(--accent-glow); color: var(--accent)">{stage}</span>
       </div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s, i) => (
-          <div key={i} class="t-card" style="padding: 1rem;">
+          <div key={i} class="t-frame" data-label={s.label.toLowerCase()} style="padding: 1rem;">
             <div class="text-2xl font-bold" style={s.colorStyle || 'color: var(--accent)'}>{s.value}</div>
             <div class="text-sm mt-1" style="color: var(--text-tertiary)">{s.label}</div>
           </div>
@@ -150,7 +151,7 @@ function DailyTrend({ trend }) {
   return (
     <section class="space-y-3">
       <h2 class="text-lg font-bold" style="color: var(--text-primary)">Daily Trend</h2>
-      <div class="t-card" style="padding: 1rem;">
+      <div class="t-frame" data-label="accuracy trend" style="padding: 1rem;">
         <div class="flex items-end gap-1 h-20">
           {trend.map((d, i) => {
             const acc = d.accuracy ?? 0;
@@ -193,7 +194,7 @@ function PredictionFeed({ predictions }) {
   return (
     <section class="space-y-3">
       <h2 class="text-lg font-bold" style="color: var(--text-primary)">Recent Predictions</h2>
-      <div class="t-card" style="padding: 0;">
+      <div class="t-frame" data-label="recent predictions" style="padding: 0;">
         {items.map((p, i) => {
           const typeStyle = TYPE_COLORS[p.prediction_type] || 'background: var(--bg-surface-raised); color: var(--text-secondary);';
           const typeLabel = TYPE_LABELS[p.prediction_type] || p.prediction_type;
@@ -246,7 +247,7 @@ function DisagreementsPanel({ disagreements }) {
           const conf = d.confidence ?? 0;
 
           return (
-            <div key={i} class="t-card p-3 space-y-1" style="border-left: 4px solid var(--status-warning);">
+            <div key={i} class="t-frame p-3 space-y-1" data-label="disagreement" style="border-left: 4px solid var(--status-warning);">
               <div class="flex items-center gap-2">
                 <span class="text-lg font-bold" style="color: var(--status-warning)">{Math.round(conf * 100)}%</span>
                 <span class="text-xs font-medium px-1.5 py-0.5" style={`border-radius: var(--radius); ${typeStyle}`}>{typeLabel}</span>
@@ -371,21 +372,23 @@ export default function Shadow() {
 
   return (
     <div class="space-y-8 animate-page-enter">
-      <div class="t-section-header animate-fade-in-up" style="padding-bottom: 8px;">
+      <div class="t-section-header" style="padding-bottom: 8px;">
         <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Shadow Mode</h1>
         <p class="text-sm" style="color: var(--text-tertiary)">Prediction accuracy, pipeline progress, and learning insights.</p>
       </div>
 
-      <div class="animate-fade-in-up delay-100">
-        <PipelineStage pipeline={pipeline} onAdvance={handleAdvance} onRetreat={handleRetreat} advanceError={advanceError} />
-      </div>
-      <div class="animate-fade-in-up delay-200">
-        <AccuracySummary accuracy={accuracy} pipeline={pipeline} />
-      </div>
-      <div class="animate-fade-in-up delay-300">
-        <DailyTrend trend={accuracy?.daily_trend} />
-      </div>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in-up delay-400">
+      {/* Hero — learning by watching */}
+      <HeroCard
+        value={Math.round(accuracy?.overall_accuracy ?? 0)}
+        label="shadow accuracy"
+        unit="%"
+        delta={`${pipeline?.current_stage || 'backtest'} stage \u2022 ${accuracy?.predictions_total ?? 0} predictions`}
+      />
+
+      <PipelineStage pipeline={pipeline} onAdvance={handleAdvance} onRetreat={handleRetreat} advanceError={advanceError} />
+      <AccuracySummary accuracy={accuracy} pipeline={pipeline} />
+      <DailyTrend trend={accuracy?.daily_trend} />
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <PredictionFeed predictions={predictions} />
         <DisagreementsPanel disagreements={disagreements} />
       </div>

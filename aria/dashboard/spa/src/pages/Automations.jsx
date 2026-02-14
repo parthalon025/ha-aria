@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
 import { baseUrl } from '../api.js';
+import HeroCard from '../components/HeroCard.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 
@@ -48,7 +49,7 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
       : '';
 
   return (
-    <div class="t-card" style={`padding: 1.25rem; ${borderStyle}`}>
+    <div class="t-frame" data-label={suggestion.name || suggestion.trigger || 'suggestion'} style={`padding: 1.25rem; ${borderStyle}`}>
       {/* Header */}
       <div class="flex items-center justify-between mb-2">
         <h3 class="text-base font-bold" style="color: var(--text-primary)">{suggestion.name || 'Unnamed automation'}</h3>
@@ -246,14 +247,21 @@ export default function Automations() {
 
   return (
     <div class="space-y-6 animate-page-enter">
-      <div class="t-section-header animate-fade-in-up" style="padding-bottom: 8px;">
+      <div class="t-section-header" style="padding-bottom: 8px;">
         <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Automations</h1>
         <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
       </div>
 
+      {/* Hero — what ARIA suggests */}
+      <HeroCard
+        value={displaySuggestions.length}
+        label="automation suggestions"
+        loading={loading}
+      />
+
       {/* Metadata summary */}
       {metadata && (
-        <div class="flex flex-wrap gap-3 text-sm animate-fade-in-up delay-100" style="color: var(--text-tertiary)">
+        <div class="flex flex-wrap gap-3 text-sm" style="color: var(--text-tertiary)">
           {metadata.total_suggestions != null && (
             <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">{metadata.total_suggestions} suggestions</span>
           )}
@@ -274,7 +282,7 @@ export default function Automations() {
       )}
 
       {displaySuggestions.length === 0 ? (
-        <div class="t-callout animate-fade-in-up delay-200" style="padding: 0.75rem;">
+        <div class="t-callout" style="padding: 0.75rem;">
           <span class="text-sm" style="color: var(--text-secondary)">No automation suggestions yet. The orchestrator generates suggestions when it finds patterns with high enough confidence and matching capabilities. This requires the pattern recognition and discovery modules to have populated data first.</span>
         </div>
       ) : (

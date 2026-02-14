@@ -1,10 +1,11 @@
 import { useState } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
+import HeroCard from '../components/HeroCard.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 
-/** Humanize a snake_case name: "power_monitoring" → "Power monitoring" */
+/** Humanize a snake_case name: "power_monitoring" -> "Power monitoring" */
 function humanize(name) {
   const spaced = (name || '').replace(/_/g, ' ');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
@@ -31,7 +32,7 @@ function CapabilityCard({ name, capability }) {
   const hasMore = entities.length > 5;
 
   return (
-    <div class="t-card" style="padding: 1rem;">
+    <div class="t-frame" data-label={humanize(name)} style="padding: 1rem;">
       {/* Header */}
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-base font-bold" style="color: var(--text-primary)">{humanize(name)}</h3>
@@ -84,6 +85,11 @@ export default function Capabilities() {
     return Object.entries(inner).map(([name, cap]) => ({ name, ...cap }));
   }, [data]);
 
+  // Total entity count across all capabilities
+  const totalEntities = useComputed(() => {
+    return capabilities.reduce((sum, cap) => sum + (cap.entity_count || (cap.entities || []).length), 0);
+  }, [capabilities]);
+
   const pageSubtitle = "What your home can do — detected automatically from your entities. Each card represents a capability with its supporting entities.";
 
   if (loading && !data) {
@@ -112,13 +118,21 @@ export default function Capabilities() {
 
   return (
     <div class="space-y-6 animate-page-enter">
-      <div class="t-section-header animate-fade-in-up" style="padding-bottom: 8px;">
+      <div class="t-section-header" style="padding-bottom: 8px;">
         <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Capabilities</h1>
         <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
       </div>
 
+      {/* Hero — what ARIA can measure */}
+      <HeroCard
+        value={capabilities.length}
+        label="capabilities"
+        delta={`across ${totalEntities} entities`}
+        loading={loading}
+      />
+
       {capabilities.length === 0 ? (
-        <div class="t-callout animate-fade-in-up delay-100" style="padding: 0.75rem;">
+        <div class="t-callout" style="padding: 0.75rem;">
           <span class="text-sm" style="color: var(--text-secondary)">No capabilities detected yet. Capabilities are identified during discovery by matching entity domains and device classes to known patterns (e.g., power monitoring, lighting, occupancy). They appear after the first successful discovery scan.</span>
         </div>
       ) : (

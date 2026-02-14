@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
+import HeroCard from '../components/HeroCard.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 
@@ -23,7 +24,7 @@ function PatternCard({ pattern }) {
   const entities = pattern.entities || [];
 
   return (
-    <div class="t-card" style="padding: 1.25rem;">
+    <div class="t-frame" data-label={pattern.name || 'pattern'} style="padding: 1.25rem;">
       {/* Header */}
       <div class="flex items-center justify-between mb-2">
         <h3 class="text-base font-bold" style="color: var(--text-primary)">{pattern.name || 'Unnamed pattern'}</h3>
@@ -143,14 +144,21 @@ export default function Patterns() {
 
   return (
     <div class="space-y-6 animate-page-enter">
-      <div class="t-section-header animate-fade-in-up" style="padding-bottom: 8px;">
+      <div class="t-section-header" style="padding-bottom: 8px;">
         <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Patterns</h1>
         <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
       </div>
 
+      {/* Hero — what ARIA notices */}
+      <HeroCard
+        value={patterns.length}
+        label="patterns detected"
+        loading={loading}
+      />
+
       {/* Metadata summary */}
       {metadata && (
-        <div class="flex flex-wrap gap-3 text-sm animate-fade-in-up delay-100" style="color: var(--text-tertiary)">
+        <div class="flex flex-wrap gap-3 text-sm" style="color: var(--text-tertiary)">
           {metadata.time_range && (
             <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">Range: {metadata.time_range}</span>
           )}
@@ -166,7 +174,7 @@ export default function Patterns() {
       )}
 
       {patterns.length === 0 ? (
-        <div class="t-callout animate-fade-in-up delay-200" style="padding: 0.75rem;">
+        <div class="t-callout" style="padding: 0.75rem;">
           <span class="text-sm" style="color: var(--text-secondary)">No patterns detected yet. The pattern recognition module analyzes HA logbook sequences to find temporal, correlation, and sequence patterns. It needs several days of logbook data with meaningful device events to identify reliable patterns.</span>
         </div>
       ) : (

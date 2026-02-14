@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
+import HeroCard from '../components/HeroCard.jsx';
 import StatsGrid from '../components/StatsGrid.jsx';
 import DataTable from '../components/DataTable.jsx';
 import DomainChart from '../components/DomainChart.jsx';
@@ -286,37 +287,47 @@ export default function Discovery() {
     );
   }
 
+  const areaCount = Object.keys(areasDict).length;
+
   return (
     <div class="space-y-6 animate-page-enter">
-      <div class="t-section-header animate-fade-in-up" style="padding-bottom: 8px;">
+      <div class="t-section-header" style="padding-bottom: 8px;">
         <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Discovery</h1>
         <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
       </div>
+
+      {/* Hero — what ARIA sees */}
+      <HeroCard
+        value={entityArray.length.toLocaleString()}
+        label="entities discovered"
+        delta={`across ${areaCount} area${areaCount !== 1 ? 's' : ''}`}
+        loading={cacheLoading}
+      />
 
       {/* Stats */}
       {stats ? <StatsGrid items={stats} /> : <LoadingState type="stats" />}
 
       {/* Domain Breakdown */}
-      <section class="animate-fade-in-up delay-100">
+      <section>
         <div class="t-section-header mb-4" style="padding-bottom: 6px;">
           <h2 class="text-lg font-semibold" style="color: var(--text-primary)">Domain Breakdown</h2>
           <p class="text-sm" style="color: var(--text-tertiary)">How your entities are distributed across HA domains. Larger bars = more entities in that domain.</p>
         </div>
-        <div class="t-card p-4">
+        <div class="t-frame" data-label="domains" style="padding: 1rem;">
           <DomainChart data={domainBreakdown} total={entityArray.length} />
         </div>
       </section>
 
       {/* Area Grid */}
       {areaCounts.length > 0 && (
-        <section class="animate-fade-in-up delay-200">
+        <section>
           <div class="t-section-header mb-4" style="padding-bottom: 6px;">
             <h2 class="text-lg font-semibold" style="color: var(--text-primary)">Areas</h2>
             <p class="text-sm" style="color: var(--text-tertiary)">Physical locations defined in Home Assistant, with entity counts per area.</p>
           </div>
-          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {areaCounts.map((a) => (
-              <div key={a.area_id} class="t-card p-4">
+              <div key={a.area_id} class="t-frame" data-label={a.name} style="padding: 1rem;">
                 <div class="font-semibold text-sm truncate" style="color: var(--text-primary)" title={a.name}>{a.name}</div>
                 <div class="text-sm mt-1" style="color: var(--text-tertiary)">{a.count} entities</div>
               </div>
@@ -326,7 +337,7 @@ export default function Discovery() {
       )}
 
       {/* Entity Table */}
-      <section class="animate-fade-in-up delay-300">
+      <section>
         <div class="t-section-header mb-4" style="padding-bottom: 6px;">
           <h2 class="text-lg font-semibold" style="color: var(--text-primary)">Entities</h2>
           <p class="text-sm" style="color: var(--text-tertiary)">Every entity registered in HA — sensors, switches, lights, and more. Filter by domain, state, or area.</p>
@@ -342,7 +353,7 @@ export default function Discovery() {
       </section>
 
       {/* Device Table */}
-      <section class="animate-fade-in-up delay-400">
+      <section>
         <div class="t-section-header mb-4" style="padding-bottom: 6px;">
           <h2 class="text-lg font-semibold" style="color: var(--text-primary)">Devices</h2>
           <p class="text-sm" style="color: var(--text-tertiary)">Physical devices registered in HA. Each device groups multiple entities (e.g., a thermostat has temperature, humidity, and mode entities).</p>

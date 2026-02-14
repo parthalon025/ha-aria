@@ -87,7 +87,7 @@ const CONCEPTS = [
 
 function HeroSection() {
   return (
-    <div class="relative overflow-hidden px-6 py-8 mb-6" style="background: var(--bg-surface); border-radius: var(--radius);">
+    <div class="relative overflow-hidden px-6 py-8 mb-6 t-terminal-bg" style="background: var(--bg-surface); border-radius: var(--radius);">
       <div class="absolute inset-0 pointer-events-none" style="opacity: 0.04">
         <div class="t1-scan-line" style="width: 100%; height: 2px; background: var(--accent);" />
       </div>
@@ -112,7 +112,7 @@ function HeroSection() {
 function PrivacyNote() {
   return (
     <div
-      class="px-4 py-3 mb-6 animate-fade-in-up delay-400"
+      class="px-4 py-3 mb-6"
       style="background: var(--bg-surface-raised); border-left: 3px solid var(--accent); border-radius: var(--radius);"
     >
       <p class="text-sm" style="color: var(--text-secondary);">
@@ -127,7 +127,7 @@ function JourneyTimeline() {
   return (
     <div class="mb-6 overflow-hidden" style="background: var(--bg-surface-raised); border-radius: var(--radius);">
       <div class="px-5 pt-4 pb-2">
-        <h2 class="text-sm font-bold uppercase tracking-wider animate-fade-in-up" style="color: var(--accent); letter-spacing: 0.06em;">
+        <h2 class="text-sm font-bold uppercase tracking-wider" style="color: var(--accent); letter-spacing: 0.06em;">
           How ARIA Learns
         </h2>
       </div>
@@ -165,7 +165,7 @@ function KeyConcepts() {
   return (
     <div class="mb-6 overflow-hidden" style="background: var(--bg-surface-raised); border-radius: var(--radius);">
       <div class="px-5 pt-4 pb-2">
-        <h2 class="text-sm font-bold uppercase tracking-wider animate-fade-in-up" style="color: var(--accent); letter-spacing: 0.06em;">
+        <h2 class="text-sm font-bold uppercase tracking-wider" style="color: var(--accent); letter-spacing: 0.06em;">
           Key Concepts
         </h2>
       </div>
@@ -186,7 +186,7 @@ function PageGuide() {
   return (
     <div class="mb-6 overflow-hidden" style="background: var(--bg-surface-raised); border-radius: var(--radius);">
       <div class="px-5 pt-4 pb-2">
-        <h2 class="text-sm font-bold uppercase tracking-wider animate-fade-in-up" style="color: var(--accent); letter-spacing: 0.06em;">
+        <h2 class="text-sm font-bold uppercase tracking-wider" style="color: var(--accent); letter-spacing: 0.06em;">
           Pages
         </h2>
       </div>
@@ -214,7 +214,7 @@ function FaqSection() {
   return (
     <div class="mb-6 overflow-hidden" style="background: var(--bg-surface-raised); border-radius: var(--radius);">
       <div class="px-5 pt-4 pb-2">
-        <h2 class="text-sm font-bold uppercase tracking-wider animate-fade-in-up" style="color: var(--accent); letter-spacing: 0.06em;">
+        <h2 class="text-sm font-bold uppercase tracking-wider" style="color: var(--accent); letter-spacing: 0.06em;">
           FAQ
         </h2>
       </div>

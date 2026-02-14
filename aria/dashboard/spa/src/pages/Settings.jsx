@@ -131,7 +131,7 @@ function CategorySection({ category, configs, onUpdate }) {
   const [open, setOpen] = useState(true);
 
   return (
-    <section class="t-card">
+    <section class="t-frame" data-label={category.toLowerCase()}>
       <button
         class="w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setOpen(!open)}
@@ -197,7 +197,7 @@ export default function Settings() {
 
   return (
     <div class="space-y-6 animate-page-enter">
-      <div class="t-section-header animate-fade-in-up" style="padding-bottom: 8px;">
+      <div class="t-section-header" style="padding-bottom: 8px;">
         <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Settings</h1>
         <p class="text-sm" style="color: var(--text-tertiary)">
           {configs.length} parameters across {Object.keys(groups).length} categories.

@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
+import HeroCard from '../components/HeroCard.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
@@ -19,7 +20,7 @@ function PredictionCard({ prediction }) {
   const pct = Math.round(confidence * 100);
 
   return (
-    <div class="t-card" style="padding: 1rem;">
+    <div class="t-frame" data-label={prediction.entity_id || prediction.metric || 'prediction'} style="padding: 1rem;">
       {/* Header */}
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-sm font-bold truncate mr-2 data-mono" style="color: var(--text-primary)">
@@ -126,14 +127,22 @@ export default function Predictions() {
 
   return (
     <div class="space-y-6 animate-page-enter">
-      <div class="t-section-header animate-fade-in-up" style="padding-bottom: 8px;">
+      <div class="t-section-header" style="padding-bottom: 8px;">
         <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Predictions</h1>
         <p class="text-sm" style="color: var(--text-tertiary)">{pageSubtitle}</p>
       </div>
 
+      {/* Hero — what ARIA expects */}
+      <HeroCard
+        value={predictions.length}
+        label="predictions"
+        delta={predictions.length > 0 ? `${predictions.filter(p => (p.confidence ?? 0) >= 0.7).length} high confidence` : null}
+        loading={loading}
+      />
+
       {/* Metadata summary */}
       {metadata && (
-        <div class="flex flex-wrap gap-3 text-sm animate-fade-in-up delay-100" style="color: var(--text-tertiary)">
+        <div class="flex flex-wrap gap-3 text-sm" style="color: var(--text-tertiary)">
           {metadata.model_version && (
             <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">v{metadata.model_version}</span>
           )}
@@ -149,11 +158,11 @@ export default function Predictions() {
       )}
 
       {predictions.length === 0 ? (
-        <div class="t-callout animate-fade-in-up delay-200" style="padding: 0.75rem;">
+        <div class="t-callout" style="padding: 0.75rem;">
           <span class="text-sm" style="color: var(--text-secondary)">No entity-level predictions yet. The ML engine trains models after 14+ days of data, then predicts individual entity states. Until then, aggregate predictions are available on the Intelligence page.</span>
         </div>
       ) : (
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-children">
           {predictions.map((pred, i) => (
             <PredictionCard key={pred.entity_id || i} prediction={pred} />
           ))}

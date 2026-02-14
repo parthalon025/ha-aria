@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { fetchJson, putJson, postJson } from '../api.js';
+import HeroCard from '../components/HeroCard.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 
@@ -24,7 +25,7 @@ function SummaryBar({ summary }) {
   return (
     <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
       {stats.map((s) => (
-        <div key={s.label} class="t-card" style="padding: 0.75rem; text-align: center;">
+        <div key={s.label} class="t-frame" data-label={s.label} style="padding: 0.75rem; text-align: center;">
           <div class="text-xl font-bold" style={s.style}>{s.value}</div>
           <div class="text-xs" style="color: var(--text-tertiary)">{s.label}</div>
         </div>
@@ -53,7 +54,7 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
   }
 
   return (
-    <section class="t-card">
+    <section class="t-frame" data-label={`tier ${tier}: ${label.toLowerCase()}`}>
       <button
         class="w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setOpen(!open)}
@@ -265,14 +266,19 @@ export default function DataCuration() {
 
   return (
     <div class="space-y-6 animate-page-enter">
-      <div class="t-section-header animate-fade-in-up" style="padding-bottom: 8px;">
+      <div class="t-section-header" style="padding-bottom: 8px;">
         <h1 class="text-2xl font-bold" style="color: var(--text-primary)">Data Curation</h1>
         <p class="text-sm" style="color: var(--text-tertiary)">Classify entities into include/exclude tiers for the shadow engine.</p>
       </div>
 
-      <div class="animate-fade-in-up delay-100">
-        <SummaryBar summary={summary} />
-      </div>
+      {/* Hero — what feeds the pipeline */}
+      <HeroCard
+        value={summary?.per_status?.included ?? 0}
+        label="entities included"
+        delta={`${summary?.per_status?.excluded ?? 0} excluded`}
+      />
+
+      <SummaryBar summary={summary} />
 
       <div class="space-y-4 stagger-children">
         <TierSection
