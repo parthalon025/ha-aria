@@ -11,6 +11,7 @@ import Predictions from './pages/Predictions.jsx';
 import Patterns from './pages/Patterns.jsx';
 import Automations from './pages/Automations.jsx';
 import Intelligence from './pages/Intelligence.jsx';
+import MLEngine from './pages/MLEngine.jsx';
 import Shadow from './pages/Shadow.jsx';
 import Settings from './pages/Settings.jsx';
 import DataCuration from './pages/DataCuration.jsx';
@@ -108,6 +109,7 @@ export default function App() {
               <Patterns path="/patterns" />
               <Automations path="/automations" />
               <Intelligence path="/intelligence" />
+              <MLEngine path="/ml-engine" />
               <Shadow path="/shadow" />
               <Settings path="/settings" />
               <DataCuration path="/data-curation" />

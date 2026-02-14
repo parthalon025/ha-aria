@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   // Learning
   { section: 'Learning' },
   { path: '/intelligence', label: 'Intelligence', icon: BrainIcon },
+  { path: '/ml-engine', label: 'ML Engine', icon: CpuIcon },
   { path: '/predictions', label: 'Predictions', icon: TrendingUpIcon },
   { path: '/patterns', label: 'Patterns', icon: LayersIcon },
   // Actions
@@ -116,6 +117,19 @@ function SlidersIcon() {
       <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
       <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
       <line x1="17" y1="16" x2="23" y2="16" />
+    </svg>
+  );
+}
+
+function CpuIcon() {
+  return (
+    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <rect x="9" y="9" width="6" height="6" />
+      <line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" />
+      <line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" />
+      <line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="15" x2="23" y2="15" />
+      <line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="15" x2="4" y2="15" />
     </svg>
   );
 }
