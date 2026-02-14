@@ -238,6 +238,21 @@ The dashboard ships with 13 pages covering the full intelligence pipeline:
 | `aria power-profiles` | Per-outlet power consumption analysis |
 | `aria sync-logs` | Sync HA logbook to local storage |
 
+## Home Assistant Compatibility
+
+ARIA works with **any Home Assistant installation** — HAOS, Docker, Core, Supervised. It connects via the official REST API and WebSocket API, so it runs alongside your existing setup without modifying it.
+
+| | |
+|:---|:---|
+| **Installation types** | HAOS, Docker, Core, Supervised |
+| **Connection** | REST API + WebSocket (long-lived access token) |
+| **Entities supported** | All domains — lights, switches, sensors, locks, climate, media, covers, presence, power monitoring |
+| **Minimum HA version** | 2023.1+ (WebSocket API v2) |
+| **Privacy** | All data stays on your network. No cloud. No telemetry. No account required. |
+| **Resource usage** | ~200MB RAM idle, ~2GB during ML training (configurable caps via systemd) |
+
+ARIA doesn't replace your existing automations — it **learns from them** and suggests new ones based on patterns it discovers.
+
 ## Requirements
 
 - **Python** >= 3.12
@@ -276,6 +291,23 @@ ARIA's ML pipeline is grounded in peer-reviewed research:
 | LightGBM | Ke et al., NeurIPS 2017 | Incremental gradient boosting |
 | Isolation Forest | Liu et al., ICDM 2008 | Anomaly detection |
 | Hybrid AE+IsolationForest | Aggarwal, Springer 2017 | Contextual anomaly detection |
+
+## FAQ
+
+**Does ARIA modify my Home Assistant configuration?**
+No. ARIA is read-only — it connects via the official API and WebSocket, observes your home's state, and presents insights through its own dashboard. Your HA config, automations, and entities are never touched.
+
+**How long until I see useful predictions?**
+Baselines form within 24–48 hours. ML models begin training at day 7 with reliable predictions by day 14. Shadow mode validates everything before surfacing suggestions.
+
+**Can I run ARIA on a Raspberry Pi?**
+ARIA's hub runs comfortably on a Pi 4 (4GB+). ML training jobs are heavier — schedule them during off-peak hours or run them on a separate machine that connects to the same HA instance.
+
+**Does it work with Zigbee/Z-Wave/Matter/Thread devices?**
+Yes. ARIA works at the entity level — it doesn't care how devices connect to HA. If HA can see the entity, ARIA can learn from it.
+
+**What about privacy?**
+Everything runs locally. No cloud services, no accounts, no telemetry, no data leaves your network. LLM features use local Ollama models.
 
 ## Contributing
 
