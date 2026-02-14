@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useMemo } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
 import { fetchJson } from '../api.js';
@@ -141,6 +141,22 @@ export default function Intelligence() {
     }
   }
 
+  // Compute sparkline from intraday power trend (entries have {hour: 0-23, power_watts, ...})
+  const powerSparkData = useMemo(() => {
+    const trend = intel.intraday_trend;
+    if (!trend || trend.length < 2) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayStart = Math.floor(today.getTime() / 1000);
+    const ts = [];
+    const vals = [];
+    for (const d of trend) {
+      ts.push(dayStart + (d.hour ?? 0) * 3600);
+      vals.push(d.power_watts ?? null);
+    }
+    return [ts, vals];
+  }, [intel.intraday_trend]);
+
   return (
     <div class="space-y-8 animate-page-enter">
       <div class="t-section-header" style="padding-bottom: 8px;">
@@ -156,6 +172,7 @@ export default function Intelligence() {
             label="home right now"
             unit="W"
             delta={powerDelta}
+            sparkData={powerSparkData}
           />
         </div>
 

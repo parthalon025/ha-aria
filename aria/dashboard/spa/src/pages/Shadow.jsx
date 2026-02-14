@@ -424,6 +424,17 @@ export default function Shadow() {
         label="shadow accuracy"
         unit="%"
         delta={`${pipeline?.current_stage || 'backtest'} stage \u2022 ${accuracy?.predictions_total ?? 0} predictions`}
+        sparkData={useMemo(() => {
+          const trend = accuracy?.daily_trend;
+          if (!trend || trend.length < 2) return null;
+          const ts = [];
+          const vals = [];
+          for (const d of trend) {
+            ts.push(Math.floor(new Date(d.date + 'T12:00:00Z').getTime() / 1000));
+            vals.push(d.accuracy ?? null);
+          }
+          return [ts, vals];
+        }, [accuracy])}
       />
 
       <PipelineStage pipeline={pipeline} onAdvance={handleAdvance} onRetreat={handleRetreat} advanceError={advanceError} />
