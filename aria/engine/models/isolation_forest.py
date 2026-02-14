@@ -1,9 +1,12 @@
 """Isolation Forest model for contextual anomaly detection."""
 
+import logging
 import os
 import pickle
 
 from aria.engine.models.registry import ModelRegistry, BaseModel
+
+logger = logging.getLogger(__name__)
 
 HAS_SKLEARN = True
 try:
@@ -35,6 +38,7 @@ def detect_contextual_anomalies(snapshot_features, model_dir):
 
     X = np.array([snapshot_features], dtype=float)
 
+    X_original = X
     if ae_enabled:
         from aria.engine.models.autoencoder import Autoencoder
 
@@ -43,8 +47,21 @@ def detect_contextual_anomalies(snapshot_features, model_dir):
         if errors is not None:
             X = np.column_stack([X, errors])
 
-    score = float(model.decision_function(X)[0])
-    is_anomaly = model.predict(X)[0] == -1
+    try:
+        score = float(model.decision_function(X)[0])
+        is_anomaly = model.predict(X)[0] == -1
+    except ValueError:
+        if X is not X_original:
+            logger.warning(
+                "Dimension mismatch with autoencoder features "
+                "(model expects %d, got %d) — falling back to base features",
+                model.n_features_in_, X.shape[1],
+            )
+            X = X_original
+            score = float(model.decision_function(X)[0])
+            is_anomaly = model.predict(X)[0] == -1
+        else:
+            raise
 
     return {
         "is_anomaly": bool(is_anomaly),
