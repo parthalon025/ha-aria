@@ -1,12 +1,10 @@
 import { Section } from './utils.jsx';
-
-const PHASES = ['collecting', 'baselines', 'ml-training', 'ml-active'];
-const PHASE_LABELS = ['Collecting', 'Baselines', 'ML Training', 'ML Active'];
+import { LEARNING_PHASES, LEARNING_PHASE_LABELS } from '../../constants.js';
 
 export function LearningProgress({ maturity, shadowStage, shadowAccuracy }) {
   if (!maturity) return null;
-  const idx = PHASES.indexOf(maturity.phase);
-  const pct = Math.max(((idx + 1) / PHASES.length) * 100, 10);
+  const idx = LEARNING_PHASES.indexOf(maturity.phase);
+  const pct = Math.max(((idx + 1) / LEARNING_PHASES.length) * 100, 10);
 
   const whyText = idx < 2
     ? 'The system needs enough data to tell the difference between "normal Tuesday" and "something unusual." More days = better predictions.'
@@ -17,7 +15,7 @@ export function LearningProgress({ maturity, shadowStage, shadowAccuracy }) {
       <div class="t-frame p-4 space-y-4" data-label="learning">
         <div>
           <div class="flex justify-between text-xs mb-1" style="color: var(--text-tertiary)">
-            {PHASE_LABELS.map((label, i) => {
+            {LEARNING_PHASE_LABELS.map((label, i) => {
               const style = i < idx
                 ? 'color: var(--status-healthy)'
                 : i === idx

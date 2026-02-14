@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { fetchJson, putJson, postJson } from '../api.js';
+import { CURATION_GROUP_PREVIEW, CURATION_TABLE_MAX } from '../constants.js';
 import HeroCard from '../components/HeroCard.jsx';
 import PageBanner from '../components/PageBanner.jsx';
 import LoadingState from '../components/LoadingState.jsx';
@@ -116,11 +117,11 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
                   </div>
                 </div>
                 <div class="space-y-1">
-                  {items.slice(0, 20).map((e) => (
+                  {items.slice(0, CURATION_GROUP_PREVIEW).map((e) => (
                     <EntityRow key={e.entity_id} entity={e} onOverride={onOverride} compact />
                   ))}
-                  {items.length > 20 && (
-                    <p class="text-xs" style="color: var(--text-tertiary)">...and {items.length - 20} more</p>
+                  {items.length > CURATION_GROUP_PREVIEW && (
+                    <p class="text-xs" style="color: var(--text-tertiary)">...and {items.length - CURATION_GROUP_PREVIEW} more</p>
                   )}
                 </div>
               </div>
@@ -128,11 +129,11 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
           ) : (
             // Table view for tier 3
             <div class="space-y-1">
-              {filtered.slice(0, 100).map((e) => (
+              {filtered.slice(0, CURATION_TABLE_MAX).map((e) => (
                 <EntityRow key={e.entity_id} entity={e} onOverride={onOverride} />
               ))}
-              {filtered.length > 100 && (
-                <p class="text-xs" style="color: var(--text-tertiary)">Showing 100 of {filtered.length}. Use search to narrow.</p>
+              {filtered.length > CURATION_TABLE_MAX && (
+                <p class="text-xs" style="color: var(--text-tertiary)">Showing {CURATION_TABLE_MAX} of {filtered.length}. Use search to narrow.</p>
               )}
             </div>
           )}

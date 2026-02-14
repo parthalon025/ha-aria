@@ -1,18 +1,12 @@
 import { useState } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
+import { confidenceBadgeStyle } from '../constants.js';
 import HeroCard from '../components/HeroCard.jsx';
 import PageBanner from '../components/PageBanner.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
-
-/** Return inline style string based on confidence threshold. */
-function confidenceColor(confidence) {
-  if (confidence >= 0.7) return 'background: var(--status-healthy-glow); color: var(--status-healthy);';
-  if (confidence >= 0.4) return 'background: var(--status-warning-glow); color: var(--status-warning);';
-  return 'background: var(--status-error-glow); color: var(--status-error);';
-}
 
 function PredictionCard({ prediction }) {
   const [expanded, setExpanded] = useState(false);
@@ -27,7 +21,7 @@ function PredictionCard({ prediction }) {
         <h3 class="text-sm font-bold truncate mr-2 data-mono" style="color: var(--text-primary)">
           {prediction.entity_id}
         </h3>
-        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap" style={confidenceColor(confidence)}>
+        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap" style={confidenceBadgeStyle(confidence)}>
           {pct}%
         </span>
       </div>
@@ -134,7 +128,7 @@ export default function Predictions() {
       <HeroCard
         value={predictions.length}
         label="predictions"
-        delta={predictions.length > 0 ? `${predictions.filter(p => (p.confidence ?? 0) >= 0.7).length} high confidence` : null}
+        delta={predictions.length > 0 ? `${predictions.filter(p => (p.confidence ?? 0) >= 0.70).length} high confidence` : null}
         loading={loading}
       />
 

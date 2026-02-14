@@ -2,6 +2,7 @@ import { useState, useEffect } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
 import { fetchJson } from '../api.js';
+import { SIGNIFICANCE_PCT, ML_TRAINING_MIN_DAYS } from '../constants.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import AriaLogo from '../components/AriaLogo.jsx';
@@ -108,7 +109,7 @@ function computeNodeStatus(nodeId, data) {
     case 'ml_engine':
       if (!isRegistered('ml_engine')) return STATUS.BLOCKED;
       if (mlActive) return STATUS.HEALTHY;
-      if (days >= 14) return STATUS.REVIEW;
+      if (days >= ML_TRAINING_MIN_DAYS) return STATUS.REVIEW;
       return STATUS.WAITING;
 
     case 'pattern_recognition':
@@ -158,7 +159,7 @@ function computeNodeStats(data) {
     activity_monitor: rate !== null ? `${rate} events/min` : 'Connecting to HA...',
     data_quality: curation ? `${included} included, ${excluded} filtered` : 'Loading...',
     intelligence: snapshotCount > 0 ? `Day ${days}/7 \u2014 ${snapshotCount} snapshots` : 'Waiting for first snapshot',
-    ml_engine: mlActive ? 'Models trained and active' : (days >= 14 ? 'Ready to train' : `${Math.max(0, 14 - days)} days until ML training`),
+    ml_engine: mlActive ? 'Models trained and active' : (days >= ML_TRAINING_MIN_DAYS ? 'Ready to train' : `${Math.max(0, ML_TRAINING_MIN_DAYS - days)} days until ML training`),
     pattern_recognition: days >= 1 ? 'Analyzing event sequences' : 'Needs activity data',
     shadow_engine: predTotal > 0 ? `${predTotal} predictions, ${acc}% accuracy` : 'No predictions yet',
     orchestrator: mlActive ? 'Generating automation suggestions' : 'Waiting for ML + patterns',
@@ -377,7 +378,7 @@ function PipelineFlow({ statusData, curation, maturity, shadow, pipeline }) {
       title: 'Adjust Parameters',
       guidance: mlActive
         ? 'Fine-tune training parameters'
-        : `${Math.max(0, 14 - days)} more days of data needed. No action needed.`,
+        : `${Math.max(0, ML_TRAINING_MIN_DAYS - days)} more days of data needed. No action needed.`,
       linkHref: '#/settings',
       linkLabel: 'Settings',
     },

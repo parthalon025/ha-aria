@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { fetchJson, baseUrl } from '../api.js';
 import { relativeTime } from './intelligence/utils.jsx';
+import { accuracyColor, SHADOW_PREDICTIONS_LIMIT, SHADOW_DISAGREEMENTS_LIMIT } from '../constants.js';
 import HeroCard from '../components/HeroCard.jsx';
 import PageBanner from '../components/PageBanner.jsx';
 import LoadingState from '../components/LoadingState.jsx';
@@ -8,7 +9,6 @@ import ErrorState from '../components/ErrorState.jsx';
 import TimeChart from '../components/TimeChart.jsx';
 
 const STAGES = ['backtest', 'shadow', 'suggest', 'autonomous'];
-const STAGE_LABELS = ['Backtest', 'Shadow', 'Suggest', 'Autonomous'];
 
 const TYPE_COLORS = {
   next_domain_action: 'background: var(--accent-glow); color: var(--accent);',
@@ -26,22 +26,25 @@ const OUTCOME_COLORS = {
   nothing: 'background: var(--bg-surface-raised); color: var(--text-tertiary);',
 };
 
-// Gate thresholds — must stay in sync with PIPELINE_GATES in hub/api.py
-const GATE_REQUIREMENTS = {
-  backtest: { field: 'backtest_accuracy', threshold: 0.40, label: 'backtest accuracy', nextStage: 'shadow' },
-  shadow: { field: 'shadow_accuracy_7d', threshold: 0.50, label: '7-day shadow accuracy', nextStage: 'suggest' },
-  suggest: { field: 'suggest_approval_rate_14d', threshold: 0.70, label: '14-day approval rate', nextStage: 'autonomous' },
+// Gate thresholds come from /api/pipeline response — fallback for initial render
+const DEFAULT_GATES = {
+  backtest: { field: 'backtest_accuracy', threshold: 0.40, label: 'backtest accuracy' },
+  shadow: { field: 'shadow_accuracy_7d', threshold: 0.50, label: '7-day shadow accuracy' },
+  suggest: { field: 'suggest_approval_rate_14d', threshold: 0.70, label: '14-day approval rate' },
 };
 
 function PipelineStage({ pipeline, onAdvance, onRetreat, advanceError }) {
+  const stages = pipeline?.stages || STAGES;
+  const gates = pipeline?.gates || DEFAULT_GATES;
   const stage = pipeline?.current_stage || 'backtest';
-  const idx = STAGES.indexOf(stage);
-  const pct = Math.max(((idx + 1) / STAGES.length) * 100, 10);
+  const idx = stages.indexOf(stage);
+  const pct = Math.max(((idx + 1) / stages.length) * 100, 10);
   const enteredAt = pipeline?.stage_entered_at;
 
-  const gate = GATE_REQUIREMENTS[stage];
+  const gate = gates[stage];
   const gateValue = gate ? (pipeline?.[gate.field] ?? 0) : null;
   const gateMet = gate ? gateValue >= gate.threshold : false;
+  const nextStage = idx < stages.length - 1 ? stages[idx + 1] : null;
 
   return (
     <section class="space-y-3">
@@ -50,8 +53,8 @@ function PipelineStage({ pipeline, onAdvance, onRetreat, advanceError }) {
         <div class="space-y-4">
           <div>
             <div class="flex justify-between text-xs mb-1" style="color: var(--text-tertiary)">
-              {STAGE_LABELS.map((label, i) => (
-                <span key={label} style={i <= idx ? 'font-weight: 700; color: var(--accent)' : ''}>{label}</span>
+              {stages.map((s, i) => (
+                <span key={s} class="capitalize" style={i <= idx ? 'font-weight: 700; color: var(--accent)' : ''}>{s}</span>
               ))}
             </div>
             <div class="h-3 rounded-full" style="background: var(--bg-inset)">
@@ -73,7 +76,7 @@ function PipelineStage({ pipeline, onAdvance, onRetreat, advanceError }) {
             </button>
             <button
               onClick={onAdvance}
-              disabled={idx === STAGES.length - 1}
+              disabled={idx === stages.length - 1}
               class="t-btn t-btn-primary text-xs px-3 py-1.5"
             >
               Advance &rarr;
@@ -81,7 +84,7 @@ function PipelineStage({ pipeline, onAdvance, onRetreat, advanceError }) {
           </div>
           {gate && (
             <p class="text-xs" style={gateMet ? 'color: var(--status-healthy)' : 'color: var(--status-error)'}>
-              Advance to {gate.nextStage} requires &gt;{Math.round(gate.threshold * 100)}% {gate.label}
+              Advance{nextStage ? ` to ${nextStage}` : ''} requires &gt;{Math.round(gate.threshold * 100)}% {gate.label}
               {' '}(current: {Math.round(gateValue * 100)}%)
             </p>
           )}
@@ -92,12 +95,6 @@ function PipelineStage({ pipeline, onAdvance, onRetreat, advanceError }) {
       </div>
     </section>
   );
-}
-
-function accuracyColor(pct) {
-  if (pct >= 70) return 'color: var(--status-healthy)';
-  if (pct >= 40) return 'color: var(--status-warning)';
-  return 'color: var(--status-error)';
 }
 
 function AccuracySummary({ accuracy, pipeline }) {
@@ -226,9 +223,13 @@ function CorrectionPropagation({ propagation }) {
 }
 
 function DailyTrend({ trend, pipeline }) {
+  const gates = pipeline?.gates || DEFAULT_GATES;
+  const stages = pipeline?.stages || STAGES;
   const stage = pipeline?.current_stage || 'backtest';
-  const gate = GATE_REQUIREMENTS[stage];
+  const gate = gates[stage];
   const thresholdPct = gate ? Math.round(gate.threshold * 100) : null;
+  const idx = stages.indexOf(stage);
+  const nextStage = idx < stages.length - 1 ? stages[idx + 1] : null;
 
   const { chartData, chartSeries } = useMemo(() => {
     if (!trend || trend.length === 0) return { chartData: null, chartSeries: [] };
@@ -300,7 +301,7 @@ function DailyTrend({ trend, pipeline }) {
         </div>
         {thresholdPct != null && (
           <p class="text-xs mt-2" style="color: var(--text-tertiary)">
-            Gate threshold: <span style="color: var(--accent); font-weight: 600;">{thresholdPct}%</span> {gate.label} required to advance to {gate.nextStage}
+            Gate threshold: <span style="color: var(--accent); font-weight: 600;">{thresholdPct}%</span> {gate.label} required{nextStage ? ` to advance to ${nextStage}` : ''}
           </p>
         )}
       </div>
@@ -462,8 +463,8 @@ export default function Shadow() {
       const [p, a, pr, d, prop] = await Promise.all([
         fetchJson('/api/pipeline'),
         fetchJson('/api/shadow/accuracy'),
-        fetchJson('/api/shadow/predictions?limit=20'),
-        fetchJson('/api/shadow/disagreements?limit=10'),
+        fetchJson(`/api/shadow/predictions?limit=${SHADOW_PREDICTIONS_LIMIT}`),
+        fetchJson(`/api/shadow/disagreements?limit=${SHADOW_DISAGREEMENTS_LIMIT}`),
         fetchJson('/api/shadow/propagation'),
       ]);
       setPipeline(p);

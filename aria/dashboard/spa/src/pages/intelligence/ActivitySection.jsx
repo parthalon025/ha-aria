@@ -1,4 +1,5 @@
 import { Section, Callout, durationSince, describeEvent, EVENT_ICONS, DOMAIN_LABELS } from './utils.jsx';
+import { SWIM_LANE_MS, ACTIVITY_TIMELINE_MS } from '../../constants.js';
 
 const DOMAIN_COLORS = {
   light: 'var(--accent-warm)',
@@ -12,7 +13,7 @@ function SwimLaneTimeline({ events }) {
   if (!events || events.length === 0) return null;
 
   const now = new Date();
-  const startTime = new Date(now - 60 * 60 * 1000);
+  const startTime = new Date(now - SWIM_LANE_MS);
 
   // Parse event times and filter to last 60 minutes
   const parsed = events.map(evt => {
@@ -106,7 +107,7 @@ function ActivityTimeline({ windows }) {
   if (!windows || windows.length === 0) return null;
 
   const now = new Date();
-  const sixHoursAgo = new Date(now - 6 * 60 * 60 * 1000).toISOString();
+  const sixHoursAgo = new Date(now - ACTIVITY_TIMELINE_MS).toISOString();
   const recent = windows.filter(w => w.window_start >= sixHoursAgo);
 
   if (recent.length === 0) return null;
@@ -225,7 +226,7 @@ export function ActivitySection({ activity }) {
   if (snap.today_count > 0) {
     snapMsg = `${snap.today_count} adaptive snapshot${snap.today_count !== 1 ? 's' : ''} captured today \u2014 the system saw enough activity to grab extra data points.`;
   } else if (occ.anyone_home) {
-    snapMsg = 'Watching for sustained activity to trigger an adaptive snapshot (needs 5+ events with 30m cooldown).';
+    snapMsg = 'Watching for sustained activity to trigger an adaptive snapshot. Cooldown and event thresholds are configurable in Settings.';
   } else {
     snapMsg = 'Adaptive snapshots only trigger when someone is home.';
   }

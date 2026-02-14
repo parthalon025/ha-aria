@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
 import { fetchJson } from '../api.js';
+import { SIGNIFICANCE_PCT } from '../constants.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import HeroCard from '../components/HeroCard.jsx';
@@ -28,13 +29,14 @@ function ShadowBrief({ shadowAccuracy, pipeline }) {
   const acc = shadowAccuracy?.overall_accuracy ?? 0;
   const stage = pipeline?.current_stage || shadowAccuracy?.stage || 'backtest';
 
-  const accStyle = acc >= 70
+  const accPct = Math.round(acc * 100);
+  const accStyle = accPct >= 70
     ? 'color: var(--status-healthy)'
-    : acc >= 40
+    : accPct >= 40
       ? 'color: var(--status-warning)'
       : 'color: var(--status-error)';
 
-  const summaryText = total > 0 ? `${Math.round(acc)}% accuracy` : stage;
+  const summaryText = total > 0 ? `${accPct}% accuracy` : stage;
 
   return (
     <Section title="Shadow Engine" subtitle="Predict-compare-score loop running alongside the main engine." summary={summaryText}>
@@ -44,7 +46,7 @@ function ShadowBrief({ shadowAccuracy, pipeline }) {
             <span class="text-xs font-medium rounded-full px-2.5 py-0.5 capitalize" style="background: var(--accent-glow); color: var(--accent)">{stage}</span>
             {total > 0 ? (
               <span class="text-sm" style="color: var(--text-secondary)">
-                <span class="font-bold" style={accStyle}>{Math.round(acc)}%</span> accuracy ({correct}/{total})
+                <span class="font-bold" style={accStyle}>{accPct}%</span> accuracy ({correct}/{total})
               </span>
             ) : (
               <span class="text-sm" style="color: var(--text-tertiary)">No predictions yet</span>
@@ -55,12 +57,7 @@ function ShadowBrief({ shadowAccuracy, pipeline }) {
         {/* Gate progress toward next stage */}
         {pipeline && (() => {
           const stg = pipeline.current_stage || 'backtest';
-          // Gate thresholds — must stay in sync with PIPELINE_GATES in hub/api.py
-          const gates = {
-            backtest: { field: 'backtest_accuracy', threshold: 0.40, label: 'backtest accuracy' },
-            shadow: { field: 'shadow_accuracy_7d', threshold: 0.50, label: '7-day shadow accuracy' },
-            suggest: { field: 'suggest_approval_rate_14d', threshold: 0.70, label: '14-day approval rate' },
-          };
+          const gates = pipeline.gates || {};
           const gate = gates[stg];
           if (!gate) return null; // autonomous = no next gate
           const current = pipeline[gate.field] ?? 0;
@@ -143,7 +140,7 @@ export default function Intelligence() {
     if (baseline?.power_watts?.mean != null) {
       const diff = currentPower - baseline.power_watts.mean;
       const pct = baseline.power_watts.mean > 0 ? Math.round((diff / baseline.power_watts.mean) * 100) : 0;
-      if (Math.abs(pct) >= 10) {
+      if (Math.abs(pct) >= SIGNIFICANCE_PCT) {
         powerDelta = `${pct > 0 ? '+' : ''}${pct}% vs ${today}`;
       } else {
         powerDelta = `typical for ${today}`;

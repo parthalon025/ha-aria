@@ -1,4 +1,5 @@
 import { Section } from './utils.jsx';
+import { SIGNIFICANCE_PCT, UNAVAILABLE_WARNING_THRESHOLD } from '../../constants.js';
 
 export function HomeRightNow({ intraday, baselines }) {
   if (!intraday || intraday.length === 0) return null;
@@ -14,7 +15,7 @@ export function HomeRightNow({ intraday, baselines }) {
     if (mean == null) return null;
     const diff = val - mean;
     const pct = mean > 0 ? Math.round((diff / mean) * 100) : 0;
-    if (Math.abs(pct) < 10) return { text: 'typical', style: 'color: var(--text-tertiary)' };
+    if (Math.abs(pct) < SIGNIFICANCE_PCT) return { text: 'typical', style: 'color: var(--text-tertiary)' };
     if (pct > 0) return { text: `+${pct}% vs ${today}`, style: 'color: var(--status-warning)' };
     return { text: `${pct}% vs ${today}`, style: 'color: var(--accent)' };
   }
@@ -23,7 +24,7 @@ export function HomeRightNow({ intraday, baselines }) {
     { label: 'Power (W)', value: latest.power_watts != null ? latest.power_watts : '\u2014', note: compareToBaseline('power_watts', latest.power_watts) },
     { label: 'Lights On', value: latest.lights_on != null ? latest.lights_on : '\u2014', note: compareToBaseline('lights_on', latest.lights_on) },
     { label: 'Devices Home', value: latest.devices_home != null ? latest.devices_home : '\u2014' },
-    { label: 'Unavailable', value: latest.unavailable != null ? latest.unavailable : '\u2014', warning: (latest.unavailable || 0) > 100, note: (latest.unavailable || 0) > 100 ? { text: 'High \u2014 check devices', style: 'color: var(--status-warning)' } : null },
+    { label: 'Unavailable', value: latest.unavailable != null ? latest.unavailable : '\u2014', warning: (latest.unavailable || 0) > UNAVAILABLE_WARNING_THRESHOLD, note: (latest.unavailable || 0) > UNAVAILABLE_WARNING_THRESHOLD ? { text: 'High \u2014 check devices', style: 'color: var(--status-warning)' } : null },
   ];
 
   const subtitle = baseline

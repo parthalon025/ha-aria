@@ -547,6 +547,8 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                 stage_health["error"] = "Could not compute stage health"
 
             pipeline["stage_health"] = stage_health
+            pipeline["gates"] = PIPELINE_GATES
+            pipeline["stages"] = PIPELINE_STAGES
             return pipeline
         except Exception:
             logger.exception("Error getting pipeline status")
