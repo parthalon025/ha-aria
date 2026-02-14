@@ -171,6 +171,7 @@ cd aria/dashboard/spa && npx esbuild src/index.jsx --bundle --outfile=dist/bundl
 
 | Component | File | Purpose |
 |-----------|------|---------|
+| `PageBanner` | `components/PageBanner.jsx` | ASCII pixel-art "ARIA + PAGE_NAME" header — first element on every page |
 | `CollapsibleSection` | `components/CollapsibleSection.jsx` | Expand/collapse with cursor-as-affordance (cursor-active/working/idle) |
 | `HeroCard` | `components/HeroCard.jsx` | Large monospace KPI with optional sparkline (`sparkData`/`sparkColor` props) |
 | `TimeChart` | `components/TimeChart.jsx` | uPlot wrapper — full mode (`<figure>`) or `compact` sparkline mode (no axes) |

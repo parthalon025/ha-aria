@@ -101,6 +101,23 @@ All text is monospace (`--font-mono`). Size scale:
 
 ## Component Patterns
 
+### Page Banner: `PageBanner`
+
+Every page starts with an ASCII pixel-art banner for visual consistency. Renders "ARIA + PAGE_NAME" in the same SVG pixel style as `AriaLogo`.
+
+```jsx
+<PageBanner page="SHADOW" subtitle="Predict-compare-score validation loop." />
+```
+
+- **ARIA** text in `--accent` (brand color)
+- **Separator** (plus/cross) in `--text-tertiary`
+- **Page name** in `--text-primary`
+- Optional `subtitle` renders as `--type-label` text below the banner
+- SVG uses `useMemo` — layout computed once per page name
+- Height: 2rem, scales proportionally with `max-width: 100%`
+- Font: 5-row pixel grid matching AriaLogo proportions (26 uppercase characters)
+- MUST be the first element in every page's return JSX, before HeroCard
+
 ### Content Cards: `.t-frame`
 
 The primary container. Replaces the legacy `.t-card` class.
@@ -377,8 +394,9 @@ Content area padding accounts for nav:
 1. Create `aria/dashboard/spa/src/pages/YourPage.jsx`
 2. Add route in `app.jsx`
 3. Add nav entry in `Sidebar.jsx` (NAV_ITEMS array, and PHONE_TABS if primary)
-4. Use `HeroCard` at the top with the page's primary metric
-5. Use `.t-frame` with `data-label` for all content sections
+4. Use `PageBanner` as the first element with page name and subtitle
+5. Use `HeroCard` below the banner with the page's primary metric (if applicable)
+6. Use `.t-frame` with `data-label` for all content sections
 6. Use `CollapsibleSection` for expandable content
 7. Use `sm:grid-cols-2` / `lg:grid-cols-3` for responsive grids
 8. NEVER hardcode colors — use CSS custom properties

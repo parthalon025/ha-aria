@@ -70,7 +70,7 @@ ARIA watches, learns, and predicts — **entirely on your local hardware.** No c
 
 ### See
 
-- **12-page interactive dashboard** — Preact SPA with live WebSocket updates, terminal aesthetic
+- **12-page interactive dashboard** — Preact SPA with live WebSocket updates, ASCII pixel-art page banners, terminal aesthetic
 - **Data-forward visualizations** — sparkline KPIs, heatmap baselines, correlation matrices, swim-lane timelines
 - **Small multiples** — each metric gets its own chart at its own scale (Tufte-inspired)
 - **Real-time activity monitor** — swim-lane timeline + 15-minute windowed analysis
@@ -243,7 +243,7 @@ The dashboard ships with 12 pages covering the full intelligence pipeline:
 |:---|:---|
 | **Tests** | 683 (677 passing, CI-enforced) |
 | **Code** | 14,451 lines across 63 Python files |
-| **Dashboard** | 37 JSX components across 12 pages |
+| **Dashboard** | 38 JSX components across 12 pages |
 | **Hub modules** | 8 registered (discovery, ML, patterns, shadow, orchestrator, data quality, intelligence, activity) |
 | **CI** | Lint → Test (Python 3.12 + 3.13) → Dashboard build → Codecov |
 
