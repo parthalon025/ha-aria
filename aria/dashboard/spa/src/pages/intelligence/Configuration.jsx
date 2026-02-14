@@ -51,7 +51,7 @@ export function Configuration({ config }) {
                   key={name}
                   class="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
                   style={enabled
-                    ? 'background: rgba(34,197,94,0.15); color: var(--status-healthy)'
+                    ? 'background: var(--status-healthy-glow); color: var(--status-healthy)'
                     : 'background: var(--bg-surface-raised); color: var(--text-tertiary)'
                   }
                 >

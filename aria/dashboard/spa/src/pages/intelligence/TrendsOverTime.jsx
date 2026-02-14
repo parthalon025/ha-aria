@@ -73,16 +73,16 @@ export function TrendsOverTime({ trendData, intradayTrend }) {
         {hasTrend && (
           <div class="space-y-3">
             <div class="text-xs font-bold uppercase" style="color: var(--text-tertiary)">Daily</div>
-            <BarChart data={trendData} dataKey="power_watts" label="Power (W) \u2014 total household draw" color="#3b82f6" />
-            <BarChart data={trendData} dataKey="lights_on" label="Lights On \u2014 how many at snapshot time" color="#f59e0b" />
-            <BarChart data={trendData} dataKey="unavailable" label="Unavailable \u2014 entities not responding (should be low)" color="#ef4444" />
+            <BarChart data={trendData} dataKey="power_watts" label="Power (W) \u2014 total household draw" color="var(--accent)" />
+            <BarChart data={trendData} dataKey="lights_on" label="Lights On \u2014 how many at snapshot time" color="var(--accent-warm)" />
+            <BarChart data={trendData} dataKey="unavailable" label="Unavailable \u2014 entities not responding (should be low)" color="var(--status-error)" />
           </div>
         )}
         {hasIntraday && (
           <div class="space-y-3">
             <div class="text-xs font-bold uppercase" style="color: var(--text-tertiary)">Today (Intraday)</div>
-            <BarChart data={intradayTrend} dataKey="power_watts" label="Power (W)" color="#6366f1" />
-            <BarChart data={intradayTrend} dataKey="unavailable" label="Unavailable" color="#f43f5e" />
+            <BarChart data={intradayTrend} dataKey="power_watts" label="Power (W)" color="var(--accent-dim)" />
+            <BarChart data={intradayTrend} dataKey="unavailable" label="Unavailable" color="var(--status-error)" />
           </div>
         )}
       </div>

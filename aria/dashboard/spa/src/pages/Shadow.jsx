@@ -9,8 +9,8 @@ const STAGE_LABELS = ['Backtest', 'Shadow', 'Suggest', 'Autonomous'];
 
 const TYPE_COLORS = {
   next_domain_action: 'background: var(--accent-glow); color: var(--accent);',
-  room_activation: 'background: rgba(168,85,247,0.15); color: #a855f7;',
-  routine_trigger: 'background: rgba(245,158,11,0.15); color: var(--status-warning);',
+  room_activation: 'background: var(--accent-purple-glow); color: var(--accent-purple);',
+  routine_trigger: 'background: var(--status-warning-glow); color: var(--status-warning);',
 };
 const TYPE_LABELS = {
   next_domain_action: 'Domain',
@@ -18,8 +18,8 @@ const TYPE_LABELS = {
   routine_trigger: 'Routine',
 };
 const OUTCOME_COLORS = {
-  correct: 'background: rgba(34,197,94,0.15); color: var(--status-healthy);',
-  disagreement: 'background: rgba(245,158,11,0.15); color: var(--status-warning);',
+  correct: 'background: var(--status-healthy-glow); color: var(--status-healthy);',
+  disagreement: 'background: var(--status-warning-glow); color: var(--status-warning);',
   nothing: 'background: var(--bg-surface-raised); color: var(--text-tertiary);',
 };
 
@@ -155,7 +155,7 @@ function DailyTrend({ trend }) {
           {trend.map((d, i) => {
             const acc = d.accuracy ?? 0;
             const height = Math.max((acc / maxAcc) * 100, 4);
-            const color = acc >= 70 ? '#22c55e' : acc >= 40 ? '#f59e0b' : '#ef4444';
+            const color = acc >= 70 ? 'var(--status-healthy)' : acc >= 40 ? 'var(--status-warning)' : 'var(--status-error)';
             const label = d.date?.slice(5) || '';
             return (
               <div

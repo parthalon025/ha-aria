@@ -8,9 +8,9 @@ import ErrorState from '../components/ErrorState.jsx';
 function typeBadgeStyle(type) {
   switch ((type || '').toLowerCase()) {
     case 'temporal': return 'background: var(--accent-glow); color: var(--accent);';
-    case 'correlation': return 'background: rgba(168,85,247,0.15); color: #a855f7;';
-    case 'sequence': return 'background: rgba(245,158,11,0.15); color: var(--status-warning);';
-    case 'anomaly': return 'background: rgba(239,68,68,0.15); color: var(--status-error);';
+    case 'correlation': return 'background: var(--accent-purple-glow); color: var(--accent-purple);';
+    case 'sequence': return 'background: var(--status-warning-glow); color: var(--status-warning);';
+    case 'anomaly': return 'background: var(--status-error-glow); color: var(--status-error);';
     default: return 'background: var(--bg-surface-raised); color: var(--text-secondary);';
   }
 }

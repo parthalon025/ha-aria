@@ -8,9 +8,9 @@ import ErrorState from '../components/ErrorState.jsx';
 /** Status badge inline style. */
 function statusStyle(status) {
   switch ((status || '').toLowerCase()) {
-    case 'approved': return 'background: rgba(34,197,94,0.15); color: var(--status-healthy);';
-    case 'rejected': return 'background: rgba(239,68,68,0.15); color: var(--status-error);';
-    default: return 'background: rgba(245,158,11,0.15); color: var(--status-warning);'; // pending
+    case 'approved': return 'background: var(--status-healthy-glow); color: var(--status-healthy);';
+    case 'rejected': return 'background: var(--status-error-glow); color: var(--status-error);';
+    default: return 'background: var(--status-warning-glow); color: var(--status-warning);'; // pending
   }
 }
 
@@ -127,7 +127,7 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
             onClick={() => onStatusChange(suggestion.id, 'approved')}
             disabled={updating}
             class="t-btn px-4 py-1.5 text-sm font-medium disabled:opacity-50 transition-colors"
-            style="background: var(--status-healthy); color: #fff; border: none;"
+            style="background: var(--status-healthy); color: var(--text-inverse); border: none;"
           >
             Approve
           </button>
@@ -135,7 +135,7 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
             onClick={() => onStatusChange(suggestion.id, 'rejected')}
             disabled={updating}
             class="t-btn px-4 py-1.5 text-sm font-medium disabled:opacity-50 transition-colors"
-            style="background: var(--status-error); color: #fff; border: none;"
+            style="background: var(--status-error); color: var(--text-inverse); border: none;"
           >
             Reject
           </button>

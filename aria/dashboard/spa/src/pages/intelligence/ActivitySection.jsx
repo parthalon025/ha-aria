@@ -23,7 +23,7 @@ function ActivityTimeline({ windows }) {
       <div class="flex items-end gap-0.5 h-16">
         {recent.map((w, i) => {
           const height = Math.max((w.event_count / maxCount) * 100, 4);
-          const color = w.occupancy ? '#7c3aed' : 'var(--text-tertiary)';
+          const color = w.occupancy ? 'var(--accent-purple)' : 'var(--text-tertiary)';
           const time = w.window_start.slice(11, 16);
           return (
             <div
@@ -38,7 +38,7 @@ function ActivityTimeline({ windows }) {
       <div class="flex justify-between" style="font-size: 10px; color: var(--text-tertiary)">
         <span>{recent[0]?.window_start?.slice(11, 16)}</span>
         <div class="flex items-center gap-2">
-          <span class="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: '#7c3aed' }} /> home
+          <span class="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: 'var(--accent-purple)' }} /> home
           <span class="inline-block w-2 h-2 rounded-sm" style="background: var(--text-tertiary)" /> away
         </div>
         {recent.length > 1 && <span>{recent[recent.length - 1]?.window_start?.slice(11, 16)}</span>}
@@ -228,7 +228,7 @@ export function ActivitySection({ activity }) {
                     || (evt.domain === 'binary_sensor' && ['door', 'window'].includes(evt.device_class));
                   const evtKey = `${evt.entity || evt.friendly_name}-${evt.time}-${i}`;
                   return (
-                    <div key={evtKey} class="flex items-center gap-2 py-1 px-1 rounded" style={isSignificant ? 'background: rgba(245,158,11,0.08)' : ''}>
+                    <div key={evtKey} class="flex items-center gap-2 py-1 px-1 rounded" style={isSignificant ? 'background: var(--status-warning-glow)' : ''}>
                       <span class="w-5 text-center text-sm flex-shrink-0">{icon}</span>
                       <span class={`flex-1 text-sm ${isSignificant ? 'font-medium' : ''}`} style={`color: ${isSignificant ? 'var(--text-primary)' : 'var(--text-secondary)'}`}>
                         {desc.text}

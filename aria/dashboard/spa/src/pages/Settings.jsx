@@ -88,7 +88,7 @@ function ParamControl({ config, onUpdate }) {
           >
             <span class={`absolute top-0.5 w-4 h-4 rounded-full shadow transition-transform ${
               value === 'true' || value === '1' ? 'translate-x-5' : 'translate-x-0.5'
-            }`} style="background: #fff" />
+            }`} style="background: var(--bg-surface)" />
           </button>
         )}
         {vtype === 'string' && (

@@ -58,7 +58,7 @@ export function PredictionsVsActuals({ predictions, intradayTrend }) {
                 : null;
               const bigDelta = delta != null && pred.predicted > 0 && Math.abs(delta / pred.predicted) > 0.3;
               return (
-                <tr key={m} style={`border-bottom: 1px solid var(--border-subtle)${bigDelta ? '; background: rgba(245,158,11,0.08)' : ''}`}>
+                <tr key={m} style={`border-bottom: 1px solid var(--border-subtle)${bigDelta ? '; background: var(--status-warning-glow)' : ''}`}>
                   <td class="px-4 py-2 font-medium" style="color: var(--text-secondary)">{m.replace(/_/g, ' ')}</td>
                   <td class="px-4 py-2">{pred.predicted != null ? pred.predicted : '\u2014'}</td>
                   <td class="px-4 py-2">{actual != null ? actual : '\u2014'}</td>

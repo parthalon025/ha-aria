@@ -7,9 +7,9 @@ import ErrorState from '../components/ErrorState.jsx';
 
 /** Return inline style string based on confidence threshold. */
 function confidenceColor(confidence) {
-  if (confidence >= 0.7) return 'background: rgba(34,197,94,0.15); color: var(--status-healthy);';
-  if (confidence >= 0.4) return 'background: rgba(245,158,11,0.15); color: var(--status-warning);';
-  return 'background: rgba(239,68,68,0.15); color: var(--status-error);';
+  if (confidence >= 0.7) return 'background: var(--status-healthy-glow); color: var(--status-healthy);';
+  if (confidence >= 0.4) return 'background: var(--status-warning-glow); color: var(--status-warning);';
+  return 'background: var(--status-error-glow); color: var(--status-error);';
 }
 
 function PredictionCard({ prediction }) {

@@ -5,8 +5,8 @@ import ErrorState from '../components/ErrorState.jsx';
 
 const STATUS_COLORS = {
   auto_excluded: 'background: var(--bg-surface-raised); color: var(--text-tertiary);',
-  excluded: 'background: rgba(239,68,68,0.15); color: var(--status-error);',
-  included: 'background: rgba(34,197,94,0.15); color: var(--status-healthy);',
+  excluded: 'background: var(--status-error-glow); color: var(--status-error);',
+  included: 'background: var(--status-healthy-glow); color: var(--status-healthy);',
   promoted: 'background: var(--accent-glow); color: var(--accent);',
 };
 
@@ -87,7 +87,7 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
                     {tier === 1 && (
                       <button
                         class="t-btn text-xs px-2 py-0.5"
-                        style="background: rgba(34,197,94,0.1); color: var(--status-healthy); border: none;"
+                        style="background: var(--status-healthy-glow); color: var(--status-healthy); border: none;"
                         onClick={() => onBulk(items.map((e) => e.entity_id), 'included')}
                       >
                         Include All
@@ -97,14 +97,14 @@ function TierSection({ tier, label, entities, defaultOpen, onOverride, onBulk })
                       <>
                         <button
                           class="t-btn text-xs px-2 py-0.5"
-                          style="background: rgba(34,197,94,0.1); color: var(--status-healthy); border: none;"
+                          style="background: var(--status-healthy-glow); color: var(--status-healthy); border: none;"
                           onClick={() => onBulk(items.map((e) => e.entity_id), 'included')}
                         >
                           Approve All
                         </button>
                         <button
                           class="t-btn text-xs px-2 py-0.5"
-                          style="background: rgba(239,68,68,0.1); color: var(--status-error); border: none;"
+                          style="background: var(--status-error-glow); color: var(--status-error); border: none;"
                           onClick={() => onBulk(items.map((e) => e.entity_id), 'excluded')}
                         >
                           Reject All

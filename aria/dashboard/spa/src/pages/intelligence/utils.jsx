@@ -1,9 +1,9 @@
 // Shared utilities, constants, and layout components for Intelligence sub-sections
 
 export function confidenceColor(conf) {
-  if (conf === 'high') return 'background: rgba(34,197,94,0.15); color: var(--status-healthy);';
-  if (conf === 'medium') return 'background: rgba(245,158,11,0.15); color: var(--status-warning);';
-  return 'background: rgba(239,68,68,0.15); color: var(--status-error);';
+  if (conf === 'high') return 'background: var(--status-healthy-glow); color: var(--status-healthy);';
+  if (conf === 'medium') return 'background: var(--status-warning-glow); color: var(--status-warning);';
+  return 'background: var(--status-error-glow); color: var(--status-error);';
 }
 
 export function relativeTime(ts) {
