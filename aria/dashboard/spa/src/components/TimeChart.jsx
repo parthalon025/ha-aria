@@ -10,8 +10,12 @@ import uPlot from 'uplot';
  * @param {Array<{label: string, color: string, width?: number}>} props.series - Series config
  * @param {number} [props.height=120] - Chart height in px
  * @param {string} [props.className] - Additional CSS classes
+ * @param {boolean} [props.compact=false] - Compact mode: no axes, grid, cursor, legend. Height defaults to 32px.
  */
-export default function TimeChart({ data, series, height = 120, className }) {
+export default function TimeChart({ data, series, height, className, compact = false }) {
+  if (height === undefined) {
+    height = compact ? 32 : 120;
+  }
   const containerRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -35,23 +39,26 @@ export default function TimeChart({ data, series, height = 120, className }) {
     const opts = {
       width: containerRef.current.clientWidth,
       height,
-      cursor: { show: true, drag: { x: false, y: false } },
+      cursor: compact ? { show: false } : { show: true, drag: { x: false, y: false } },
       legend: { show: false },
-      axes: [
-        {
-          stroke: textColor,
-          grid: { stroke: gridColor, width: 1 },
-          font: `10px ${fontMono}`,
-          ticks: { stroke: gridColor, width: 1 },
-        },
-        {
-          stroke: textColor,
-          grid: { stroke: gridColor, width: 1 },
-          font: `10px ${fontMono}`,
-          ticks: { stroke: gridColor, width: 1 },
-          size: 50,
-        },
-      ],
+      padding: compact ? [0, 0, 0, 0] : undefined,
+      axes: compact
+        ? [{ show: false }, { show: false }]
+        : [
+            {
+              stroke: textColor,
+              grid: { stroke: gridColor, width: 1 },
+              font: `10px ${fontMono}`,
+              ticks: { stroke: gridColor, width: 1 },
+            },
+            {
+              stroke: textColor,
+              grid: { stroke: gridColor, width: 1 },
+              font: `10px ${fontMono}`,
+              ticks: { stroke: gridColor, width: 1 },
+              size: 50,
+            },
+          ],
       series: [
         {}, // x-axis (timestamps)
         ...series.map((s) => {
@@ -60,7 +67,7 @@ export default function TimeChart({ data, series, height = 120, className }) {
             label: s.label,
             stroke: resolved,
             width: s.width || 2,
-            fill: resolved + '15', // 15 = ~8% opacity hex
+            fill: compact ? undefined : resolved + '15', // 15 = ~8% opacity hex
           };
         }),
       ],
@@ -79,7 +86,7 @@ export default function TimeChart({ data, series, height = 120, className }) {
         chartRef.current = null;
       }
     };
-  }, [data, series, height]);
+  }, [data, series, height, compact]);
 
   // Resize observer
   useEffect(() => {
@@ -95,6 +102,15 @@ export default function TimeChart({ data, series, height = 120, className }) {
     ro.observe(containerRef.current);
     return () => ro.disconnect();
   }, [height]);
+
+  if (compact) {
+    return (
+      <div ref={containerRef} class={className || ''} role="img"
+        aria-label={data && data.length > 1
+          ? `Sparkline: ${series.map(s => s.label).join(', ')}`
+          : 'Sparkline loading'} />
+    );
+  }
 
   return (
     <figure>
