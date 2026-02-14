@@ -124,7 +124,12 @@ class OrganicDiscoveryModule(Module):
         self.logger.info("Running organic discovery...")
 
         # 1. Read from cache
-        entities = await self._get_cache_data("entities", default=[])
+        entities_raw = await self._get_cache_data("entities", default={})
+        # Cache stores entities as {entity_id: dict} — convert to list for feature_vectors
+        if isinstance(entities_raw, dict):
+            entities = list(entities_raw.values())
+        else:
+            entities = entities_raw
         devices = await self._get_cache_data("devices", default={})
         seed_caps = await self._get_cache_data("capabilities", default={})
         activity_data = await self._get_cache_data("activity_summary", default={})
