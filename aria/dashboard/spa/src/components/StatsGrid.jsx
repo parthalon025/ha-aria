@@ -1,25 +1,30 @@
 /**
- * Responsive stats grid.
- * @param {{ items: Array<{ label: string, value: string|number, warning?: boolean }> }} props
+ * Responsive stats grid with ASCII bracket labels.
+ * Phone: 2-col. Tablet: 3-col. Desktop: 4-col.
  */
 export default function StatsGrid({ items }) {
   if (!items || items.length === 0) return null;
 
   return (
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
       {items.map((item, i) => (
         <div
           key={i}
-          class="t-card"
-          style={`padding: 16px;${item.warning ? ' border-color: var(--status-warning); border-width: 2px;' : ''}`}
+          class="t-frame"
+          style={`padding: 12px 16px;${item.warning ? ' border-left: 3px solid var(--status-warning);' : ''}`}
         >
           <div
             class="data-mono"
-            style={`font-size: 1.5rem; font-weight: 700; color: ${item.warning ? 'var(--status-warning)' : 'var(--accent)'};`}
+            style={`font-size: var(--type-data); font-weight: 600; color: ${item.warning ? 'var(--status-warning)' : 'var(--accent)'};`}
           >
             {item.value}
           </div>
-          <div style="font-size: 0.875rem; color: var(--text-tertiary); margin-top: 4px;">{item.label}</div>
+          <div
+            class="t-bracket"
+            style="margin-top: 4px;"
+          >
+            {item.label}
+          </div>
         </div>
       ))}
     </div>
