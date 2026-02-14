@@ -85,5 +85,14 @@ export default function TimeChart({ data, series, height = 120, className }) {
     return () => ro.disconnect();
   }, [height]);
 
-  return <div ref={containerRef} class={className || ''} />;
+  return (
+    <div>
+      <div ref={containerRef} class={className || ''} />
+      {data && data.length > 1 && (
+        <div class="sr-only">
+          Chart: {series.map(s => s.label).join(', ')} — {data[0].length} data points
+        </div>
+      )}
+    </div>
+  );
 }

@@ -229,6 +229,31 @@ body {
   box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
+/* ── Focus ring (accessibility) ── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Custom inputs override focus-visible with their own treatment */
+.t-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* Screen-reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
 /* Callout / info box */
 .t-callout {
   background: var(--bg-surface);
