@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 from fastapi import (
     APIRouter,
+    Body,
     Depends,
     FastAPI,
     HTTPException,
@@ -390,6 +391,29 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             }
         except Exception:
             logger.exception("Error getting SHAP attributions")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    # Capability prediction toggle
+    @router.put("/api/capabilities/{capability_name}/can-predict")
+    async def toggle_can_predict(capability_name: str, body: dict = Body(...)):
+        """Toggle can_predict flag for a capability."""
+        try:
+            cached = await hub.cache.get("capabilities")
+            if not cached or not cached.get("data"):
+                raise HTTPException(status_code=404, detail="Capabilities not yet discovered")
+            caps = cached["data"]
+            if capability_name not in caps:
+                raise HTTPException(status_code=404, detail=f"Unknown capability: {capability_name}")
+            value = body.get("can_predict")
+            if not isinstance(value, bool):
+                raise HTTPException(status_code=400, detail="can_predict must be a boolean")
+            caps[capability_name]["can_predict"] = value
+            await hub.cache.set("capabilities", caps)
+            return {"capability": capability_name, "can_predict": value}
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Error toggling can_predict")
             raise HTTPException(status_code=500, detail="Internal server error")
 
     # Shadow engine endpoints
