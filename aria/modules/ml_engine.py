@@ -48,6 +48,11 @@ WEEKDAY_ALIGNMENT_BONUS = 1.5
 ROLLING_WINDOWS_HOURS = [1, 3, 6]
 
 
+def should_full_retrain(current_trees: int, max_trees: int = 500) -> bool:
+    """Check if model has exceeded tree cap and needs full retrain."""
+    return current_trees > max_trees
+
+
 class MLEngine(Module):
     """Machine learning prediction engine with adaptive capability mapping."""
 

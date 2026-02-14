@@ -1295,5 +1295,45 @@ class TestFeatureEngineering:
         assert weights[-1] > weights[0]
 
 
+class TestIncrementalLightGBM:
+    """Tests for eGBDT incremental LightGBM adaptation."""
+
+    def test_incremental_preserves_existing_model(self):
+        """Incremental training via init_model should preserve or grow the model."""
+        import lightgbm as lgb
+
+        rng = np.random.default_rng(42)
+        X = rng.standard_normal((100, 10))
+        y = X[:, 0] * 2 + rng.standard_normal(100)
+
+        train_data = lgb.Dataset(X, y, free_raw_data=False)
+        initial = lgb.train(
+            {"objective": "regression", "verbose": -1},
+            train_data, num_boost_round=50,
+        )
+        initial_trees = initial.num_trees()
+        assert initial_trees == 50
+
+        # Incremental training with init_model — model should not lose trees
+        X_new = rng.standard_normal((50, 10))
+        y_new = X_new[:, 0] * 2 + rng.standard_normal(50)
+        new_data = lgb.Dataset(X_new, y_new, free_raw_data=False)
+
+        incremental = lgb.train(
+            {"objective": "regression", "verbose": -1},
+            new_data, num_boost_round=20,
+            init_model=initial,
+        )
+        # LightGBM init_model behavior varies by version — model should at
+        # minimum retain existing quality and not lose trees
+        assert incremental.num_trees() >= initial_trees
+
+    def test_should_full_retrain_logic(self):
+        """When tree count exceeds max, should signal full retrain needed."""
+        from aria.modules.ml_engine import should_full_retrain
+        assert should_full_retrain(current_trees=510, max_trees=500) is True
+        assert should_full_retrain(current_trees=400, max_trees=500) is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
