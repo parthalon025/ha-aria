@@ -14,7 +14,7 @@
 **Your home generates 22,000+ events every day.<br/>ARIA learns what they mean.**
 
 [![CI](https://github.com/parthalon025/ha-aria/actions/workflows/ci.yml/badge.svg)](https://github.com/parthalon025/ha-aria/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-683_passing-brightgreen)](https://github.com/parthalon025/ha-aria/actions)
+[![Tests](https://img.shields.io/badge/tests-747_passing-brightgreen)](https://github.com/parthalon025/ha-aria/actions)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -46,7 +46,7 @@ ARIA watches, learns, and predicts — **entirely on your local hardware.** No c
 | Anomalies go unnoticed until something breaks | Statistical baselines flag unusual activity in real time |
 | "Is someone home?" needs a dedicated sensor | Bayesian occupancy fuses motion, doors, lights, and media |
 | Power consumption is a monthly surprise | Per-outlet profiling with cycle detection and trends |
-| Predictions don't exist | 6 ML models forecast what your home will do next |
+| Predictions don't exist | 9 ML models forecast what your home will do next |
 
 ## Features
 
@@ -58,9 +58,11 @@ ARIA watches, learns, and predicts — **entirely on your local hardware.** No c
 
 ### Predict
 
-- **6 ML models** — GradientBoosting, RandomForest, IsolationForest, Prophet, Markov chains, Bayesian occupancy
-- **Shadow mode** — predictions scored against reality before any automation runs
-- **Concept drift detection** — Page-Hinkley test catches when your home's behavior shifts
+- **9 ML models** — GradientBoosting, RandomForest, IsolationForest, Prophet, NeuralProphet, LightGBM, Markov chains, Bayesian occupancy, hybrid autoencoder
+- **Shadow mode** — predictions scored against reality with Thompson Sampling exploration and adaptive correction propagation
+- **Concept drift detection** — ensemble detection using Page-Hinkley, ADWIN, and rolling threshold methods
+- **SHAP explainability** — per-prediction feature attributions explain why ARIA made each prediction
+- **mRMR feature selection** — minimum Redundancy Maximum Relevance selects the most informative signals
 
 ### Act
 
@@ -70,12 +72,15 @@ ARIA watches, learns, and predicts — **entirely on your local hardware.** No c
 
 ### See
 
-- **12-page interactive dashboard** — Preact SPA with live WebSocket updates, ASCII pixel-art page banners, terminal aesthetic
+- **13-page interactive dashboard** — Preact SPA with live WebSocket updates, ASCII pixel-art page banners, terminal aesthetic
 - **Data-forward visualizations** — sparkline KPIs, heatmap baselines, correlation matrices, swim-lane timelines
 - **Small multiples** — each metric gets its own chart at its own scale (Tufte-inspired)
 - **Real-time activity monitor** — swim-lane timeline + 15-minute windowed analysis
 - **Shadow accuracy tracking** — rolling 7-day accuracy line with prediction volume and gate thresholds
 - **Layman-readable** — every chart includes a plain-English explanation and color legend
+- **ML Engine dashboard** — feature selection rankings, reference model comparison, incremental training status
+- **Drift & anomaly visualization** — per-metric drift status, anomaly alerts, autoencoder health
+- **SHAP attribution charts** — horizontal bar charts showing feature influence on predictions
 
 ## Quick Start
 
@@ -130,23 +135,25 @@ flowchart TB
         direction TB
         E1["Collect snapshots"]
         E2["Build baselines & features"]
-        E3["Train 6 ML models"]
+        E3["Train 9 ML models"]
+        E3a["mRMR feature selection"]
+        E3b["SHAP explainability"]
         E4["Generate predictions"]
         E5["LLM reports & suggestions"]
-        E1 --> E2 --> E3 --> E4 --> E5
+        E1 --> E2 --> E3 --> E3a --> E3b --> E4 --> E5
     end
 
     subgraph Hub ["Hub — real-time service"]
         direction TB
         H1["Entity discovery"]
         H2["Activity monitor\n(WebSocket listener)"]
-        H3["Shadow engine\n(predict → compare → score)"]
+        H3["Shadow engine\n(Thompson Sampling + correction propagation)"]
         H4["Pattern detection\n(Markov sequences)"]
         H5["Data quality\n(entity curation)"]
     end
 
     subgraph Dash ["Dashboard — Preact SPA"]
-        D1["12 interactive pages"]
+        D1["13 interactive pages"]
         D2["Live WebSocket updates"]
     end
 
@@ -181,7 +188,7 @@ flowchart LR
 
 ## Dashboard
 
-The dashboard ships with 12 pages covering the full intelligence pipeline:
+The dashboard ships with 13 pages covering the full intelligence pipeline:
 
 | Page | What You See |
 |------|-------------|
@@ -193,6 +200,7 @@ The dashboard ships with 12 pages covering the full intelligence pipeline:
 | **Predictions** | ML model outputs with confidence scores |
 | **Patterns** | Recurring event sequences detected from your logbook |
 | **Shadow Mode** | Dual accuracy chart (rolling line + volume bars), disagreements, pipeline gates |
+| **ML Engine** | Feature selection rankings, model health, incremental training, reference model comparison |
 | **Automations** | LLM-suggested HA automation YAML from detected patterns |
 | **Settings** | Tunable parameters — retraining schedules, thresholds, model config |
 | **Guide** | Interactive onboarding — how ARIA learns, what each page does, FAQ |
@@ -220,7 +228,7 @@ The dashboard ships with 12 pages covering the full intelligence pipeline:
 | `aria score` | Score yesterday's predictions against actuals |
 | `aria retrain` | Retrain all ML models |
 | `aria meta-learn` | LLM meta-learning to tune feature config |
-| `aria check-drift` | Concept drift detection (Page-Hinkley test) |
+| `aria check-drift` | Ensemble drift detection (Page-Hinkley + ADWIN + threshold) |
 | `aria correlations` | Entity co-occurrence analysis |
 | `aria sequences train` | Train Markov chain model from logbook |
 | `aria sequences detect` | Detect anomalous event sequences |
@@ -241,15 +249,33 @@ The dashboard ships with 12 pages covering the full intelligence pipeline:
 
 | | |
 |:---|:---|
-| **Tests** | 683 (677 passing, CI-enforced) |
+| **Tests** | 747 (747 passing, CI-enforced) |
 | **Code** | 14,451 lines across 63 Python files |
-| **Dashboard** | 38 JSX components across 12 pages |
+| **Dashboard** | 44 JSX components across 13 pages |
 | **Hub modules** | 8 registered (discovery, ML, patterns, shadow, orchestrator, data quality, intelligence, activity) |
 | **CI** | Lint → Test (Python 3.12 + 3.13) → Dashboard build → Codecov |
 
 ### Built With
 
-[scikit-learn](https://scikit-learn.org/) · [FastAPI](https://fastapi.tiangolo.com/) · [Preact](https://preactjs.com/) · [Tailwind CSS](https://tailwindcss.com/) · [Prophet](https://facebook.github.io/prophet/) · [Ollama](https://ollama.ai/) · [LightGBM](https://lightgbm.readthedocs.io/)
+[scikit-learn](https://scikit-learn.org/) · [FastAPI](https://fastapi.tiangolo.com/) · [Preact](https://preactjs.com/) · [Tailwind CSS](https://tailwindcss.com/) · [Prophet](https://facebook.github.io/prophet/) · [Ollama](https://ollama.ai/) · [LightGBM](https://lightgbm.readthedocs.io/) · [SHAP](https://shap.readthedocs.io/) · [river](https://riverml.xyz/) · [NeuralProphet](https://neuralprophet.com/)
+
+### Research Foundations
+
+ARIA's ML pipeline is grounded in peer-reviewed research:
+
+| Technique | Paper | Used In |
+|-----------|-------|---------|
+| Page-Hinkley drift detection | Page (1954), Hinkley (1971) | Concept drift detection |
+| ADWIN adaptive windowing | Bifet & Gavalda, SIAM 2007 | Ensemble drift detection |
+| Thompson Sampling (f-dsw) | Cavenaghi et al., 2024 | Shadow mode exploration |
+| Slivkins zooming | Slivkins, JACM 2014 | Correction propagation |
+| Prioritized experience replay | Schaul et al., ICLR 2016 | Shadow replay buffer |
+| SHAP TreeExplainer | Lundberg & Lee, NeurIPS 2017 | Feature attribution |
+| mRMR feature selection | Ding & Peng, IEEE TPAMI 2005 | Feature engineering |
+| NeuralProphet | Triebe et al., 2021 | Seasonal forecasting |
+| LightGBM | Ke et al., NeurIPS 2017 | Incremental gradient boosting |
+| Isolation Forest | Liu et al., ICDM 2008 | Anomaly detection |
+| Hybrid AE+IsolationForest | Aggarwal, Springer 2017 | Contextual anomaly detection |
 
 ## Contributing
 

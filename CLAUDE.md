@@ -137,6 +137,7 @@ aria/
 **Category-based:** `activity_log`, `activity_summary`, `areas`, `capabilities`, `devices`, `discovery_metadata`, `entities`, `intelligence`
 **Shadow tables:** `predictions` (predict-compare-score records), `pipeline_state` (backtest→shadow→suggest→autonomous progression)
 **Phase 2 tables:** `config` (editable engine parameters), `entity_curation` (tiered entity classification), `config_history` (change audit log)
+**ML data keys in intelligence cache:** `drift_status`, `feature_selection`, `reference_model`, `incremental_training`, `forecaster_backend`, `anomaly_alerts`, `autoencoder_status`, `isolation_forest_status`, `shap_attributions`
 
 ### Dashboard (Preact SPA)
 
@@ -144,7 +145,7 @@ aria/
 **Location:** `aria/dashboard/spa/`
 **Design language:** `docs/design-language.md` — MUST READ before creating or modifying UI components
 **Design doc:** `docs/plans/2026-02-13-aria-ui-redesign-design.md`
-**Pages (12):** Home (pipeline flowchart), Discovery, Capabilities, Data Curation, Intelligence, Predictions, Patterns, Shadow Mode, Automations, Settings, Guide (onboarding)
+**Pages (13):** Home (pipeline flowchart), Discovery, Capabilities, Data Curation, Intelligence, Predictions, Patterns, Shadow Mode, ML Engine (feature selection, model health), Automations, Settings, Guide (onboarding)
 **Sidebar:** 3 responsive variants — phone bottom tab bar (<640px), tablet icon rail (640-1023px), desktop full sidebar (1024px+). Organized by pipeline stage.
 **Logo:** SVG pixel-art component (`AriaLogo.jsx`) matching README ASCII art
 
@@ -199,6 +200,9 @@ Located in `aria/dashboard/spa/src/pages/intelligence/`:
 | `Correlations` | Diverging-color correlation matrix heatmap (positive=accent, negative=purple) |
 | `SystemStatus` | Run log, ML model scores (R2/MAE), meta-learning applied suggestions |
 | `Configuration` | Current intelligence engine config (deprecated — replaced by Settings page) |
+| `DriftStatus` | Per-metric drift detection status (Page-Hinkley + ADWIN scores) |
+| `AnomalyAlerts` | IsolationForest + autoencoder anomaly alerts |
+| `ShapAttributions` | SHAP feature attribution horizontal bar chart |
 | `utils.jsx` | Shared helpers: Section, Callout, durationSince, describeEvent, EVENT_ICONS, DOMAIN_LABELS |
 
 ### Activity Monitor — Prediction Analytics
@@ -304,6 +308,18 @@ curl -s http://127.0.0.1:8001/api/pipeline | python3 -m json.tool
 # Pipeline control (advance/retreat with gate validation)
 curl -s -X POST http://127.0.0.1:8001/api/pipeline/advance -H 'Content-Type: application/json' -d '{}'
 curl -s -X POST http://127.0.0.1:8001/api/pipeline/retreat -H 'Content-Type: application/json' -d '{}'
+```
+
+### ML Feature Data API
+
+```bash
+# ML feature data
+curl -s http://127.0.0.1:8001/api/ml/drift | python3 -m json.tool
+curl -s http://127.0.0.1:8001/api/ml/features | python3 -m json.tool
+curl -s http://127.0.0.1:8001/api/ml/models | python3 -m json.tool
+curl -s http://127.0.0.1:8001/api/ml/anomalies | python3 -m json.tool
+curl -s http://127.0.0.1:8001/api/ml/shap | python3 -m json.tool
+curl -s http://127.0.0.1:8001/api/shadow/propagation | python3 -m json.tool
 ```
 
 ### Phase 2 Config & Curation API
