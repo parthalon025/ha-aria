@@ -5,9 +5,9 @@ predictions using ML models and frequency heuristics, tracks open
 predictions within time windows, and scores outcomes when windows expire.
 
 Exploration strategy (configurable via shadow.explore_strategy):
-- "epsilon" (default): Fixed 80/20 epsilon-greedy explore/exploit
-- "thompson": Thompson Sampling with Beta posterior per context bucket
-  (Cavenaghi et al., Entropy 2021 — validated for non-stationary bandits)
+- "thompson" (default): Thompson Sampling with Beta posterior per context bucket
+  and f-dsw non-stationarity adaptation (Cavenaghi et al., Entropy 2021)
+- "epsilon": Fixed 80/20 epsilon-greedy explore/exploit
 """
 
 import asyncio
@@ -68,12 +68,15 @@ class ThompsonSampler:
     where we have less data, while "exploit" uses highest-confidence methods.
 
     Reference: Cavenaghi et al., "f-dsw Thompson Sampling" (Entropy 2021).
-    This is the basic version; f-dsw adaptation can be layered later.
+    Implements f-dsw decay: posteriors are discounted by `discount_factor`
+    before each update, and `window_size` caps effective history length.
     """
 
-    def __init__(self):
-        # Maps bucket_key -> {"alpha": successes+1, "beta": failures+1}
+    def __init__(self, discount_factor: float = 0.95, window_size: int = 100):
+        # Maps bucket_key -> {"alpha": successes+1, "beta": failures+1, "observations": int}
         self._buckets: Dict[str, Dict[str, float]] = {}
+        self.discount_factor = discount_factor
+        self.window_size = window_size
 
     def get_bucket_key(self, context: Dict[str, Any]) -> str:
         """Derive a bucket key from context features.
@@ -112,7 +115,10 @@ class ThompsonSampler:
         return explore_sample > exploit_sample
 
     def record_outcome(self, context: Dict[str, Any], success: bool):
-        """Update the posterior for this context bucket.
+        """Update the posterior for this context bucket with f-dsw decay.
+
+        Before updating, applies discount_factor to decay existing posteriors
+        toward the prior, and caps effective history via window_size.
 
         Args:
             context: The prediction context.
@@ -120,12 +126,62 @@ class ThompsonSampler:
         """
         key = self.get_bucket_key(context)
         if key not in self._buckets:
-            self._buckets[key] = {"alpha": 1.0, "beta": 1.0}
+            self._buckets[key] = {"alpha": 1.0, "beta": 1.0, "observations": 0}
 
+        bucket = self._buckets[key]
+
+        # f-dsw decay: discount existing posteriors before update
+        bucket["alpha"] = max(1.0, bucket["alpha"] * self.discount_factor)
+        bucket["beta"] = max(1.0, bucket["beta"] * self.discount_factor)
+
+        # Update with new observation
         if success:
-            self._buckets[key]["alpha"] += 1.0
+            bucket["alpha"] += 1.0
         else:
-            self._buckets[key]["beta"] += 1.0
+            bucket["beta"] += 1.0
+
+        bucket["observations"] = bucket.get("observations", 0) + 1
+
+        # Window size cap: if observations exceed window, decay more aggressively
+        if bucket["observations"] > self.window_size:
+            excess_ratio = self.window_size / bucket["observations"]
+            bucket["alpha"] = max(1.0, 1.0 + (bucket["alpha"] - 1.0) * excess_ratio)
+            bucket["beta"] = max(1.0, 1.0 + (bucket["beta"] - 1.0) * excess_ratio)
+            bucket["observations"] = self.window_size
+
+    def reset_bucket(self, key: str):
+        """Reset a bucket to flat prior (alpha=1.0, beta=1.0).
+
+        Args:
+            key: The bucket key to reset.
+        """
+        self._buckets[key] = {"alpha": 1.0, "beta": 1.0, "observations": 0}
+
+    def get_state(self) -> Dict[str, Any]:
+        """Return serializable state for persistence.
+
+        Returns:
+            Dict mapping bucket keys to their alpha/beta/observations.
+        """
+        return {
+            key: {"alpha": b["alpha"], "beta": b["beta"], "observations": b.get("observations", 0)}
+            for key, b in self._buckets.items()
+        }
+
+    def load_state(self, state: Dict[str, Any]):
+        """Restore state from a previously saved dict.
+
+        Args:
+            state: Dict mapping bucket keys to alpha/beta/observations dicts.
+        """
+        self._buckets = {
+            key: {
+                "alpha": v["alpha"],
+                "beta": v["beta"],
+                "observations": v.get("observations", 0),
+            }
+            for key, v in state.items()
+        }
 
     def get_stats(self) -> Dict[str, Any]:
         """Return current bucket statistics for observability."""
@@ -135,6 +191,7 @@ class ThompsonSampler:
                 "beta": round(b["beta"], 1),
                 "mean": round(b["alpha"] / (b["alpha"] + b["beta"]), 3),
                 "trials": int(b["alpha"] + b["beta"] - 2),
+                "observations": b.get("observations", 0),
             }
             for key, b in self._buckets.items()
         }

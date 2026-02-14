@@ -1599,3 +1599,104 @@ class TestConfigStoreIntegration:
         domain_preds = [p for p in predictions if p["type"] == "next_domain_action"]
         assert len(domain_preds) >= 1
         assert domain_preds[0]["window_seconds"] == 1200
+
+
+# ============================================================================
+# Thompson Sampling f-dsw Non-Stationarity
+# ============================================================================
+
+
+from aria.modules.shadow_engine import ThompsonSampler
+
+
+class TestThompsonSamplerFDSW:
+    """Test f-dsw discount factor and sliding window on ThompsonSampler."""
+
+    def test_discount_factor_decays_posteriors(self):
+        """Sampler with discount_factor=0.9 should decay alpha on each record."""
+        sampler = ThompsonSampler(discount_factor=0.9)
+        context = {"time_features": {"hour_sin": 0.8}, "presence": {"home": True}}
+
+        # Record 10 successes
+        for _ in range(10):
+            sampler.record_outcome(context, success=True)
+
+        key = sampler.get_bucket_key(context)
+        bucket = sampler._buckets[key]
+        # Without decay, alpha would be 11.0 (1.0 + 10).
+        # With decay factor 0.9 applied before each update, alpha should be < 8.0
+        assert bucket["alpha"] < 8.0
+
+    def test_window_size_caps_effective_history(self):
+        """100 observations with window=20 should keep alpha low."""
+        sampler = ThompsonSampler(window_size=20)
+        context = {"time_features": {"hour_sin": 0.8}, "presence": {"home": True}}
+
+        for _ in range(100):
+            sampler.record_outcome(context, success=True)
+
+        key = sampler.get_bucket_key(context)
+        bucket = sampler._buckets[key]
+        # With window_size=20, effective alpha should be bounded
+        assert bucket["alpha"] < 25.0
+
+    def test_reset_bucket_clears_state(self):
+        """reset_bucket should restore flat prior (alpha=1.0, beta=1.0)."""
+        sampler = ThompsonSampler()
+        context = {"time_features": {"hour_sin": 0.8}, "presence": {"home": True}}
+
+        sampler.record_outcome(context, success=True)
+        sampler.record_outcome(context, success=True)
+        key = sampler.get_bucket_key(context)
+        assert sampler._buckets[key]["alpha"] > 1.0
+
+        sampler.reset_bucket(key)
+        assert sampler._buckets[key]["alpha"] == 1.0
+        assert sampler._buckets[key]["beta"] == 1.0
+
+    def test_default_discount_factor_is_0_95(self):
+        """Default discount_factor should be 0.95."""
+        sampler = ThompsonSampler()
+        assert sampler.discount_factor == 0.95
+
+
+# ============================================================================
+# Thompson Sampling Persistence
+# ============================================================================
+
+
+class TestThompsonPersistence:
+    """Test Thompson Sampling state save/load round-trip."""
+
+    @pytest.mark.asyncio
+    async def test_save_and_load_thompson_state(self, tmp_path):
+        """Thompson state should round-trip through CacheManager."""
+        from aria.hub.cache import CacheManager
+
+        db_path = str(tmp_path / "test.db")
+        cache = CacheManager(db_path)
+        await cache.initialize()
+
+        try:
+            # Build state
+            sampler = ThompsonSampler()
+            ctx = {"time_features": {"hour_sin": 0.8}, "presence": {"home": True}}
+            sampler.record_outcome(ctx, success=True)
+            sampler.record_outcome(ctx, success=False)
+
+            state = sampler.get_state()
+
+            # Save to DB
+            await cache.save_thompson_state(state)
+
+            # Load from DB
+            loaded = await cache.load_thompson_state()
+            assert loaded is not None
+
+            # Restore into a new sampler
+            sampler2 = ThompsonSampler()
+            sampler2.load_state(loaded)
+
+            assert sampler2.get_state() == state
+        finally:
+            await cache.close()

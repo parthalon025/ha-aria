@@ -165,6 +165,15 @@ class CacheManager:
             ON config_history(key)
         """)
 
+        # Thompson Sampling state persistence
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS thompson_state (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                state TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
         await self._conn.commit()
 
     async def close(self):
@@ -1082,6 +1091,45 @@ class CacheManager:
             }
             for row in rows
         ]
+
+    # ========================================================================
+    # Thompson Sampling state persistence
+    # ========================================================================
+
+    async def save_thompson_state(self, state: Dict[str, Any]) -> None:
+        """Save Thompson Sampling bucket state to the database.
+
+        Args:
+            state: Dict mapping bucket keys to alpha/beta/observations dicts.
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        now = datetime.now().isoformat()
+        await self._conn.execute(
+            """INSERT INTO thompson_state (id, state, updated_at)
+               VALUES (1, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                   state = excluded.state,
+                   updated_at = excluded.updated_at""",
+            (json.dumps(state), now),
+        )
+        await self._conn.commit()
+
+    async def load_thompson_state(self) -> Optional[Dict[str, Any]]:
+        """Load Thompson Sampling bucket state from the database.
+
+        Returns:
+            Dict mapping bucket keys to alpha/beta/observations dicts, or None.
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        cursor = await self._conn.execute("SELECT state FROM thompson_state WHERE id = 1")
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return json.loads(row["state"])
 
     # ========================================================================
     # Internal helpers

@@ -180,5 +180,82 @@ class TestSklearnTraining(unittest.TestCase):
         self.assertEqual(result, 150)
 
 
+class TestHybridAnomalyDetection(unittest.TestCase):
+    """Tests for the hybrid Autoencoder + IsolationForest anomaly detection."""
+
+    def test_autoencoder_trains_and_reconstructs(self):
+        if not HAS_SKLEARN:
+            self.skipTest("sklearn not installed")
+        import numpy as np
+        from aria.engine.models.autoencoder import Autoencoder
+
+        tmpdir = tempfile.mkdtemp()
+        try:
+            np.random.seed(42)
+            X = np.random.randn(100, 48)
+            ae = Autoencoder(hidden_layers=(24, 12, 24), max_iter=200)
+            result = ae.train(X, tmpdir)
+            self.assertNotIn("error", result)
+            self.assertEqual(result["samples"], 100)
+            self.assertTrue(os.path.isfile(os.path.join(tmpdir, "autoencoder.pkl")))
+            self.assertTrue(os.path.isfile(os.path.join(tmpdir, "ae_scaler.pkl")))
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def test_autoencoder_reconstruction_error(self):
+        if not HAS_SKLEARN:
+            self.skipTest("sklearn not installed")
+        import numpy as np
+        from aria.engine.models.autoencoder import Autoencoder
+
+        tmpdir = tempfile.mkdtemp()
+        try:
+            np.random.seed(42)
+            X_normal = np.random.randn(100, 48)
+            ae = Autoencoder(hidden_layers=(24, 12, 24), max_iter=200)
+            ae.train(X_normal, tmpdir)
+
+            # Normal data should have low reconstruction error
+            normal_errors = ae.reconstruction_errors(X_normal[:10], tmpdir)
+            # Anomalous data (10x scaled) should have higher reconstruction error
+            X_anomaly = X_normal[:10] * 10
+            anomaly_errors = ae.reconstruction_errors(X_anomaly, tmpdir)
+
+            self.assertIsNotNone(normal_errors)
+            self.assertIsNotNone(anomaly_errors)
+            self.assertGreater(
+                float(np.mean(anomaly_errors)),
+                float(np.mean(normal_errors)),
+                "Anomalous data should have higher reconstruction error than normal data",
+            )
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def test_hybrid_isolation_forest_uses_ae_feature(self):
+        if not HAS_SKLEARN:
+            self.skipTest("sklearn not installed")
+        import numpy as np
+
+        tmpdir = tempfile.mkdtemp()
+        try:
+            np.random.seed(42)
+            X = np.random.randn(100, 48)
+            names = [f"feature_{i}" for i in range(48)]
+
+            iso_model = IsolationForestModel()
+            result = iso_model.train(names, X, tmpdir, use_autoencoder=True)
+            self.assertNotIn("error", result)
+            self.assertTrue(result["autoencoder_enabled"])
+            self.assertTrue(os.path.isfile(os.path.join(tmpdir, "anomaly_config.pkl")))
+            self.assertTrue(os.path.isfile(os.path.join(tmpdir, "autoencoder.pkl")))
+
+            # Predict should work with autoencoder-augmented model
+            pred = iso_model.predict(X[0], tmpdir)
+            self.assertIn("is_anomaly", pred)
+            self.assertIn("anomaly_score", pred)
+        finally:
+            shutil.rmtree(tmpdir)
+
+
 if __name__ == "__main__":
     unittest.main()
