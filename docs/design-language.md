@@ -397,6 +397,45 @@ Content area padding accounts for nav:
 - `env(safe-area-inset-bottom)` on phone tab bar for notched devices
 - `prefers-reduced-motion`: all animations disabled, cursors static
 
+## Cross-Dashboard Navigation
+
+All ARIA-aesthetic dashboards share a unified navigation pattern via the Project Hub.
+
+### Hub Nav Script
+
+Every dashboard (except the hub itself) includes a shared script that injects a floating "← Hub" button:
+
+```html
+<script src="/hub/hub-nav.js"></script>
+```
+
+- **Position:** Fixed, top-left, `z-index: 9999`
+- **Touch target:** 48px minimum (mobile-safe)
+- **Theme-aware:** Reads `data-theme` attribute on `<html>`, falls back to `prefers-color-scheme`
+- **Self-skipping:** Does not inject on `/hub/*` paths
+- **No dependencies:** Vanilla JS, inline styles, ~1.8KB
+
+Currently active on:
+- ARIA dashboard (`/aria/` via Tailscale Serve)
+- Ollama Queue dashboard (`/queue/` via Tailscale Serve)
+
+### Internal Navigation (Project Hub)
+
+The Project Hub uses History API routing for its own views:
+- `/hub/` — project list (summary cards with status badges)
+- `/hub/project/:id` — project detail page (services, timers, git, actions)
+
+Navigation components:
+- `BackLink` — `← All Projects` link, 48px touch target, uses `navigate()` from `useRoute` hook
+- `PageBanner` — reused with project name: `HUB ÷ {PROJECT_NAME}`
+
+### Adding Hub Nav to a New Dashboard
+
+1. Add `<script src="/hub/hub-nav.js"></script>` before `</body>` in the dashboard HTML
+2. Ensure the dashboard sets `data-theme` on `<html>` for correct styling (falls back to OS preference)
+3. The script auto-detects dark/light and watches for theme changes via MutationObserver
+4. Rebuild the dashboard if HTML is a build artifact
+
 ## Adding a New Page
 
 1. Create `aria/dashboard/spa/src/pages/YourPage.jsx`

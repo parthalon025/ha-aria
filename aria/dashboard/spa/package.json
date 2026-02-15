@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm run dev:css\" \"npm run dev:js\"",
     "dev:css": "npx @tailwindcss/cli -i src/index.css -o dist/bundle.css --watch",
     "dev:js": "node esbuild.config.mjs --watch",
-    "build": "npm run build:css && npm run build:js",
+    "build": "npm run build:css && npm run build:js && cp index.html dist/index.html",
     "build:css": "npx @tailwindcss/cli -i src/index.css -o dist/bundle.css --minify",
     "build:js": "node esbuild.config.mjs"
   },
