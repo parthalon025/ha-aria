@@ -338,7 +338,7 @@ class PresenceModule(Module):
         now = datetime.now()
 
         # Resolve entity to room (use area_id from attributes or device)
-        room = self._resolve_room(entity_id, attrs)
+        room = await self._resolve_room(entity_id, attrs)
         if not room:
             return
 
@@ -389,14 +389,14 @@ class PresenceModule(Module):
                     now,
                 )
 
-    def _resolve_room(self, entity_id: str, attrs: Dict) -> Optional[str]:
+    async def _resolve_room(self, entity_id: str, attrs: Dict) -> Optional[str]:
         """Resolve an entity to its room/area name.
 
         Uses the discovery cache if available, falls back to entity_id parsing.
         """
         # Try discovery cache (entities -> device -> area chain)
         try:
-            entities_cache = self.hub.cache.get_cache("entities")
+            entities_cache = await self.hub.get_cache("entities")
             if entities_cache:
                 entity_data = entities_cache.get(entity_id, {})
                 area = entity_data.get("area_id") or entity_data.get("area")
@@ -406,7 +406,7 @@ class PresenceModule(Module):
                 # Fall back to device -> area
                 device_id = entity_data.get("device_id")
                 if device_id:
-                    devices_cache = self.hub.cache.get_cache("devices")
+                    devices_cache = await self.hub.get_cache("devices")
                     if devices_cache:
                         device = devices_cache.get(device_id, {})
                         area = device.get("area_id")
@@ -529,7 +529,7 @@ class PresenceModule(Module):
         }
 
         # Write to cache
-        await self.hub.cache.set_cache(CACHE_PRESENCE, presence_data)
+        await self.hub.set_cache(CACHE_PRESENCE, presence_data)
 
         # Publish event for other modules
         await self.hub.publish("presence_updated", presence_data)

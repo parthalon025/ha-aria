@@ -56,9 +56,10 @@ class MockHub:
 
     async def set_cache(self, category: str, data: Any, metadata: Optional[Dict] = None):
         self._cache_data[category] = data
+        self.cache._cache[category] = data
 
-    def get_cache(self, category: str):
-        return self._cache_data.get(category)
+    async def get_cache(self, category: str):
+        return self._cache_data.get(category) or self.cache._cache.get(category)
 
     def is_running(self) -> bool:
         return self._running
@@ -308,7 +309,7 @@ class TestHAStateChanges:
     """Test processing of Home Assistant state change events."""
 
     async def test_motion_sensor_on(self, module):
-        module._resolve_room = MagicMock(return_value="living_room")
+        module._resolve_room = AsyncMock(return_value="living_room")
         data = {
             "new_state": {
                 "entity_id": "binary_sensor.living_room_motion",
@@ -322,7 +323,7 @@ class TestHAStateChanges:
         assert signals[0][0] == "motion"
 
     async def test_motion_sensor_off_ignored(self, module):
-        module._resolve_room = MagicMock(return_value="living_room")
+        module._resolve_room = AsyncMock(return_value="living_room")
         data = {
             "new_state": {
                 "entity_id": "binary_sensor.living_room_motion",
@@ -334,7 +335,7 @@ class TestHAStateChanges:
         assert len(module._room_signals.get("living_room", [])) == 0
 
     async def test_light_turned_on(self, module):
-        module._resolve_room = MagicMock(return_value="kitchen")
+        module._resolve_room = AsyncMock(return_value="kitchen")
         data = {
             "new_state": {
                 "entity_id": "light.kitchen",
@@ -348,7 +349,7 @@ class TestHAStateChanges:
         assert signals[0][0] == "light_interaction"
 
     async def test_dimmer_press(self, module):
-        module._resolve_room = MagicMock(return_value="bedroom")
+        module._resolve_room = AsyncMock(return_value="bedroom")
         data = {
             "new_state": {
                 "entity_id": "event.hue_dimmer_bedroom",
@@ -362,7 +363,7 @@ class TestHAStateChanges:
         assert signals[0][0] == "dimmer_press"
 
     async def test_person_home(self, module):
-        module._resolve_room = MagicMock(return_value="overall")
+        module._resolve_room = AsyncMock(return_value="overall")
         data = {
             "new_state": {
                 "entity_id": "person.justin",
@@ -377,7 +378,7 @@ class TestHAStateChanges:
         assert signals[0][1] == 0.9  # home = high
 
     async def test_person_away(self, module):
-        module._resolve_room = MagicMock(return_value="overall")
+        module._resolve_room = AsyncMock(return_value="overall")
         data = {
             "new_state": {
                 "entity_id": "person.justin",
@@ -391,7 +392,7 @@ class TestHAStateChanges:
         assert signals[0][1] == 0.1  # away = low
 
     async def test_door_sensor(self, module):
-        module._resolve_room = MagicMock(return_value="garage")
+        module._resolve_room = AsyncMock(return_value="garage")
         data = {
             "new_state": {
                 "entity_id": "binary_sensor.garage_door",
@@ -409,7 +410,7 @@ class TestHAStateChanges:
         assert len(module._room_signals) == 0
 
     async def test_unresolved_room_ignored(self, module):
-        module._resolve_room = MagicMock(return_value=None)
+        module._resolve_room = AsyncMock(return_value=None)
         data = {
             "new_state": {
                 "entity_id": "binary_sensor.unknown",
@@ -429,43 +430,43 @@ class TestHAStateChanges:
 class TestRoomResolution:
     """Test entity-to-room resolution logic."""
 
-    def test_resolve_from_entity_cache(self, module):
-        module.hub.cache._cache["entities"] = {
+    async def test_resolve_from_entity_cache(self, module):
+        module.hub._cache_data["entities"] = {
             "binary_sensor.living_room_motion": {
                 "area_id": "living_room",
             }
         }
-        room = module._resolve_room(
+        room = await module._resolve_room(
             "binary_sensor.living_room_motion", {}
         )
         assert room == "living_room"
 
-    def test_resolve_from_device_cache(self, module):
-        module.hub.cache._cache["entities"] = {
+    async def test_resolve_from_device_cache(self, module):
+        module.hub._cache_data["entities"] = {
             "binary_sensor.sensor1": {
                 "device_id": "dev123",
             }
         }
-        module.hub.cache._cache["devices"] = {
+        module.hub._cache_data["devices"] = {
             "dev123": {"area_id": "kitchen"},
         }
-        room = module._resolve_room("binary_sensor.sensor1", {})
+        room = await module._resolve_room("binary_sensor.sensor1", {})
         assert room == "kitchen"
 
-    def test_resolve_fallback_bedroom(self, module):
-        room = module._resolve_room("light.master_bedroom_lamp", {})
+    async def test_resolve_fallback_bedroom(self, module):
+        room = await module._resolve_room("light.master_bedroom_lamp", {})
         assert room == "bedroom"
 
-    def test_resolve_fallback_front_door(self, module):
-        room = module._resolve_room("binary_sensor.front_door_motion", {})
+    async def test_resolve_fallback_front_door(self, module):
+        room = await module._resolve_room("binary_sensor.front_door_motion", {})
         assert room == "front_door"
 
-    def test_resolve_fallback_doorbell(self, module):
-        room = module._resolve_room("camera.doorbell", {})
+    async def test_resolve_fallback_doorbell(self, module):
+        room = await module._resolve_room("camera.doorbell", {})
         assert room == "front_door"
 
-    def test_resolve_unknown_returns_none(self, module):
-        room = module._resolve_room("sensor.unknown_thing", {})
+    async def test_resolve_unknown_returns_none(self, module):
+        room = await module._resolve_room("sensor.unknown_thing", {})
         assert room is None
 
 
@@ -585,11 +586,11 @@ class TestEdgeCases:
         signal = module._room_signals["driveway"][0]
         assert signal[1] <= 0.99
 
-    def test_resolve_room_cache_exception(self, module):
+    async def test_resolve_room_cache_exception(self, module):
         """Cache errors should not propagate."""
-        module.hub.cache.get_cache = MagicMock(side_effect=RuntimeError("broken"))
+        module.hub.get_cache = AsyncMock(side_effect=RuntimeError("broken"))
         # Should fall through to fallback parsing
-        room = module._resolve_room("light.bedroom_lamp", {})
+        room = await module._resolve_room("light.bedroom_lamp", {})
         assert room == "bedroom"
 
     async def test_stale_identified_persons_excluded(self, module):
