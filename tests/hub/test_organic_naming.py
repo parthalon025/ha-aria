@@ -334,12 +334,12 @@ class TestOllamaDescription:
 # --- Ollama queue routing test ---
 
 
-class TestOllamaQueueRouting:
-    """Verify _call_ollama routes through ollama-queue (port 7683)."""
+class TestOllamaDirectRouting:
+    """Verify _call_ollama routes to direct Ollama (port 11434), not ollama-queue."""
 
     @pytest.mark.asyncio
-    async def test_call_ollama_uses_queue_port(self):
-        """_call_ollama must POST to ollama-queue on port 7683, not direct Ollama."""
+    async def test_call_ollama_uses_direct_port(self):
+        """_call_ollama must POST to Ollama on port 11434, not ollama-queue (7683)."""
         from unittest.mock import MagicMock
 
         mock_resp = AsyncMock()
@@ -361,5 +361,5 @@ class TestOllamaQueueRouting:
             await _call_ollama("test prompt")
 
         url_called = mock_session.post.call_args[0][0]
-        assert "7683" in url_called, f"Expected port 7683 (ollama-queue), got: {url_called}"
-        assert "11434" not in url_called, "Should not use direct Ollama port 11434"
+        assert "11434" in url_called, f"Expected port 11434 (direct Ollama), got: {url_called}"
+        assert "7683" not in url_called, "Should not use ollama-queue port 7683"

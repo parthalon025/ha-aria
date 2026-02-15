@@ -79,7 +79,7 @@ class OrganicDiscoveryModule(Module):
             merged = dict(DEFAULT_SETTINGS)
             merged.update(loaded)
             self.settings = merged
-            self.logger.info(f"Loaded settings: autonomy_mode={self.settings['autonomy_mode']}")
+            self.logger.info(f"Loaded settings: autonomy_mode={self.settings['autonomy_mode']}, naming_backend={self.settings['naming_backend']}")
 
         # Load persisted history
         history_entry = await self.hub.get_cache("discovery_history")
