@@ -329,3 +329,37 @@ class TestOllamaDescription:
 
             result = await ollama_description(CLUSTER_MIXED_ROOM)
             assert len(result) <= 200
+
+
+# --- Ollama queue routing test ---
+
+
+class TestOllamaQueueRouting:
+    """Verify _call_ollama routes through ollama-queue (port 7683)."""
+
+    @pytest.mark.asyncio
+    async def test_call_ollama_uses_queue_port(self):
+        """_call_ollama must POST to ollama-queue on port 7683, not direct Ollama."""
+        from unittest.mock import MagicMock
+
+        mock_resp = AsyncMock()
+        mock_resp.json = AsyncMock(return_value={"response": "test_name"})
+
+        # post() returns a context manager, not a coroutine
+        mock_ctx = MagicMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        mock_session = AsyncMock()
+        mock_session.post = MagicMock(return_value=mock_ctx)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("aiohttp.ClientSession", return_value=mock_session):
+            from aria.modules.organic_discovery.naming import _call_ollama
+
+            await _call_ollama("test prompt")
+
+        url_called = mock_session.post.call_args[0][0]
+        assert "7683" in url_called, f"Expected port 7683 (ollama-queue), got: {url_called}"
+        assert "11434" not in url_called, "Should not use direct Ollama port 11434"
