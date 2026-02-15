@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
+import { getCategory } from '../store.js';
 import { fetchJson } from '../api.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
@@ -104,7 +105,7 @@ function getNodeMetric(cacheData, node) {
   }
 }
 
-function ModuleNode({ x, y, status, label, metric }) {
+function ModuleNode({ x, y, status, label, metric, glowing, animateMetric }) {
   const colors = {
     healthy: 'var(--status-healthy)',
     waiting: 'var(--status-waiting)',
@@ -115,12 +116,19 @@ function ModuleNode({ x, y, status, label, metric }) {
 
   return (
     <g transform={`translate(${x}, ${y})`}>
-      <rect width="180" height="55" rx="4" fill="var(--bg-surface)" stroke="var(--border-primary)" stroke-width="1" />
+      <rect width="180" height="55" rx="4" fill="var(--bg-surface)" stroke={glowing ? 'var(--accent)' : 'var(--border-primary)'} stroke-width={glowing ? '2' : '1'} />
+      {glowing && (
+        <rect width="180" height="55" rx="4" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.3">
+          <animate attributeName="opacity" values="0.3;0.1;0.3" dur="2s" repeatCount="1" />
+        </rect>
+      )}
       <circle cx="16" cy="16" r="5" fill={color} filter="url(#led-glow)">
-        {status === 'healthy' && <animate attributeName="opacity" values="1;0.6;1" dur="3s" repeatCount="indefinite" />}
+        {(status === 'healthy' || glowing) && <animate attributeName="opacity" values="1;0.6;1" dur={glowing ? '1s' : '3s'} repeatCount="indefinite" />}
       </circle>
       <text x="28" y="20" fill="var(--text-primary)" font-size="11" font-weight="600" font-family="var(--font-mono)">{label}</text>
-      <text x="16" y="42" fill="var(--text-tertiary)" font-size="10" font-family="var(--font-mono)">{metric}</text>
+      <text x="16" y="42" fill="var(--text-tertiary)" font-size="10" font-family="var(--font-mono)" class={animateMetric ? 't2-typewriter' : ''}>
+        {metric}
+      </text>
     </g>
   );
 }
@@ -129,13 +137,66 @@ function PlaneLabel({ x, y, label }) {
   return <text x={x} y={y} text-anchor="middle" fill="var(--text-tertiary)" font-size="10" font-weight="700" font-family="var(--font-mono)" letter-spacing="2">{label}</text>;
 }
 
-function BusConnector({ x, y1, y2, label }) {
+function BusConnector({ x, y1, y2, label, stale, flashing }) {
+  const lineClass = stale ? '' : 'bus-connector-line';
+  const stroke = stale ? 'var(--status-error)' : 'var(--border-primary)';
+  const dasharray = stale ? '2 4' : undefined;
+  const flashClass = flashing ? ' animate-data-refresh' : '';
+
   return (
-    <g>
-      <line x1={x} y1={y1} x2={x} y2={y2} class="bus-connector-line" stroke="var(--border-primary)" stroke-width="1" />
-      {label && <text x={x + 4} y={(y1 + y2) / 2} fill="var(--text-tertiary)" font-size="8" font-family="var(--font-mono)">{label}</text>}
+    <g class={flashClass}>
+      <line
+        x1={x} y1={y1} x2={x} y2={y2}
+        class={lineClass}
+        stroke={stroke}
+        stroke-width="1"
+        stroke-dasharray={dasharray}
+      />
+      {stale && (
+        <g transform={`translate(${x - 4}, ${(y1 + y2) / 2 - 6})`}>
+          <circle cx="4" cy="4" r="6" fill="var(--status-error)" opacity="0.2" />
+          <text x="4" y="7" text-anchor="middle" fill="var(--status-error)" font-size="9" font-weight="bold" font-family="var(--font-mono)">!</text>
+        </g>
+      )}
+      {label && <text x={x + 4} y={(y1 + y2) / 2} fill={stale ? 'var(--status-error)' : 'var(--text-tertiary)'} font-size="8" font-family="var(--font-mono)">{label}</text>}
     </g>
   );
+}
+
+// Map cache categories to connector indices for flash animation
+const CACHE_CONNECTOR_MAP = {
+  capabilities: { section: 'data', index: 0 },
+  entities: { section: 'data', index: 0 },
+  activity_summary: { section: 'data', index: 1 },
+  entity_curation: { section: 'data', index: 2 },
+  activity_labels: { section: 'data', index: 3 },
+  ml_accuracy: { section: 'learning', index: 1 },
+  shadow_accuracy: { section: 'learning', index: 1 },
+};
+
+const STALE_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 hours
+
+function isStaleTimestamp(ts) {
+  if (!ts) return true;
+  const d = typeof ts === 'string' ? new Date(ts).getTime() : ts;
+  if (isNaN(d)) return true;
+  return Date.now() - d > STALE_THRESHOLD_MS;
+}
+
+function computeBusLoad(feedbackHealth) {
+  if (!feedbackHealth) return 1.5;
+  const metrics = [
+    feedbackHealth.capabilities_with_ml_feedback,
+    feedbackHealth.capabilities_with_shadow_feedback,
+    feedbackHealth.total_feedback_entries,
+    feedbackHealth.feedback_sources_active,
+    feedbackHealth.capabilities_with_drift_feedback,
+  ];
+  const active = metrics.filter((v) => v && v > 0).length;
+  if (active >= 5) return 3;
+  if (active >= 3) return 2.5;
+  if (active >= 1) return 2;
+  return 1.5;
 }
 
 function BusArchitecture({ moduleStatuses, cacheData, feedbackHealth }) {
@@ -143,24 +204,115 @@ function BusArchitecture({ moduleStatuses, cacheData, feedbackHealth }) {
   const connectorLabelsData = ['entities', 'events', 'rules', 'labels'];
   const connectorLabelsLearning = ['', 'accuracy', '', ''];
 
+  // --- Animation 1: Cache update flash ---
+  const [flashingConnectors, setFlashingConnectors] = useState({});
+  const flashTimerRef = useRef({});
+
+  useEffect(() => {
+    const categories = Object.keys(CACHE_CONNECTOR_MAP);
+    const lastFetchedRef = {};
+
+    // Snapshot current lastFetched values
+    categories.forEach((cat) => {
+      const sig = getCategory(cat);
+      lastFetchedRef[cat] = sig.value.lastFetched || 0;
+    });
+
+    const interval = setInterval(() => {
+      categories.forEach((cat) => {
+        const sig = getCategory(cat);
+        const current = sig.value.lastFetched || 0;
+        if (current > lastFetchedRef[cat] && lastFetchedRef[cat] > 0) {
+          const mapping = CACHE_CONNECTOR_MAP[cat];
+          const connKey = `${mapping.section}-${mapping.index}`;
+          setFlashingConnectors((prev) => ({ ...prev, [connKey]: true }));
+
+          // Clear after 300ms
+          clearTimeout(flashTimerRef.current[connKey]);
+          flashTimerRef.current[connKey] = setTimeout(() => {
+            setFlashingConnectors((prev) => ({ ...prev, [connKey]: false }));
+          }, 300);
+        }
+        lastFetchedRef[cat] = current;
+      });
+    }, 200);
+
+    return () => {
+      clearInterval(interval);
+      Object.values(flashTimerRef.current).forEach(clearTimeout);
+    };
+  }, []);
+
+  // --- Animation 3: Activity Labeler pulse ---
+  const prevActivityRef = useRef(null);
+  const [labelerGlowing, setLabelerGlowing] = useState(false);
+  const [labelerAnimateMetric, setLabelerAnimateMetric] = useState(false);
+  const glowTimerRef = useRef(null);
+
+  const currentActivity = cacheData?.activity_labels?.data?.current_activity?.predicted || null;
+
+  useEffect(() => {
+    if (prevActivityRef.current !== null && currentActivity !== prevActivityRef.current && currentActivity !== null) {
+      setLabelerGlowing(true);
+      setLabelerAnimateMetric(true);
+      clearTimeout(glowTimerRef.current);
+      glowTimerRef.current = setTimeout(() => {
+        setLabelerGlowing(false);
+        setLabelerAnimateMetric(false);
+      }, 2000);
+    }
+    prevActivityRef.current = currentActivity;
+    return () => clearTimeout(glowTimerRef.current);
+  }, [currentActivity]);
+
+  // --- Animation 4: Stale indicators ---
+  const feedbackTimestamps = feedbackHealth || {};
+  const staleLearning = [
+    false,
+    isStaleTimestamp(feedbackTimestamps.last_ml_feedback_at),
+    false,
+    false,
+  ];
+  const staleFeedback = [
+    isStaleTimestamp(feedbackTimestamps.last_shadow_feedback_at),
+    false,
+    false,
+    isStaleTimestamp(feedbackTimestamps.last_feedback_at),
+  ];
+
+  // --- Animation 5: Bus load indicator ---
+  const busLoad = computeBusLoad(feedbackHealth);
+
   function renderPlane(planeKey, yOffset) {
     const plane = PLANE_DATA[planeKey];
     return (
       <g transform={`translate(0, ${yOffset})`}>
         <PlaneLabel x={450} y={15} label={plane.label} />
-        {plane.nodes.map((node, idx) => (
-          <ModuleNode
-            key={node.id}
-            x={nodeX[idx]}
-            y={25}
-            status={getNodeStatus(moduleStatuses, node.id)}
-            label={node.label}
-            metric={getNodeMetric(cacheData, node)}
-          />
-        ))}
+        {plane.nodes.map((node, idx) => {
+          const isLabeler = node.id === 'activity_labeler';
+          return (
+            <ModuleNode
+              key={node.id}
+              x={nodeX[idx]}
+              y={25}
+              status={getNodeStatus(moduleStatuses, node.id)}
+              label={node.label}
+              metric={getNodeMetric(cacheData, node)}
+              glowing={isLabeler && labelerGlowing}
+              animateMetric={isLabeler && labelerAnimateMetric}
+            />
+          );
+        })}
       </g>
     );
   }
+
+  // Full feedback loop path: ML Engine → down to feedback bus → left → up to capabilities bus → right → down to Discovery
+  // ML Engine node is at nodeX[1]=260 + 90 center = 350, learning plane y=150+25+55=230
+  // Feedback bus at y=272 (260+12 center)
+  // Capabilities bus at y=122 (110+12 center)
+  // Discovery node is at nodeX[0]=50 + 90 center = 140, data plane y=25+55=80
+  const tracerPath = 'M350,230 L350,272 L140,272 L140,122 L870,122 L870,175';
 
   return (
     <section class="t-terminal-bg rounded-lg p-4 overflow-x-auto">
@@ -184,6 +336,13 @@ function BusArchitecture({ moduleStatuses, cacheData, feedbackHealth }) {
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          <filter id="tracer-glow">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
 
         {/* DATA PLANE */}
@@ -191,13 +350,20 @@ function BusArchitecture({ moduleStatuses, cacheData, feedbackHealth }) {
 
         {/* Connectors: data plane -> capabilities bus */}
         {nodeX.map((nx, idx) => (
-          <BusConnector key={`dc${idx}`} x={nx + 90} y1={80} y2={110} label={connectorLabelsData[idx]} />
+          <BusConnector
+            key={`dc${idx}`}
+            x={nx + 90}
+            y1={80}
+            y2={110}
+            label={connectorLabelsData[idx]}
+            flashing={flashingConnectors[`data-${idx}`]}
+          />
         ))}
 
         {/* CAPABILITIES BUS */}
         <g transform="translate(0, 110)">
           <rect x="30" y="0" width="840" height="24" rx="4" fill="url(#bus-flow)" />
-          <rect x="30" y="0" width="840" height="24" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity="0.4" />
+          <rect x="30" y="0" width="840" height="24" rx="4" fill="none" stroke="var(--accent)" stroke-width={busLoad} opacity="0.4" style="transition: stroke-width 0.5s ease;" />
           <text x="450" y="16" text-anchor="middle" fill="var(--accent)" font-size="9" font-family="var(--font-mono)">
             CAPABILITIES BUS  [entities] [activity] [curation] [labels] [usefulness]
           </text>
@@ -216,13 +382,21 @@ function BusArchitecture({ moduleStatuses, cacheData, feedbackHealth }) {
 
         {/* Connectors: learning plane -> feedback bus */}
         {nodeX.map((nx, idx) => (
-          <BusConnector key={`lf${idx}`} x={nx + 90} y1={230} y2={260} label={connectorLabelsLearning[idx]} />
+          <BusConnector
+            key={`lf${idx}`}
+            x={nx + 90}
+            y1={230}
+            y2={260}
+            label={connectorLabelsLearning[idx]}
+            stale={staleLearning[idx]}
+            flashing={flashingConnectors[`learning-${idx}`]}
+          />
         ))}
 
         {/* FEEDBACK BUS */}
         <g transform="translate(0, 260)">
           <rect x="30" y="0" width="840" height="24" rx="4" fill="url(#feedback-flow)" />
-          <rect x="30" y="0" width="840" height="24" rx="4" fill="none" stroke="var(--status-healthy)" stroke-width="1.5" opacity="0.4" />
+          <rect x="30" y="0" width="840" height="24" rx="4" fill="none" stroke="var(--status-healthy)" stroke-width={busLoad} opacity="0.4" style="transition: stroke-width 0.5s ease;" />
           <text x="450" y="16" text-anchor="middle" fill="var(--status-healthy)" font-size="9" font-family="var(--font-mono)">
             FEEDBACK BUS  [accuracy] [hit_rate] [suggestions] [drift] [corrections]
           </text>
@@ -233,7 +407,13 @@ function BusArchitecture({ moduleStatuses, cacheData, feedbackHealth }) {
 
         {/* Connectors: feedback bus -> action plane */}
         {nodeX.map((nx, idx) => (
-          <BusConnector key={`fa${idx}`} x={nx + 90} y1={284} y2={310} />
+          <BusConnector
+            key={`fa${idx}`}
+            x={nx + 90}
+            y1={284}
+            y2={310}
+            stale={staleFeedback[idx]}
+          />
         ))}
 
         {/* ACTION PLANE */}
@@ -247,10 +427,16 @@ function BusArchitecture({ moduleStatuses, cacheData, feedbackHealth }) {
           </text>
         </g>
 
-        {/* Feedback loop tracer */}
-        <circle r="4" fill="var(--status-healthy)" opacity="0.8" filter="url(#led-glow)">
-          <animateMotion dur="8s" repeatCount="indefinite" path="M350,230 L350,272 L140,272 L140,134 L140,110" />
-          <animate attributeName="r" values="4;6;4" dur="8s" repeatCount="indefinite" />
+        {/* Feedback loop tracer — full loop path */}
+        {/* Lead tracer */}
+        <circle r="4" fill="var(--status-healthy)" opacity="0.9" filter="url(#tracer-glow)">
+          <animateMotion dur="10s" repeatCount="indefinite" path={tracerPath} />
+          <animate attributeName="r" values="4;6;4" dur="10s" repeatCount="indefinite" />
+        </circle>
+        {/* Trailing glow (larger, dimmer, 0.5s behind) */}
+        <circle r="7" fill="var(--status-healthy)" opacity="0.25" filter="url(#tracer-glow)">
+          <animateMotion dur="10s" repeatCount="indefinite" path={tracerPath} begin="0.5s" />
+          <animate attributeName="r" values="7;10;7" dur="10s" repeatCount="indefinite" begin="0.5s" />
         </circle>
       </svg>
     </section>
