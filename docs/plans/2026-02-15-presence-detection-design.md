@@ -102,7 +102,7 @@ Entity → room mapping follows the HA data model lesson (entity→device→area
 
 ## Remaining Work
 
-- [ ] Enable UniFi Protect RTSP streams (4 cameras need aliases from Protect UI)
+- [ ] Enable UniFi Protect RTSP streams (4 cameras need aliases from Protect UI — deferred, do when convenient)
 - [ ] Add Frigate HA integration (HACS or manual)
 - [ ] Restart ARIA hub to load presence module
 - [ ] End-to-end verification: person walks past camera → MQTT event → ARIA cache update → API response
