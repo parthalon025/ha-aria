@@ -139,9 +139,16 @@ class DiscoveryModule(Module):
         if areas:
             await self.hub.set_cache("areas", areas, {"count": len(areas), "source": "discovery"})
 
-        # Store capabilities
+        # Store capabilities — merge with existing to preserve organic discoveries
         caps = capabilities.get("capabilities", {})
         if caps:
+            existing_entry = await self.hub.get_cache("capabilities")
+            if existing_entry and existing_entry.get("data"):
+                existing = existing_entry["data"]
+                # Preserve organic capabilities that seed discovery doesn't know about
+                for name, cap_data in existing.items():
+                    if cap_data.get("source") == "organic" and name not in caps:
+                        caps[name] = cap_data
             await self.hub.set_cache("capabilities", caps, {"count": len(caps), "source": "discovery"})
 
         # Store metadata
