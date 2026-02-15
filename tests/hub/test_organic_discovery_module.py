@@ -640,3 +640,72 @@ class TestPredictabilityFeedback:
         result = module._compute_predictability("garage", caps)
         expected = 0.6 * 0.7 + 0.4 * 0.3  # 0.42 + 0.12 = 0.54
         assert abs(result - expected) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# Demand alignment
+# ---------------------------------------------------------------------------
+
+
+def _make_module():
+    """Create an OrganicDiscoveryModule with a mock hub for unit tests."""
+    hub = AsyncMock()
+    hub.cache = AsyncMock()
+    hub.set_cache = AsyncMock(return_value=1)
+    hub.get_cache = AsyncMock(return_value=None)
+    hub.publish = AsyncMock()
+    hub.schedule_task = AsyncMock()
+    hub.mark_module_running = MagicMock()
+    hub.mark_module_failed = MagicMock()
+    hub.is_running = MagicMock(return_value=True)
+    mod = OrganicDiscoveryModule(hub)
+    mod._load_logbook = AsyncMock(return_value=[])
+    return mod
+
+
+class TestDemandAlignment:
+    def test_full_match_gets_max_bonus(self):
+        module = _make_module()
+        from aria.capabilities import DemandSignal
+        demands = [DemandSignal(entity_domains=["sensor"], device_classes=["power"], min_entities=3)]
+        entities = [
+            {"entity_id": f"sensor.power_{i}", "domain": "sensor", "device_class": "power"}
+            for i in range(5)
+        ]
+        bonus = module._compute_demand_alignment(entities, demands)
+        assert bonus == 0.2
+
+    def test_domain_match_only(self):
+        module = _make_module()
+        from aria.capabilities import DemandSignal
+        demands = [DemandSignal(entity_domains=["sensor"], device_classes=["power"], min_entities=3)]
+        entities = [
+            {"entity_id": f"sensor.temp_{i}", "domain": "sensor", "device_class": "temperature"}
+            for i in range(5)
+        ]
+        bonus = module._compute_demand_alignment(entities, demands)
+        assert bonus == 0.05
+
+    def test_no_match(self):
+        module = _make_module()
+        from aria.capabilities import DemandSignal
+        demands = [DemandSignal(entity_domains=["sensor"], device_classes=["power"], min_entities=3)]
+        entities = [{"entity_id": "light.lamp", "domain": "light", "device_class": ""}]
+        bonus = module._compute_demand_alignment(entities, demands)
+        assert bonus == 0.0
+
+    def test_empty_demands(self):
+        module = _make_module()
+        bonus = module._compute_demand_alignment([{"domain": "sensor"}], [])
+        assert bonus == 0.0
+
+    def test_domain_and_class_match_below_size(self):
+        module = _make_module()
+        from aria.capabilities import DemandSignal
+        demands = [DemandSignal(entity_domains=["sensor"], device_classes=["power"], min_entities=10)]
+        entities = [
+            {"entity_id": f"sensor.power_{i}", "domain": "sensor", "device_class": "power"}
+            for i in range(3)
+        ]
+        bonus = module._compute_demand_alignment(entities, demands)
+        assert bonus == 0.1  # domain + class match but below size threshold
