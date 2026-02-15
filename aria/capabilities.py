@@ -192,6 +192,29 @@ class CapabilityRegistry:
         issues.extend(self.validate_test_paths())
         return issues
 
+    def health(self, module_status: Dict[str, str]) -> Dict[str, Dict]:
+        """Check runtime health of each capability against hub module status.
+
+        Args:
+            module_status: {module_id: "running"|"failed"|"registered"} from hub
+
+        Returns:
+            {capability_id: {"module_loaded": bool|None, "module_status": str}}
+        """
+        result = {}
+        for cap in self._caps.values():
+            if cap.layer == "engine":
+                result[cap.id] = {"module_loaded": None, "module_status": "batch"}
+            elif cap.module in module_status:
+                running = module_status[cap.module] == "running"
+                result[cap.id] = {
+                    "module_loaded": running,
+                    "module_status": module_status[cap.module],
+                }
+            else:
+                result[cap.id] = {"module_loaded": None, "module_status": "unknown"}
+        return result
+
     def collect_from_modules(self) -> None:
         """Discover and register all capabilities from hub modules and engine."""
         # Hub modules

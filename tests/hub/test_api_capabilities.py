@@ -64,3 +64,11 @@ class TestCapabilityRegistryAPI:
         assert "nodes" in data
         assert "edges" in data
         assert len(data["nodes"]) >= 22
+
+    def test_capabilities_health(self, client):
+        resp = client.get("/api/capabilities/registry/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        # Should have entries for all capabilities
+        assert "discovery" in data
+        assert "snapshot" in data

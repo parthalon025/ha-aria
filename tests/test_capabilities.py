@@ -376,3 +376,35 @@ class TestCapabilitiesCLI:
         assert data["total"] >= 22
         assert "by_layer" in data
         assert "by_status" in data
+
+
+class TestRuntimeHealth:
+    """health() maps module status to capability health."""
+
+    def test_health_with_running_modules(self):
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        module_status = {
+            "discovery": "running",
+            "ml_engine": "running",
+            "shadow_engine": "failed",
+        }
+        health = registry.health(module_status)
+        assert health["discovery"]["module_loaded"] is True
+        assert health["ml_realtime"]["module_loaded"] is True
+        assert health["shadow_predictions"]["module_loaded"] is False
+        assert health["shadow_predictions"]["module_status"] == "failed"
+
+    def test_health_engine_capabilities_are_batch(self):
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        health = registry.health({})
+        assert health["snapshot"]["module_loaded"] is None
+        assert health["snapshot"]["module_status"] == "batch"
+
+    def test_health_unknown_modules(self):
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        health = registry.health({})
+        assert health["discovery"]["module_loaded"] is None
+        assert health["discovery"]["module_status"] == "unknown"

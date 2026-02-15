@@ -548,6 +548,17 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                 edges.append({"from": dep_id, "to": cap_id})
         return {"nodes": nodes, "edges": edges}
 
+    @router.get("/api/capabilities/registry/health")
+    async def capabilities_registry_health():
+        """Runtime health per capability — checks module status from hub."""
+        from aria.capabilities import CapabilityRegistry
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        module_status = {}
+        if hasattr(hub, 'module_status'):
+            module_status = dict(hub.module_status)
+        return registry.health(module_status)
+
     @router.get("/api/capabilities/registry/{capability_id}")
     async def get_capability_registry(capability_id: str):
         """Get a single capability by ID from the code registry."""
