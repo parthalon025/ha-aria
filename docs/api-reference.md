@@ -23,6 +23,13 @@ curl -s http://127.0.0.1:8001/api/cache/activity_summary | python3 -m json.tool
 curl -s http://127.0.0.1:8001/health | python3 -m json.tool
 ```
 
+## Presence
+
+```bash
+# Per-room presence/occupancy estimates
+curl -s http://127.0.0.1:8001/api/cache/presence | python3 -m json.tool
+```
+
 ## Shadow Mode
 
 ```bash

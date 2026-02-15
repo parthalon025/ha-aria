@@ -30,7 +30,8 @@ aria/
 │   │   ├── naming.py       # Heuristic + Ollama LLM naming backends
 │   │   └── seed_validation.py  # Jaccard similarity validation against seed capabilities
 │   ├── intelligence.py     # Unified cache assembly (snapshots, baselines, predictions, ML)
-│   └── activity_monitor.py # WebSocket state_changed listener, 15-min windows, analytics
+│   ├── activity_monitor.py # WebSocket state_changed listener, 15-min windows, analytics
+│   └── presence.py         # Frigate MQTT + HA sensor presence tracking, BayesianOccupancy
 ├── engine/                 # Batch ML engine (formerly ha-intelligence)
 │   ├── cli.py              # Engine CLI (called by aria CLI dispatcher)
 │   ├── config.py           # Engine configuration
@@ -53,7 +54,7 @@ aria/
 | `bin/discover.py` | Standalone discovery CLI (also used as subprocess) |
 | `bin/ha-log-sync` | Log sync script (called by `aria sync-logs`) |
 
-## Hub Modules (9, registered in order)
+## Hub Modules (10, registered in order)
 
 | Module | File | Purpose |
 |--------|------|---------|
@@ -66,6 +67,7 @@ aria/
 | `organic_discovery` | `aria/modules/organic_discovery/module.py` | Two-layer HDBSCAN capability discovery: Layer 1 clusters entities by attributes, Layer 2 clusters by temporal co-occurrence. Usefulness scoring, seed validation, autonomy modes, heuristic/Ollama naming. Weekly via systemd timer. |
 | `intelligence` | `aria/modules/intelligence.py` | Assembles daily/intraday snapshots, baselines, predictions, ML scores into unified cache. Reads engine outputs (entity correlations, sequence anomalies, power profiles, automation suggestions). Sends Telegram digest on new insights. |
 | `activity_monitor` | `aria/modules/activity_monitor.py` | WebSocket listener for state_changed events, 15-min windowed activity log, adaptive snapshot triggering, prediction analytics. Emits filtered events to hub event bus for shadow engine. |
+| `presence` | `aria/modules/presence.py` | Subscribes to Frigate MQTT (person/face detection) and HA WebSocket (motion sensors, lights, dimmers, device trackers, door sensors). Feeds signals into BayesianOccupancy for per-room presence estimation. |
 
 Each module declares its capabilities via a `CAPABILITIES` class attribute (see `aria/capabilities.py` for the `Capability` dataclass). The `CapabilityRegistry.collect_from_modules()` method harvests all declarations for validation and CLI/API exposure.
 
@@ -83,7 +85,7 @@ Each module declares its capabilities via a `CAPABILITIES` class attribute (see 
 
 ## Cache Categories (8) + Shadow Tables (2)
 
-**Category-based:** `activity_log`, `activity_summary`, `areas`, `capabilities`, `devices`, `discovery_metadata`, `entities`, `intelligence`
+**Category-based:** `activity_log`, `activity_summary`, `areas`, `capabilities`, `devices`, `discovery_metadata`, `entities`, `intelligence`, `presence`
 **Shadow tables:** `predictions` (predict-compare-score records), `pipeline_state` (backtest→shadow→suggest→autonomous progression)
 **Phase 2 tables:** `config` (editable engine parameters), `entity_curation` (tiered entity classification), `config_history` (change audit log)
 **Organic discovery keys:** `discovery_history` (run history), `discovery_settings` (autonomy mode, naming backend, thresholds)

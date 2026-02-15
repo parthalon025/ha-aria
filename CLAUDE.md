@@ -13,6 +13,7 @@ Unified intelligence platform for Home Assistant — batch ML engine, real-time 
 **Shadow mode design:** `~/Documents/docs/plans/2026-02-12-ha-hub-shadow-mode-design.md`
 **Organic discovery design:** `docs/plans/2026-02-14-organic-capability-discovery-design.md`
 **Closed-loop feedback design:** `docs/plans/2026-02-15-closed-loop-feedback-design.md`
+**Watchdog:** `aria/watchdog.py` — health monitoring, Telegram alerts, auto-restart
 
 ## Running
 
@@ -21,7 +22,9 @@ Unified intelligence platform for Home Assistant — batch ML engine, real-time 
 **API:** `http://127.0.0.1:8001` (localhost only)
 **Dashboard:** `http://127.0.0.1:8001/ui/`
 **WebSocket:** `ws://127.0.0.1:8001/ws` (real-time cache updates to dashboard)
-**Env vars:** HA_URL, HA_TOKEN from `~/.env` (bash wrapper pattern, not EnvironmentFile=)
+**Watchdog:** `aria-watchdog.timer` (every 5 min) — logs to `~/ha-logs/watchdog/aria-watchdog.log`, Telegram alerts on failures
+**Env vars:** HA_URL, HA_TOKEN, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID from `~/.env` (bash wrapper pattern, not EnvironmentFile=)
+**MQTT:** Mosquitto on 192.168.1.35:1883 (core_mosquitto addon on HA Pi) — credentials in `config_defaults.py` presence section. Required for camera-based presence signals via Frigate.
 
 ```bash
 # Start hub (preferred)
@@ -43,11 +46,11 @@ curl -s http://127.0.0.1:8001/api/cache/activity_summary | /usr/bin/python3 -m j
 
 ### CLI Commands
 
-22 commands via `aria` entry point — full reference: `docs/cli-reference.md`
+23 commands via `aria` entry point — full reference: `docs/cli-reference.md`
 
 ## Architecture
 
-Single `aria.*` package: `hub/` (real-time core + 11 modules), `engine/` (batch ML, 7 subpackages), `modules/` (discovery through activity_labeler), `dashboard/` (Preact SPA). Full layout, module registry, cache categories: `docs/architecture-detailed.md`. Closed-loop feedback system connects ML accuracy, shadow hit rates, automation acceptance, drift signals, and activity label corrections back into the learning pipeline.
+Single `aria.*` package: `hub/` (real-time core + 12 modules), `engine/` (batch ML, 7 subpackages), `modules/` (discovery through presence), `dashboard/` (Preact SPA). Full layout, module registry, cache categories: `docs/architecture-detailed.md`. Closed-loop feedback system connects ML accuracy, shadow hit rates, automation acceptance, drift signals, and activity label corrections back into the learning pipeline.
 
 All imports use `aria.*` namespace — e.g. `from aria.hub.core import IntelligenceHub`
 
@@ -65,7 +68,7 @@ Preact SPA at `aria/dashboard/spa/`. Must rebuild after JSX changes: `cd aria/da
 
 ARIA has the deepest pipeline — engine→JSON files→hub cache→API→WebSocket→dashboard. Unit tests cover each layer but not the flow between them. After any deployment or feature change, run dual-axis tests:
 
-**Horizontal:** Hit every API endpoint (`/api/cache/{category}` for all 8 categories, `/api/shadow/accuracy`, `/api/pipeline`, `/api/ml/*`, `/api/capabilities/*`, `/api/config`, `/api/curation/summary`, `/api/capabilities/feedback/health`, `/api/activity/current`, `/api/activity/labels`, `/api/activity/stats`, `/api/automations/feedback`). Confirm each returns expected shape with real data.
+**Horizontal:** Hit every API endpoint (`/api/cache/{category}` for all 8 categories, `/api/cache/presence`, `/api/shadow/accuracy`, `/api/pipeline`, `/api/ml/*`, `/api/capabilities/*`, `/api/config`, `/api/curation/summary`, `/api/capabilities/feedback/health`, `/api/activity/current`, `/api/activity/labels`, `/api/activity/stats`, `/api/automations/feedback`). Confirm each returns expected shape with real data.
 
 **Vertical:** Trigger one engine command (e.g., `aria snapshot-intraday`), then trace:
 ```
@@ -99,6 +102,8 @@ See: `~/Documents/docs/lessons/2026-02-15-horizontal-vertical-pipeline-testing.m
 .venv/bin/python -m pytest tests/hub/ -k "data_quality" -v  # Data quality/curation
 .venv/bin/python -m pytest tests/hub/ -k "feedback" -v      # Closed-loop feedback
 .venv/bin/python -m pytest tests/hub/ -k "activity_labeler" -v  # Activity labeler
+.venv/bin/python -m pytest tests/hub/test_presence.py -v       # Presence (51 tests)
+.venv/bin/python -m pytest tests/hub/test_watchdog.py -v       # Watchdog (31 tests)
 ```
 
 ## Environment
@@ -152,6 +157,8 @@ HA uses a three-tier hierarchy: **entity → device → area**. Only ~0.2% of en
 - **Intelligence features default to 0** — If intelligence cache is empty or engine hasn't run, correlated_entities_active, anomaly_nearby, active_appliance_count all default to 0. This is safe but means early predictions use only the base 5 sensor features.
 - **Feedback data requires service restart** — New backend code writes to cache but the running service uses old code until `systemctl --user restart aria-hub`. Always restart + vertical trace after deploying feedback changes.
 - **Engine conftest collision** — `from conftest import X` resolves to the wrong conftest in full-suite runs. Use `importlib.util.spec_from_file_location` for explicit file-based conftest imports. Tests that pass in isolation may break in full-suite runs due to implicit pytest conftest namespacing.
+- **Presence cache access goes through hub** — Use `await self.hub.set_cache()` and `await self.hub.get_cache()`, NOT `self.hub.cache.set_cache()`. CacheManager doesn't expose set_cache directly; it goes through IntelligenceHub.
+- **Frigate Docker required for camera presence** — Frigate container at `~/frigate/` must be running for camera-based presence signals. Without it, only HA sensor signals (motion, lights, dimmers) feed into presence.
 
 ## Reference Docs
 
@@ -165,3 +172,4 @@ HA uses a three-tier hierarchy: **entity → device → area**. Only ~0.2% of en
 - `docs/dashboard-components.md` — Component reference (pre-existing)
 - `docs/plans/2026-02-15-closed-loop-feedback-design.md` — Feedback channels, activity labeler, DemandSignal
 - `docs/plans/2026-02-15-closed-loop-feedback-implementation.md` — Implementation plan, wave dispatch
+- `docs/plans/2026-02-15-presence-detection-design.md` — Presence detection design (Frigate + HA sensors + BayesianOccupancy)
