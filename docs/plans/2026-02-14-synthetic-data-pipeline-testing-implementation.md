@@ -1,5 +1,13 @@
 # Synthetic Data Pipeline Testing — Implementation Plan
 
+## In Plain English
+
+This is the build plan for ARIA's testing flight simulator. It starts by creating the virtual household (simulated people, devices, and weather), then builds the test harness that runs ARIA's real pipeline against that simulated data, then adds a demo mode so you can see the dashboard populated with realistic-looking information.
+
+## Why This Exists
+
+The design document describes what the testing infrastructure should accomplish; this plan describes how to construct it piece by piece. Building a household simulator, pipeline runner, ML validation suite, and demo mode involves touching many files across ARIA's engine, hub, and CLI. Each task is sequenced so the simulator is built and tested first, the pipeline runner layers on top, and integration tests verify the whole chain. Without this ordering, you would end up debugging the simulator and the pipeline simultaneously, unable to tell which one is wrong.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build a realistic household simulator, ML validation test suite, demo mode, and exploration agents for full-pipeline integration testing.

@@ -2,6 +2,14 @@
 
 > **Status: IMPLEMENTED.** Superseded by v2 ML design: `2026-02-10-ha-intelligence-ml-design.md`
 
+## In Plain English
+
+This is the first version of ARIA's "brain" — a Python script that collects daily snapshots of every device in the house (lights, locks, thermostats, power meters), computes statistical baselines for what's normal, detects anomalies when things are unusual, and generates natural-language reports explaining what it found. Everything runs locally on your own machine using Ollama for AI interpretation.
+
+## Why This Exists
+
+Home Assistant collects enormous amounts of data from 100+ devices, but it just stores it — it doesn't analyze it. This engine turns raw sensor readings and device states into actionable intelligence: "Your energy usage is 30% above average this week," "The garage door was left open 3 times this month," "The bedroom AC is cycling more frequently than normal — possible filter issue." Without this, all that data just sits in a database unused.
+
 **Goal:** Build a self-learning home intelligence engine that aggregates HA data with weather/calendar/holidays, detects anomalies, predicts device failures and behavior patterns, and improves its own accuracy over time — all running locally via Ollama.
 
 **Architecture:** Python aggregator script collects daily snapshots from HA REST API + weather + calendar into structured JSON. Statistical engine computes baselines, anomalies, correlations, and predictions. Ollama interprets findings in natural language. Self-reinforcement loop tracks prediction accuracy and adjusts weights. Results feed into Telegram brief and Claude Code skills.

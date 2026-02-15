@@ -1,5 +1,13 @@
 # Phase 4: Sequence Anomaly Detection + Hub Integration
 
+## In Plain English
+
+This plan teaches ARIA to notice when things happen in your home in an unusual order -- like the back door unlocking at 3 AM followed by motion in the office with no lights turning on. It is like a security guard who learns the normal flow of a building and flags anything that does not follow the usual sequence.
+
+## Why This Exists
+
+ARIA could already spot individual unusual readings (a single weird temperature spike), but it had no concept of sequence. A front door opening is normal. Motion in the kitchen is normal. But a front door opening at 3 AM followed by motion with no lights is a suspicious chain of events. This plan adds a lightweight Markov chain model that learns what normally follows what, then flags sequences that deviate from the pattern -- and wires the results into the dashboard so you can see them.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add Markov chain-based sequence anomaly detection to the HA Intelligence engine, then integrate all Phase 2-4 outputs into the Intelligence Hub dashboard.

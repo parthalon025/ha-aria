@@ -1,5 +1,13 @@
 # Organic Capability Discovery — Implementation Plan
 
+## In Plain English
+
+This is the construction plan for building ARIA's automatic capability detection system. It works in layers -- first teach it to group similar devices together by their properties, then teach it to notice devices that act in concert based on behavioral patterns, then wire up the scoring, naming, dashboard UI, and user controls.
+
+## Why This Exists
+
+The design document describes what organic discovery should do; this plan describes how to build it without breaking ARIA's existing capability system along the way. The implementation spans a new Python module, database schema extensions, API endpoints, and dashboard pages. Each task is sequenced so that tests are written before code, each piece is independently verifiable, and the existing 10 hard-coded capabilities continue working throughout as a safety net.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Replace hard-coded capability detection with organic two-layer discovery (domain clustering + behavioral co-occurrence), usefulness scoring, user-selectable autonomy, and full dashboard UI.

@@ -1,5 +1,13 @@
 # User Guide
 
+## In Plain English
+
+This is the owner's manual for ARIA's dashboard. It explains what each screen shows, what the numbers mean, and what actions you can take -- like the help section of an app, but written all in one place so you can read it start to finish or jump to the part you need.
+
+## Why This Exists
+
+ARIA presents a lot of information -- predictions with confidence scores, detected behavioral patterns, ML model accuracy, automation proposals. Without context, these outputs are just numbers and charts. A homeowner needs to know when to trust a prediction, what a pattern means, and whether an automation suggestion is safe to approve. This guide bridges the gap between raw data and informed decisions.
+
 Complete guide to using the ARIA dashboard and understanding its outputs.
 
 ## Table of Contents

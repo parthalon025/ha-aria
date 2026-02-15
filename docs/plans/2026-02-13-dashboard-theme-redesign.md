@@ -4,6 +4,14 @@
 **Status:** Approved
 **Scope:** Full visual overhaul of ARIA Preact SPA — dark/light mode, animation system, pixel-art logo aesthetic
 
+## In Plain English
+
+This is the design blueprint for making ARIA's web interface look and feel like a unified system instead of a patchwork of mismatched styles. It defines the exact colors, fonts, animations, and layout rules that every page will follow -- like a brand guide for a company, but for a home intelligence dashboard.
+
+## Why This Exists
+
+When every dashboard page picks its own colors and styles independently, the result feels disjointed and amateurish. More practically, hardcoded colors made dark mode impossible and the lack of a responsive strategy meant the tablet experience was broken. This design document establishes a single source of truth for the visual system -- a shared color palette, animation catalog, responsive breakpoints, and component patterns -- so that every page feels like it belongs to the same product and both light and dark themes work everywhere.
+
 ## Problem
 
 The dashboard has two visual languages:

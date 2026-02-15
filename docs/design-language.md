@@ -1,5 +1,13 @@
 # ARIA Dashboard Design Language
 
+## In Plain English
+
+This document defines the visual rules for ARIA's dashboard — the colors, fonts, spacing, and component styles that make every page look and feel consistent. Think of it as the "brand guidelines" for the UI. It enforces a retro ASCII terminal aesthetic: monospace fonts, bracket-framed cards, and a data-dense layout designed for someone who wants information at a glance, not eye candy.
+
+## Why This Exists
+
+Without a shared design language, every new page or feature ends up looking slightly different — different colors, different spacing, different button styles. Over time the UI becomes a patchwork. This document prevents that by establishing a single source of truth for every visual decision. It also encodes data visualization principles (from Edward Tufte and others) so that charts and metrics communicate clearly instead of just looking pretty.
+
 Reference for creating and modifying UI components. Read this before touching any JSX or CSS.
 
 ## Visual Identity

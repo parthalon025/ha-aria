@@ -5,6 +5,14 @@
 **Author:** Justin McFarland + Claude
 **Project:** `~/Documents/projects/ha-intelligence/`
 
+## In Plain English
+
+This is the blueprint for rebuilding ARIA's brain from a single giant file into organized, swappable pieces -- and then teaching it new tricks like predicting energy usage patterns and detecting when something unusual happens in your home overnight.
+
+## Why This Exists
+
+The original intelligence engine was a 2,400-line monolith where every feature was tangled together. Adding a new capability meant editing the same file in multiple places and hoping nothing else broke. Meanwhile, a survey of 20+ open-source smart home ML projects revealed techniques (seasonal forecasting, sequence anomaly detection, occupancy fusion) that could make ARIA significantly smarter -- but only if the codebase was modular enough to absorb them. This design document lays out a four-phase plan to restructure the engine first, then incrementally add advanced ML capabilities, each phase independently valuable.
+
 ---
 
 ## Executive Summary

@@ -1,5 +1,13 @@
 # ARIA Architecture
 
+## In Plain English
+
+ARIA watches your entire smart home — every light switch, door lock, thermostat, and motion sensor — and learns what "normal" looks like. Over time, it spots patterns ("the kitchen lights always come on at 6:30 AM on weekdays"), detects anomalies ("the garage door has been open for 3 hours, that's unusual"), and predicts what's about to happen next. It runs entirely on your own computer with no cloud dependency.
+
+## Why This Exists
+
+Home Assistant is great at controlling smart devices, but it doesn't *think* about them. It won't notice that your front door lock's battery is draining faster than usual, or that your energy usage spiked 40% this week, or that you always forget to close the garage when you leave on Tuesdays. ARIA adds a brain on top of Home Assistant — machine learning models that learn your household's rhythms, flag things that don't look right, and eventually suggest automations you didn't know you needed. It's the difference between a home that follows rules and a home that understands patterns.
+
 ## Package Structure
 
 ```

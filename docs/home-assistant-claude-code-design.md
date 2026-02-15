@@ -4,6 +4,14 @@
 **Status:** Design Complete — Ready for Implementation
 **Author:** Justin McFarland + Claude Code
 
+## In Plain English
+
+This design connects Claude Code (the AI coding assistant you're reading this with) directly to a Home Assistant smart home system with 100+ devices. Instead of manually writing automations or digging through logs, you can ask Claude to analyze your home's data, spot problems, and build automations for you — using plain English conversation.
+
+## Why This Exists
+
+Home Assistant is powerful but complex. Writing automations requires YAML expertise. Diagnosing problems means reading logs. Understanding device patterns means staring at graphs. By giving Claude direct API access to Home Assistant, you can treat your smart home like a conversation: "Why does the living room get cold at night?" or "Create an automation that locks the doors when everyone leaves." Claude reads the actual device data, understands the context, and writes or modifies the configuration for you.
+
 ---
 
 ## Overview

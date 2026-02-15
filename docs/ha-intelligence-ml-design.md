@@ -2,6 +2,14 @@
 
 > **Status: IMPLEMENTED** (2026-02-10). 78 tests passing. Script at `~/.local/bin/ha-intelligence` (2,373 lines).
 
+## In Plain English
+
+Version 2 upgrades ARIA's brain from simple averages to real machine learning. Instead of just saying "this is above average," it now *predicts* what your home will do tomorrow — which rooms will be active, what temperature patterns to expect, which devices are likely to fail. It takes snapshots 7 times per day, trains ML models on the accumulated data, and uses a meta-learning loop where an AI reviews the predictions' accuracy and tunes the system to get better over time.
+
+## Why This Exists
+
+v1's statistical approach (averages and z-scores) works for simple anomaly detection but can't predict future behavior or learn from its mistakes. Real ML models (GradientBoosting, RandomForest, IsolationForest) can find complex, non-linear patterns: "When it's cold outside AND a weekday AND after sunset, the living room lights come on 15 minutes earlier than usual." The meta-learning loop is the key differentiator — it means the system automatically gets smarter without manual tuning.
+
 **Goal:** Upgrade the existing statistical HA intelligence engine with sklearn ML models, comprehensive intra-day data capture, and a deepseek-r1:8b meta-learning loop that self-improves prediction accuracy over time — all running locally.
 
 **Key decisions:**

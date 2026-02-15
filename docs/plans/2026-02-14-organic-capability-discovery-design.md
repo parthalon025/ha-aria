@@ -4,6 +4,14 @@
 **Status:** Approved
 **Scope:** Phase 1 (domain clustering) + Phase 2 (behavioral clustering)
 
+## In Plain English
+
+This plan teaches ARIA to discover what your smart home can do by looking at the data, instead of relying on a pre-written list. It is like the difference between a restaurant with a fixed menu and a chef who walks through the market, sees what is fresh, and creates dishes from what is actually available.
+
+## Why This Exists
+
+ARIA originally detected capabilities through 10 hand-coded rules -- "if it is a light entity, call it lighting." Adding a new capability meant editing code and redeploying. Worse, the system could never notice interesting patterns that nobody anticipated, like a group of devices that always activate together in the evening. This design replaces the fixed menu with organic clustering that examines what entities are and how they behave together, scores each grouping on usefulness, and surfaces the best ones as new capabilities -- all without requiring code changes.
+
 ## Problem
 
 ARIA's capability detection is hard-coded: 10 detection functions in `bin/discover.py` that match entities by domain, device_class, and attributes. Adding a new capability requires editing 3-4 files and redeploying. The system can't notice patterns in the data that weren't anticipated.

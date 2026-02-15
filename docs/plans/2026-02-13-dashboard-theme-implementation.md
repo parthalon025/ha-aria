@@ -1,5 +1,13 @@
 # Dashboard Theme Redesign — Implementation Plan
 
+## In Plain English
+
+This is the task-by-task work order for adding dark mode and a cohesive visual style to every screen in ARIA's dashboard. Think of it like a painting contractor's job list -- which walls to prep first, what order to apply coats, and how five painters can work in different rooms without stepping on each other.
+
+## Why This Exists
+
+The dashboard had a split personality: one page looked like a command center, the rest looked like a generic business app. Adding dark mode was not just a color swap -- every component had colors baked in as fixed values instead of using a central palette. This plan coordinates a systematic replacement across 30+ files, organized so infrastructure goes first, shared components second, individual pages third, and a final quality audit catches anything missed. The five-agent structure ensures no two people edit the same file.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Transform the ARIA dashboard from a generic light-mode SaaS look into a unified technical aesthetic matching the pixel-art logo, with dark/light theme toggle, rich ambient animations, and responsive tablet support.

@@ -1,5 +1,13 @@
 # HA API Response Examples
 
+## In Plain English
+
+This is a collection of real answers that Home Assistant gives when ARIA asks it questions. It is like keeping a copy of a form letter so you know exactly what format the reply will come in before you send the request.
+
+## Why This Exists
+
+ARIA needs to talk to Home Assistant's API to learn about your home -- what devices exist, what rooms they are in, and what states they are in right now. The API responses have specific structures that change between HA versions, and getting the parsing wrong means ARIA sees garbage data. This document captures actual live responses so developers can build and test against real formats instead of guessing from documentation that may be outdated.
+
 Documentation of actual API responses from HA 2026.2.1 (justin-linux instance).
 
 ## Discovery Summary (Live Run)

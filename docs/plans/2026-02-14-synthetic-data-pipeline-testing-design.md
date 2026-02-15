@@ -3,6 +3,14 @@
 **Date:** 2026-02-14
 **Status:** Design approved, pending implementation
 
+## In Plain English
+
+This plan creates a virtual household that generates realistic smart home data so ARIA's entire brain can be tested end-to-end without waiting weeks for real data to accumulate. It is like a flight simulator for pilots -- you can practice every scenario, including emergencies, without risking a real aircraft.
+
+## Why This Exists
+
+ARIA has nearly 750 unit tests, but none of them verify that the full pipeline actually works when all the pieces connect. Each stage (data collection, pattern learning, prediction, scoring) is tested in isolation, but the handoffs between stages are where bugs hide. Real household data takes weeks to accumulate and cannot be controlled. A synthetic household simulator lets us generate months of realistic data in seconds, run the complete pipeline against it, and verify that models actually learn, predictions actually improve, and the dashboard renders correctly -- all deterministically and repeatably.
+
 ## Problem
 
 ARIA has 747 unit tests across 38 files, but integration testing is shallow. No test validates the full pipeline flow (snapshot -> baseline -> feature engineering -> model training -> prediction -> scoring -> meta-learning). The hub-engine handoff (engine writes JSON, hub reads from disk) is untested. There is no way to verify ML models actually learn from data, that Ollama meta-learning improves accuracy, or that the dashboard renders correctly with realistic data.

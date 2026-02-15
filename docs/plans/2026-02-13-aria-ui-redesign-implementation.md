@@ -1,5 +1,13 @@
 # ARIA UI Redesign — "Living Terminal Intelligence" Implementation Plan
 
+## In Plain English
+
+This is the step-by-step construction plan for rebuilding ARIA's dashboard appearance. It is organized like a home renovation -- foundation work first (color system, navigation), then structural changes (reusable components, chart upgrades), then room-by-room finishing (each page migrated to the new look), and finally a walkthrough inspection.
+
+## Why This Exists
+
+A design document describes what the finished product should look like; an implementation plan describes how to build it without breaking anything along the way. The ARIA dashboard has 13 pages and dozens of shared components, all currently using hardcoded colors and inconsistent styling. Changing everything at once would be chaotic. This plan sequences the work so each phase builds on the last, every step is independently verifiable, and the dashboard stays functional throughout the transition.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Transform ARIA's dashboard from a generic cyan-on-gray Preact SPA into a living terminal intelligence UI with HA-aligned colors, ASCII bracket aesthetic, context-based typography, three-tier animations, and purpose-built phone/tablet/desktop layouts.

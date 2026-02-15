@@ -4,6 +4,14 @@
 **Status:** Design approved, pending implementation plan
 **Scope:** Full visual redesign of ARIA dashboard SPA
 
+## In Plain English
+
+This is the design plan for giving ARIA's dashboard a distinctive visual identity -- moving from a generic-looking web app to something that feels like a living command center with subtle animations, a retro-terminal aesthetic, and layouts purpose-built for phones, tablets, and desktops.
+
+## Why This Exists
+
+ARIA's dashboard looked like every other template-based web app: white cards, blue accents, rounded corners. It did not feel like an intelligence system, and it was not designed for the three different screen sizes people actually use it on. The phone layout was an afterthought, tablet was ignored entirely, and the dark mode only existed on one page. This redesign creates a unified visual language -- inspired by the pixel-art logo -- that works across all devices and makes the system feel alive through purposeful animation, not just functional.
+
 ---
 
 ## Design Goals

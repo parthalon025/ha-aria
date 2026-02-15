@@ -1,5 +1,13 @@
 # Deployment Guide (Pre-ARIA)
 
+## In Plain English
+
+This is the original instruction manual for installing and running the intelligence hub as a background service on a Linux machine. Think of it like the setup guide that came with your router -- it walks you through getting the software running, keeping it running, and checking on it when something goes wrong.
+
+## Why This Exists
+
+Running a long-lived service reliably requires more than just typing a command. The process needs to start on boot, restart after crashes, log its output, and not consume all available memory. This guide captured all those operational details in one place so deployment was repeatable and debuggable. It has since been superseded by the ARIA installer, but remains as a historical reference.
+
 > **SUPERSEDED 2026-02-13.** The hub is now deployed as `aria-hub.service` via `systemd/install.sh`. See `CLAUDE.md` for current deployment instructions.
 
 Original deployment guide for HA Intelligence Hub using systemd and optional Tailscale Serve for remote access.

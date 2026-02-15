@@ -1,5 +1,13 @@
 # Deployment Migration Guide: ha-intelligence + ha-intelligence-hub → ARIA
 
+## In Plain English
+
+This is the moving checklist for merging two separate programs into one. Like consolidating two offices into a single building, every piece of furniture (service, timer, command) needed to be accounted for, moved in the right order, and verified in the new location before the old lease was terminated.
+
+## Why This Exists
+
+ARIA's intelligence engine and real-time hub started as two separate repositories with their own services, timers, and CLI commands. Running them separately meant duplicated config, confusing naming, and fragile coordination. This migration guide ensured every service was swapped over safely with a rollback plan at each step, so the system was never down and no scheduled tasks were lost during the transition.
+
 > **COMPLETED 2026-02-13.** Migration fully executed. Old services removed, ARIA services active. This document is retained as a historical record of the migration process.
 
 Migration guide for systemd services and timers from the old two-repo setup to the unified ARIA CLI.
