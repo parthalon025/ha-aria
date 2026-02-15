@@ -12,6 +12,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 
 from aria.hub.core import Module, IntelligenceHub
+from aria.capabilities import Capability
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,22 @@ RESTRICTED_DOMAINS = {"lock", "cover", "alarm_control_panel"}
 
 class OrchestratorModule(Module):
     """Generates automation suggestions and executes approved automations."""
+
+    CAPABILITIES = [
+        Capability(
+            id="orchestrator",
+            name="Automation Orchestrator",
+            description="Generates HA automation suggestions from detected behavioral patterns.",
+            module="orchestrator",
+            layer="hub",
+            config_keys=[],
+            test_paths=["tests/hub/test_orchestrator.py"],
+            systemd_units=["aria-hub.service"],
+            status="stable",
+            added_version="1.0.0",
+            depends_on=["pattern_recognition"],
+        ),
+    ]
 
     def __init__(self, hub: IntelligenceHub, ha_url: str, ha_token: str, min_confidence: float = 0.7):
         """Initialize orchestrator module.

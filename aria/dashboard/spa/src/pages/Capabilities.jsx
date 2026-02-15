@@ -1,7 +1,7 @@
-import { useState } from 'preact/hooks';
+import { useState, useEffect } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
-import { putJson } from '../api.js';
+import { putJson, fetchJson } from '../api.js';
 import HeroCard from '../components/HeroCard.jsx';
 import PageBanner from '../components/PageBanner.jsx';
 import CollapsibleSection from '../components/CollapsibleSection.jsx';
@@ -307,6 +307,157 @@ function formatTimestamp(iso) {
 }
 
 // ---------------------------------------------------------------------------
+// System Registry section — code-declared capability inventory
+// ---------------------------------------------------------------------------
+
+function statusColor(status) {
+  switch (status) {
+    case 'stable': return 'var(--status-healthy)';
+    case 'experimental': return 'var(--status-warning)';
+    case 'planned': return 'var(--text-tertiary)';
+    default: return 'var(--text-secondary)';
+  }
+}
+
+function statusBgColor(status) {
+  switch (status) {
+    case 'stable': return 'var(--status-healthy-glow)';
+    case 'experimental': return 'var(--status-warning-glow)';
+    case 'planned': return 'var(--bg-surface-raised)';
+    default: return 'var(--bg-surface-raised)';
+  }
+}
+
+function layerColor(layer) {
+  switch (layer) {
+    case 'hub': return 'var(--accent)';
+    case 'engine': return 'var(--accent-purple)';
+    case 'dashboard': return 'var(--status-warning)';
+    default: return 'var(--text-secondary)';
+  }
+}
+
+function RegistrySection() {
+  const [registry, setRegistry] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchJson('/api/capabilities/registry')
+      .then((data) => { setRegistry(data); setLoading(false); })
+      .catch((err) => { setError(err.message); setLoading(false); });
+  }, []);
+
+  if (loading) {
+    return (
+      <CollapsibleSection
+        title="System Registry"
+        subtitle="Code-declared capability inventory for regression tracking."
+        summary="Loading..."
+        defaultOpen={false}
+      >
+        <LoadingState type="table" />
+      </CollapsibleSection>
+    );
+  }
+
+  if (error) {
+    return (
+      <CollapsibleSection
+        title="System Registry"
+        subtitle="Code-declared capability inventory for regression tracking."
+        summary="Error"
+        defaultOpen={false}
+      >
+        <div class="t-callout p-3 text-sm" style="color: var(--status-error);">{error}</div>
+      </CollapsibleSection>
+    );
+  }
+
+  if (!registry) return null;
+
+  const caps = registry.capabilities || [];
+  const byLayer = registry.by_layer || {};
+  const byStatus = registry.by_status || {};
+
+  return (
+    <CollapsibleSection
+      title="System Registry"
+      subtitle="Code-declared capability inventory for regression tracking."
+      summary={`${registry.total} capabilities`}
+      defaultOpen={false}
+    >
+      {/* Summary badges */}
+      <div class="flex flex-wrap gap-2 mb-4">
+        {Object.entries(byLayer).map(([layer, count]) => (
+          <span
+            key={layer}
+            class="inline-block px-2 py-1 rounded text-xs font-medium"
+            style={`color: ${layerColor(layer)}; background: var(--bg-surface-raised); font-family: var(--font-mono);`}
+          >
+            {layer}: {count}
+          </span>
+        ))}
+        <span style="color: var(--border-subtle);">|</span>
+        {Object.entries(byStatus).map(([status, count]) => (
+          <span
+            key={status}
+            class="inline-block px-2 py-1 rounded text-xs font-medium"
+            style={`color: ${statusColor(status)}; background: ${statusBgColor(status)};`}
+          >
+            {status}: {count}
+          </span>
+        ))}
+      </div>
+
+      {/* Registry table */}
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: var(--type-body);">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border-subtle);">
+              <th style="text-align: left; padding: 8px 12px; color: var(--text-tertiary); font-weight: 600; font-size: var(--type-label);">ID</th>
+              <th style="text-align: left; padding: 8px 12px; color: var(--text-tertiary); font-weight: 600; font-size: var(--type-label);">Name</th>
+              <th style="text-align: left; padding: 8px 12px; color: var(--text-tertiary); font-weight: 600; font-size: var(--type-label);">Layer</th>
+              <th style="text-align: left; padding: 8px 12px; color: var(--text-tertiary); font-weight: 600; font-size: var(--type-label);">Status</th>
+              <th style="text-align: right; padding: 8px 12px; color: var(--text-tertiary); font-weight: 600; font-size: var(--type-label);">Tests</th>
+              <th style="text-align: right; padding: 8px 12px; color: var(--text-tertiary); font-weight: 600; font-size: var(--type-label);">Config</th>
+              <th style="text-align: left; padding: 8px 12px; color: var(--text-tertiary); font-weight: 600; font-size: var(--type-label);">Deps</th>
+            </tr>
+          </thead>
+          <tbody>
+            {caps.map((cap) => (
+              <tr key={cap.id} style="border-bottom: 1px solid var(--border-subtle);">
+                <td style="padding: 8px 12px; font-family: var(--font-mono); color: var(--text-primary);">{cap.id}</td>
+                <td style="padding: 8px 12px; color: var(--text-secondary);">{cap.name}</td>
+                <td style="padding: 8px 12px;">
+                  <span class="inline-block px-1.5 py-0.5 rounded text-xs" style={`color: ${layerColor(cap.layer)}; background: var(--bg-surface-raised);`}>
+                    {cap.layer}
+                  </span>
+                </td>
+                <td style="padding: 8px 12px;">
+                  <span class="inline-block px-1.5 py-0.5 rounded text-xs" style={`color: ${statusColor(cap.status)}; background: ${statusBgColor(cap.status)};`}>
+                    {cap.status}
+                  </span>
+                </td>
+                <td style="padding: 8px 12px; text-align: right; font-family: var(--font-mono); color: var(--text-secondary);">
+                  {(cap.test_paths || []).length}
+                </td>
+                <td style="padding: 8px 12px; text-align: right; font-family: var(--font-mono); color: var(--text-secondary);">
+                  {(cap.config_keys || []).length}
+                </td>
+                <td style="padding: 8px 12px; font-family: var(--font-mono); font-size: var(--type-label); color: var(--text-tertiary);">
+                  {(cap.depends_on || []).length > 0 ? cap.depends_on.join(', ') : '\u2014'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </CollapsibleSection>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Capabilities page
 // ---------------------------------------------------------------------------
 
@@ -472,6 +623,9 @@ export default function Capabilities() {
           )}
         </div>
       )}
+
+      {/* System Registry — code-declared capabilities for regression tracking */}
+      <RegistrySection />
     </div>
   );
 }

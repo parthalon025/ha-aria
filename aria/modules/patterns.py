@@ -21,6 +21,7 @@ import pandas as pd
 import ollama
 
 from aria.hub.core import Module, IntelligenceHub
+from aria.capabilities import Capability
 
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,22 @@ logger = logging.getLogger(__name__)
 
 class PatternRecognition(Module):
     """Detects behavioral patterns using clustering and association rules."""
+
+    CAPABILITIES = [
+        Capability(
+            id="pattern_recognition",
+            name="Pattern Recognition",
+            description="Detects recurring event sequences using hierarchical clustering and association rules.",
+            module="pattern_recognition",
+            layer="hub",
+            config_keys=[],
+            test_paths=["tests/hub/test_patterns.py"],
+            systemd_units=["aria-hub.service"],
+            status="stable",
+            added_version="1.0.0",
+            depends_on=["discovery"],
+        ),
+    ]
 
     def __init__(
         self,

@@ -38,6 +38,7 @@ warnings.filterwarnings(
 
 from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG as _ENGINE_FEATURE_CONFIG  # noqa: E402
 from aria.hub.core import Module, IntelligenceHub  # noqa: E402
+from aria.capabilities import Capability  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,22 @@ def should_full_retrain(current_trees: int, max_trees: int = 500) -> bool:
 
 class MLEngine(Module):
     """Machine learning prediction engine with adaptive capability mapping."""
+
+    CAPABILITIES = [
+        Capability(
+            id="ml_realtime",
+            name="Real-Time ML Predictions",
+            description="Feature engineering, model training, and adaptive predictions for HA capabilities.",
+            module="ml_engine",
+            layer="hub",
+            config_keys=["features.decay_half_life_days", "features.weekday_alignment_bonus"],
+            test_paths=["tests/hub/test_ml_training.py", "tests/hub/test_reference_model.py"],
+            systemd_units=["aria-hub.service"],
+            status="stable",
+            added_version="1.0.0",
+            depends_on=["discovery"],
+        ),
+    ]
 
     def __init__(self, hub: IntelligenceHub, models_dir: str, training_data_dir: str):
         """Initialize ML engine.

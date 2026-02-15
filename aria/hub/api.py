@@ -502,6 +502,75 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             logger.exception("Error toggling can_predict")
             raise HTTPException(status_code=500, detail="Internal server error")
 
+    # --- Capability Registry API ---
+    @router.get("/api/capabilities/registry")
+    async def list_capability_registry(
+        layer: Optional[str] = None,
+        status: Optional[str] = None,
+    ):
+        """List all declared capabilities from the code registry."""
+        from aria.capabilities import CapabilityRegistry
+        from dataclasses import asdict
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        caps = registry.list_all()
+        if layer:
+            caps = [c for c in caps if c.layer == layer]
+        if status:
+            caps = [c for c in caps if c.status == status]
+        return {
+            "capabilities": [asdict(c) for c in caps],
+            "total": len(caps),
+            "by_layer": {
+                lyr: len([c for c in caps if c.layer == lyr])
+                for lyr in sorted({c.layer for c in caps})
+            },
+            "by_status": {
+                st: len([c for c in caps if c.status == st])
+                for st in sorted({c.status for c in caps})
+            },
+        }
+
+    @router.get("/api/capabilities/registry/graph")
+    async def capabilities_registry_graph():
+        """Dependency graph of all registered capabilities."""
+        from aria.capabilities import CapabilityRegistry
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        graph = registry.dependency_graph()
+        nodes = [
+            {"id": cap.id, "name": cap.name, "layer": cap.layer, "status": cap.status}
+            for cap in registry.list_all()
+        ]
+        edges = []
+        for cap_id, deps in graph.items():
+            for dep_id in deps:
+                edges.append({"from": dep_id, "to": cap_id})
+        return {"nodes": nodes, "edges": edges}
+
+    @router.get("/api/capabilities/registry/health")
+    async def capabilities_registry_health():
+        """Runtime health per capability — checks module status from hub."""
+        from aria.capabilities import CapabilityRegistry
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        module_status = {}
+        if hasattr(hub, 'module_status'):
+            module_status = dict(hub.module_status)
+        return registry.health(module_status)
+
+    @router.get("/api/capabilities/registry/{capability_id}")
+    async def get_capability_registry(capability_id: str):
+        """Get a single capability by ID from the code registry."""
+        from aria.capabilities import CapabilityRegistry
+        from dataclasses import asdict
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        cap = registry.get(capability_id)
+        if not cap:
+            raise HTTPException(status_code=404, detail=f"Capability '{capability_id}' not found")
+        return asdict(cap)
+
     # Shadow engine endpoints
     @router.get("/api/shadow/predictions")
     async def get_shadow_predictions(

@@ -64,6 +64,9 @@ All commands route through the unified `aria` entry point (`aria/cli.py`).
 | `aria snapshot-intraday` | Collect intraday snapshot (used internally by hub) |
 | `aria sync-logs` | Sync HA logbook to local JSON |
 | `aria discover-organic` | Run organic capability discovery (Layer 1 + Layer 2) |
+| `aria capabilities list` | List all registered capabilities (--layer, --status, --verbose) |
+| `aria capabilities verify` | Validate all capabilities against tests/config/deps |
+| `aria capabilities export` | Export capability registry as JSON |
 
 Engine commands delegate to `aria.engine.cli` with old-style flags internally.
 
@@ -74,6 +77,7 @@ Engine commands delegate to `aria.engine.cli` with old-style flags internally.
 ```
 aria/
 ├── cli.py                  # Unified CLI entry point
+├── capabilities.py         # Capability dataclass, CapabilityRegistry, validation engine
 ├── hub/                    # Real-time hub core
 │   ├── core.py             # IntelligenceHub — module registry, task scheduler, event bus
 │   ├── cache.py            # SQLite-backed cache (hub.db) with category-based get/set
@@ -132,6 +136,8 @@ aria/
 | `organic_discovery` | `aria/modules/organic_discovery/module.py` | Two-layer HDBSCAN capability discovery: Layer 1 clusters entities by attributes, Layer 2 clusters by temporal co-occurrence. Usefulness scoring, seed validation, autonomy modes, heuristic/Ollama naming. Weekly via systemd timer. |
 | `intelligence` | `aria/modules/intelligence.py` | Assembles daily/intraday snapshots, baselines, predictions, ML scores into unified cache. Reads engine outputs (entity correlations, sequence anomalies, power profiles, automation suggestions). Sends Telegram digest on new insights. |
 | `activity_monitor` | `aria/modules/activity_monitor.py` | WebSocket listener for state_changed events, 15-min windowed activity log, adaptive snapshot triggering, prediction analytics. Emits filtered events to hub event bus for shadow engine. |
+
+Each module declares its capabilities via a `CAPABILITIES` class attribute (see `aria/capabilities.py` for the `Capability` dataclass). The `CapabilityRegistry.collect_from_modules()` method harvests all declarations for validation and CLI/API exposure.
 
 ### Engine Subpackages (7)
 
@@ -260,7 +266,7 @@ Separated by design: state_changed volume would drown registry events. Each has 
 
 Full curl examples for all endpoints: `docs/api-reference.md`
 
-Key endpoints: `/api/cache/{category}`, `/api/shadow/accuracy`, `/api/pipeline`, `/api/ml/*`, `/api/capabilities/*`, `/api/config`, `/api/curation/summary`
+Key endpoints: `/api/cache/{category}`, `/api/shadow/accuracy`, `/api/pipeline`, `/api/ml/*`, `/api/capabilities/*`, `/api/capabilities/registry`, `/api/capabilities/registry/{id}`, `/api/capabilities/registry/graph`, `/api/capabilities/registry/health`, `/api/config`, `/api/curation/summary`
 
 ## HA Data Model
 

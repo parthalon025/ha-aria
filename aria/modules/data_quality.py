@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Tuple
 
 from aria.hub.core import Module, IntelligenceHub
 from aria.hub.constants import CACHE_ENTITIES, CACHE_ACTIVITY_LOG
+from aria.capabilities import Capability
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,22 @@ RECLASSIFY_INTERVAL = timedelta(hours=24)
 
 class DataQualityModule(Module):
     """Entity classification pipeline: metrics → tiers → curation table."""
+
+    CAPABILITIES = [
+        Capability(
+            id="data_quality",
+            name="Data Quality",
+            description="Entity classification pipeline — auto-exclude, edge cases, default include.",
+            module="data_quality",
+            layer="hub",
+            config_keys=[],
+            test_paths=["tests/hub/test_data_quality.py"],
+            systemd_units=["aria-hub.service"],
+            status="stable",
+            added_version="1.0.0",
+            depends_on=["discovery"],
+        ),
+    ]
 
     def __init__(self, hub: IntelligenceHub):
         super().__init__("data_quality", hub)

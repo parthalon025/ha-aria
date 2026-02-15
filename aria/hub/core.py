@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 class Module:
     """Base class for hub modules."""
 
+    CAPABILITIES: list = []  # Subclasses declare their capabilities
+
     def __init__(self, module_id: str, hub: "IntelligenceHub"):
         self.module_id = module_id
         self.hub = hub

@@ -9,6 +9,7 @@ from datetime import date, timedelta
 from typing import Any, Dict, List
 
 from aria.hub.core import Module, IntelligenceHub
+from aria.capabilities import Capability
 from aria.modules.organic_discovery.feature_vectors import build_feature_matrix
 from aria.modules.organic_discovery.clustering import cluster_entities
 from aria.modules.organic_discovery.seed_validation import validate_seeds
@@ -31,6 +32,31 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
 
 class OrganicDiscoveryModule(Module):
     """Discovers capabilities organically by clustering HA entities."""
+
+    CAPABILITIES = [
+        Capability(
+            id="organic_discovery",
+            name="Organic Capability Discovery",
+            description="Two-layer HDBSCAN clustering to discover capabilities from entity attributes and temporal co-occurrence.",
+            module="organic_discovery",
+            layer="hub",
+            config_keys=[],
+            test_paths=[
+                "tests/hub/test_organic_discovery_module.py",
+                "tests/hub/test_organic_clustering.py",
+                "tests/hub/test_organic_behavioral.py",
+                "tests/hub/test_organic_feature_vectors.py",
+                "tests/hub/test_organic_naming.py",
+                "tests/hub/test_organic_scoring.py",
+                "tests/hub/test_organic_seed_validation.py",
+                "tests/hub/test_api_organic_discovery.py",
+            ],
+            systemd_units=["aria-hub.service"],
+            status="stable",
+            added_version="1.0.0",
+            depends_on=["discovery"],
+        ),
+    ]
 
     def __init__(self, hub: IntelligenceHub):
         super().__init__("organic_discovery", hub)

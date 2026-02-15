@@ -17,6 +17,7 @@ from datetime import timedelta
 import aiohttp
 
 from aria.hub.core import Module, IntelligenceHub
+from aria.capabilities import Capability
 
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,22 @@ logger = logging.getLogger(__name__)
 
 class DiscoveryModule(Module):
     """Discovers HA entities, devices, areas, and capabilities."""
+
+    CAPABILITIES = [
+        Capability(
+            id="discovery",
+            name="HA Entity Discovery",
+            description="Scans HA for entities, devices, areas, and seed capabilities via REST + WebSocket.",
+            module="discovery",
+            layer="hub",
+            config_keys=[],
+            test_paths=["tests/hub/test_discover.py"],
+            systemd_units=["aria-hub.service"],
+            status="stable",
+            added_version="1.0.0",
+            depends_on=[],
+        ),
+    ]
 
     def __init__(self, hub: IntelligenceHub, ha_url: str, ha_token: str):
         """Initialize discovery module.

@@ -16,6 +16,7 @@ import aiohttp
 
 from aria.hub.core import Module, IntelligenceHub
 from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
+from aria.capabilities import Capability
 
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,23 @@ METRIC_PATHS = {
 
 class IntelligenceModule(Module):
     """Reads ARIA engine output files and pushes to hub cache."""
+
+    CAPABILITIES = [
+        Capability(
+            id="intelligence_assembly",
+            name="Intelligence Assembly",
+            description="Assembles engine outputs (snapshots, baselines, predictions, ML scores) into unified cache.",
+            module="intelligence",
+            layer="hub",
+            config_keys=[],
+            test_paths=["tests/hub/test_intelligence.py"],
+            data_paths=["~/ha-logs/intelligence/"],
+            systemd_units=["aria-hub.service"],
+            status="stable",
+            added_version="1.0.0",
+            depends_on=[],
+        ),
+    ]
 
     def __init__(self, hub: IntelligenceHub, intelligence_dir: str):
         super().__init__("intelligence", hub)

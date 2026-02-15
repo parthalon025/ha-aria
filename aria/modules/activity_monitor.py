@@ -20,6 +20,7 @@ import aiohttp
 
 from aria.hub.core import Module, IntelligenceHub
 from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
+from aria.capabilities import Capability
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,27 @@ MAX_WINDOW_AGE_H = 24
 
 class ActivityMonitor(Module):
     """Tracks HA state changes and triggers adaptive snapshots."""
+
+    CAPABILITIES = [
+        Capability(
+            id="activity_monitoring",
+            name="Activity Monitoring",
+            description="WebSocket listener for state_changed events with 15-min windowed activity log and adaptive snapshots.",
+            module="activity_monitor",
+            layer="hub",
+            config_keys=[
+                "activity.daily_snapshot_cap",
+                "activity.snapshot_cooldown_s",
+                "activity.flush_interval_s",
+                "activity.max_window_age_h",
+            ],
+            test_paths=["tests/hub/test_activity_monitor.py"],
+            systemd_units=["aria-hub.service"],
+            status="stable",
+            added_version="1.0.0",
+            depends_on=["discovery"],
+        ),
+    ]
 
     def __init__(self, hub: IntelligenceHub, ha_url: str, ha_token: str):
         super().__init__("activity_monitor", hub)

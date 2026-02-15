@@ -60,6 +60,17 @@ def main():
     # Log sync
     subparsers.add_parser("sync-logs", help="Sync HA logbook to local JSON")
 
+    # Capabilities subcommand group
+    cap_parser = subparsers.add_parser("capabilities", help="Capability registry management")
+    cap_sub = cap_parser.add_subparsers(dest="cap_command")
+    cap_list = cap_sub.add_parser("list", help="List all registered capabilities")
+    cap_list.add_argument("--layer", choices=["hub", "engine", "dashboard", "cross-cutting"], help="Filter by layer")
+    cap_list.add_argument("--status", choices=["stable", "experimental", "planned"], help="Filter by status")
+    cap_list.add_argument("--verbose", action="store_true", help="Show full details")
+    cap_verify = cap_sub.add_parser("verify", help="Validate capability declarations")
+    cap_verify.add_argument("--strict", action="store_true", help="Fail on any issue (for CI)")
+    cap_sub.add_parser("export", help="Export capabilities as JSON")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -127,6 +138,9 @@ def _dispatch(args):
 
     elif args.command == "sync-logs":
         _sync_logs()
+
+    elif args.command == "capabilities":
+        _capabilities(args)
 
     else:
         print(f"Unknown command: {args.command}")
@@ -486,6 +500,109 @@ def _sync_logs():
     bin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     sync_script = os.path.join(bin_dir, "bin", "ha-log-sync")
     subprocess.run([sys.executable, sync_script], check=True)
+
+
+def _capabilities(args):
+    """Handle the capabilities subcommand group (list, verify, export)."""
+    from aria.capabilities import CapabilityRegistry
+
+    registry = CapabilityRegistry()
+    registry.collect_from_modules()
+
+    cap_command = getattr(args, "cap_command", None)
+
+    if cap_command == "list":
+        _capabilities_list(registry, args)
+    elif cap_command == "verify":
+        _capabilities_verify(registry, args)
+    elif cap_command == "export":
+        _capabilities_export(registry)
+    else:
+        print("Usage: aria capabilities {list|verify|export}")
+        sys.exit(1)
+
+
+def _capabilities_list(registry, args):
+    """List capabilities, optionally filtered by layer/status."""
+    caps = registry.list_all()
+
+    if args.layer:
+        caps = [c for c in caps if c.layer == args.layer]
+    if args.status:
+        caps = [c for c in caps if c.status == args.status]
+
+    # Group by layer
+    by_layer = {}
+    for cap in caps:
+        by_layer.setdefault(cap.layer, []).append(cap)
+
+    layer_order = ["hub", "engine", "dashboard", "cross-cutting"]
+    total = 0
+
+    for layer in layer_order:
+        layer_caps = by_layer.get(layer, [])
+        if not layer_caps:
+            continue
+        layer_label = layer.replace("-", " ").title()
+        print(f"\n{layer_label} Layer ({len(layer_caps)})")
+        if args.verbose:
+            for cap in sorted(layer_caps, key=lambda c: c.id):
+                print(f"  {cap.id}")
+                print(f"    Name:        {cap.name}")
+                print(f"    Description: {cap.description}")
+                print(f"    Status:      {cap.status}")
+                print(f"    Module:      {cap.module}")
+                print(f"    Tests:       {len(cap.test_paths)}")
+                print(f"    Config keys: {len(cap.config_keys)}")
+                if cap.depends_on:
+                    print(f"    Depends on:  {', '.join(cap.depends_on)}")
+                if cap.pipeline_stage:
+                    print(f"    Pipeline:    {cap.pipeline_stage}")
+        else:
+            print(f"  {'ID':<30}{'Name':<38}{'Status':<14}{'Tests':<7}{'Config'}")
+            print(f"  {'─' * 28}  {'─' * 36}  {'─' * 12}  {'─' * 5}  {'─' * 6}")
+            for cap in sorted(layer_caps, key=lambda c: c.id):
+                print(
+                    f"  {cap.id:<30}{cap.name:<38}{cap.status:<14}"
+                    f"{len(cap.test_paths):<7}{len(cap.config_keys)}"
+                )
+        total += len(layer_caps)
+
+    print(f"\nTotal: {total} capabilities")
+
+
+def _capabilities_verify(registry, args):
+    """Validate all capability declarations."""
+    issues = registry.validate_all()
+
+    if issues:
+        for issue in issues:
+            print(f"  \u2717 {issue}")
+        print(f"\n{len(issues)} issue(s) found")
+        if args.strict:
+            sys.exit(1)
+    else:
+        total = len(registry.list_all())
+        print(f"All {total} capabilities pass validation.")
+
+
+def _capabilities_export(registry):
+    """Export all capabilities as JSON."""
+    import json
+    from collections import Counter
+    from dataclasses import asdict
+
+    caps = registry.list_all()
+    by_layer = Counter(c.layer for c in caps)
+    by_status = Counter(c.status for c in caps)
+
+    output = {
+        "capabilities": [asdict(c) for c in caps],
+        "total": len(caps),
+        "by_layer": dict(by_layer),
+        "by_status": dict(by_status),
+    }
+    print(json.dumps(output, indent=2))
 
 
 if __name__ == "__main__":
