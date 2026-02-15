@@ -20,6 +20,10 @@ SENSOR_CONFIG = {
     "media": {"weight": 0.4, "decay_seconds": 1800},  # Low, 30 min decay (TV stays on)
     "power": {"weight": 0.3, "decay_seconds": 3600},  # Low, 1 hour decay
     "device_tracker": {"weight": 0.5, "decay_seconds": 0},  # Binary, no decay
+    "camera_person": {"weight": 0.95, "decay_seconds": 120},  # Very high confidence, 2 min decay
+    "camera_face": {"weight": 1.0, "decay_seconds": 0},  # Highest: identified person, no decay
+    "light_interaction": {"weight": 0.7, "decay_seconds": 600},  # Light on/off = someone acted
+    "dimmer_press": {"weight": 0.85, "decay_seconds": 300},  # Physical button = definite presence
 }
 
 # Prior probability of occupancy when no sensor data available

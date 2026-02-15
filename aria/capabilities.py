@@ -237,11 +237,12 @@ class CapabilityRegistry:
         from aria.modules.organic_discovery.module import OrganicDiscoveryModule
         from aria.modules.intelligence import IntelligenceModule
         from aria.modules.activity_monitor import ActivityMonitor
+        from aria.modules.presence import PresenceModule
 
         hub_modules = [
             DiscoveryModule, MLEngine, PatternRecognition, OrchestratorModule,
             ShadowEngine, DataQualityModule, OrganicDiscoveryModule,
-            IntelligenceModule, ActivityMonitor,
+            IntelligenceModule, ActivityMonitor, PresenceModule,
         ]
         for module_cls in hub_modules:
             for cap in getattr(module_cls, "CAPABILITIES", []):

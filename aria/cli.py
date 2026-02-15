@@ -60,6 +60,12 @@ def main():
     # Log sync
     subparsers.add_parser("sync-logs", help="Sync HA logbook to local JSON")
 
+    # Watchdog
+    wd_parser = subparsers.add_parser("watchdog", help="Run health checks and alert on failures")
+    wd_parser.add_argument("--quiet", action="store_true", help="Log + alert only (no stdout)")
+    wd_parser.add_argument("--no-alert", action="store_true", help="Skip Telegram alerts")
+    wd_parser.add_argument("--json", action="store_true", dest="json_output", help="JSON output")
+
     # Capabilities subcommand group
     cap_parser = subparsers.add_parser("capabilities", help="Capability registry management")
     cap_sub = cap_parser.add_subparsers(dest="cap_command")
@@ -141,6 +147,9 @@ def _dispatch(args):
 
     elif args.command == "capabilities":
         _capabilities(args)
+
+    elif args.command == "watchdog":
+        _watchdog(args)
 
     else:
         print(f"Unknown command: {args.command}")
@@ -304,6 +313,15 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
             await _init_module(activity_labeler, "activity_labeler")()
         except Exception as e:
             logger.warning(f"Activity labeler module failed (non-fatal): {e}")
+
+        # presence (non-fatal)
+        try:
+            from aria.modules.presence import PresenceModule
+            presence = PresenceModule(hub, ha_url, ha_token)
+            hub.register_module(presence)
+            await _init_module(presence, "presence")()
+        except Exception as e:
+            logger.warning(f"Presence module failed (non-fatal): {e}")
 
         # Module load summary
         total = len(hub.module_status)
@@ -509,6 +527,18 @@ def _sync_logs():
     bin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     sync_script = os.path.join(bin_dir, "bin", "ha-log-sync")
     subprocess.run([sys.executable, sync_script], check=True)
+
+
+def _watchdog(args):
+    """Run watchdog health checks."""
+    from aria.watchdog import run_watchdog
+
+    ret = run_watchdog(
+        quiet=args.quiet,
+        no_alert=args.no_alert,
+        json_output=args.json_output,
+    )
+    sys.exit(ret)
 
 
 def _capabilities(args):

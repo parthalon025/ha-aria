@@ -33,6 +33,7 @@ dependencies = [
     "aiosqlite>=0.19.0",
     "holidays>=0.40",
     "python-dateutil>=2.8.0",
+    "aiomqtt>=2.0.0",
 ]
 
 [project.optional-dependencies]

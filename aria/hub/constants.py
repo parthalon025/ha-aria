@@ -24,3 +24,6 @@ CACHE_PIPELINE_STATE = "pipeline_state"
 CACHE_CONFIG = "config"
 CACHE_ENTITY_CURATION = "entity_curation"
 CACHE_CONFIG_HISTORY = "config_history"
+
+# Presence tracking
+CACHE_PRESENCE = "presence"
