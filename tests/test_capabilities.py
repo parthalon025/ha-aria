@@ -450,3 +450,26 @@ class TestRuntimeHealth:
         health = registry.health({})
         assert health["discovery"]["module_loaded"] is None
         assert health["discovery"]["module_status"] == "unknown"
+
+
+class TestDemandSignalDeclarations:
+    """Verify ML engine and shadow engine declare demand signals."""
+
+    def test_ml_engine_declares_demand_signals(self):
+        from aria.modules.ml_engine import MLEngine
+        caps = MLEngine.CAPABILITIES
+        assert any(len(c.demand_signals) > 0 for c in caps)
+        # Check the first demand signal has required fields
+        ds = caps[0].demand_signals[0]
+        assert ds.entity_domains
+        assert ds.min_entities >= 1
+
+    def test_shadow_engine_declares_demand_signals(self):
+        from aria.modules.shadow_engine import ShadowEngine
+        caps = ShadowEngine.CAPABILITIES
+        assert any(len(c.demand_signals) > 0 for c in caps)
+
+    def test_demand_signals_are_frozen(self):
+        ds = DemandSignal(entity_domains=["sensor"], min_entities=5)
+        with pytest.raises(Exception):  # FrozenInstanceError
+            ds.min_entities = 10

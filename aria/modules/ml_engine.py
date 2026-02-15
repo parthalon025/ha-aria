@@ -38,7 +38,7 @@ warnings.filterwarnings(
 
 from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG as _ENGINE_FEATURE_CONFIG  # noqa: E402
 from aria.hub.core import Module, IntelligenceHub  # noqa: E402
-from aria.capabilities import Capability  # noqa: E402
+from aria.capabilities import Capability, DemandSignal  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,26 @@ class MLEngine(Module):
             status="stable",
             added_version="1.0.0",
             depends_on=["discovery"],
+            demand_signals=[
+                DemandSignal(
+                    entity_domains=["sensor"],
+                    device_classes=["power", "energy"],
+                    min_entities=5,
+                    description="Power/energy sensors for consumption prediction",
+                ),
+                DemandSignal(
+                    entity_domains=["light", "switch"],
+                    device_classes=[],
+                    min_entities=3,
+                    description="Controllable devices for usage pattern prediction",
+                ),
+                DemandSignal(
+                    entity_domains=["binary_sensor"],
+                    device_classes=["motion", "occupancy"],
+                    min_entities=2,
+                    description="Motion/occupancy sensors for presence prediction",
+                ),
+            ],
         ),
     ]
 

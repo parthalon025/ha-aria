@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from aria.hub.core import Module, IntelligenceHub
 from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
-from aria.capabilities import Capability
+from aria.capabilities import Capability, DemandSignal
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +223,14 @@ class ShadowEngine(Module):
             status="stable",
             added_version="1.0.0",
             depends_on=["activity_monitoring", "discovery"],
+            demand_signals=[
+                DemandSignal(
+                    entity_domains=["sensor", "binary_sensor", "light", "switch", "climate"],
+                    device_classes=[],
+                    min_entities=3,
+                    description="Any predictable entity groupings for shadow validation",
+                ),
+            ],
         ),
     ]
 
