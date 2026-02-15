@@ -97,6 +97,20 @@ class OrganicDiscoveryModule(Module):
 
         self.logger.info("Organic discovery module initialized")
 
+    async def update_settings(self, updates: dict) -> None:
+        """Update discovery settings with validation and persist to cache."""
+        VALID_BACKENDS = {"heuristic", "ollama"}
+        VALID_MODES = {"suggest_and_wait", "auto_promote", "manual_only"}
+
+        if "naming_backend" in updates and updates["naming_backend"] not in VALID_BACKENDS:
+            raise ValueError(f"Invalid naming_backend: {updates['naming_backend']}. Must be one of {VALID_BACKENDS}")
+        if "autonomy_mode" in updates and updates["autonomy_mode"] not in VALID_MODES:
+            raise ValueError(f"Invalid autonomy_mode: {updates['autonomy_mode']}. Must be one of {VALID_MODES}")
+
+        self.settings.update(updates)
+        await self.hub.set_cache("discovery_settings", self.settings, {"source": "settings_update"})
+        self.logger.info(f"Settings updated: {updates}")
+
     async def _periodic_run(self):
         """Wrapper for scheduled execution."""
         try:

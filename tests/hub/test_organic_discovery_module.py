@@ -789,3 +789,33 @@ class TestDemandAlignment:
         ]
         bonus = module._compute_demand_alignment(entities, demands)
         assert bonus == 0.1  # domain + class match but below size threshold
+
+
+# ---------------------------------------------------------------------------
+# update_settings
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateSettings:
+    async def test_update_settings_changes_naming_backend(self, mock_hub, module):
+        """Changing naming_backend from heuristic to ollama should persist."""
+        assert module.settings["naming_backend"] == "heuristic"
+        await module.update_settings({"naming_backend": "ollama"})
+        assert module.settings["naming_backend"] == "ollama"
+        # Verify cache was written
+        mock_hub.set_cache.assert_called_with(
+            "discovery_settings", module.settings, {"source": "settings_update"}
+        )
+
+    async def test_update_settings_rejects_invalid_backend(self, mock_hub, module):
+        """Invalid naming_backend should raise ValueError."""
+        with pytest.raises(ValueError, match="Invalid naming_backend"):
+            await module.update_settings({"naming_backend": "invalid"})
+
+    async def test_update_settings_preserves_other_settings(self, mock_hub, module):
+        """Changing naming_backend should not affect other settings."""
+        original_threshold = module.settings["promote_threshold"]
+        original_mode = module.settings["autonomy_mode"]
+        await module.update_settings({"naming_backend": "ollama"})
+        assert module.settings["promote_threshold"] == original_threshold
+        assert module.settings["autonomy_mode"] == original_mode
