@@ -308,7 +308,8 @@ class ActivityLabeler(Module):
             ctx: Sensor context dict.
 
         Returns:
-            List of floats: [power_watts, lights_on, motion_room_count, hour, is_home]
+            List of 8 floats: [power_watts, lights_on, motion_room_count, hour, is_home,
+                                correlated_entities_active, anomaly_nearby, active_appliance_count]
         """
         power_watts = float(ctx.get("power_watts", 0))
         lights_on = int(ctx.get("lights_on", 0))
@@ -324,7 +325,12 @@ class ActivityLabeler(Module):
         occupancy = ctx.get("occupancy", "unknown")
         is_home = 1.0 if occupancy in ("home", "on", "true", True) else 0.0
 
-        return [power_watts, float(lights_on), float(motion_room_count), hour, is_home]
+        correlated_entities_active = float(ctx.get("correlated_entities_active", 0))
+        anomaly_nearby = float(ctx.get("anomaly_nearby", 0))
+        active_appliance_count = float(ctx.get("active_appliance_count", 0))
+
+        return [power_watts, float(lights_on), float(motion_room_count), hour, is_home,
+                correlated_entities_active, anomaly_nearby, active_appliance_count]
 
     async def _periodic_predict(self):
         """Read caches, build sensor context, predict activity, store result."""

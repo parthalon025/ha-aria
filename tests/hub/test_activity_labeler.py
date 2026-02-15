@@ -296,7 +296,7 @@ class TestContextToFeatures:
         )
         features = labeler._context_to_features(ctx)
 
-        assert len(features) == 5
+        assert len(features) == 8
         assert features[0] == 450.0  # power_watts
         assert features[1] == 3.0  # lights_on
         assert features[2] == 2.0  # motion_room_count (2 rooms)
@@ -325,11 +325,32 @@ class TestContextToFeatures:
     def test_context_to_features_defaults(self, labeler):
         """Missing context keys produce sensible defaults."""
         features = labeler._context_to_features({})
-        assert len(features) == 5
+        assert len(features) == 8
         assert features[0] == 0.0  # power_watts default
         assert features[1] == 0.0  # lights_on default
         assert features[2] == 0.0  # motion_room_count default
         assert features[4] == 0.0  # is_home default (unknown occupancy)
+        assert features[5] == 0.0  # correlated_entities_active default
+        assert features[6] == 0.0  # anomaly_nearby default
+        assert features[7] == 0.0  # active_appliance_count default
+
+    def test_context_to_features_with_intelligence(self, labeler):
+        ctx = make_context()
+        ctx["correlated_entities_active"] = 3
+        ctx["anomaly_nearby"] = 1
+        ctx["active_appliance_count"] = 2
+        features = labeler._context_to_features(ctx)
+        assert len(features) == 8
+        assert features[5] == 3.0
+        assert features[6] == 1.0
+        assert features[7] == 2.0
+
+    def test_context_to_features_defaults_intelligence(self, labeler):
+        features = labeler._context_to_features({})
+        assert len(features) == 8
+        assert features[5] == 0.0
+        assert features[6] == 0.0
+        assert features[7] == 0.0
 
 
 class TestTimeOfDay:
