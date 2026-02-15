@@ -628,8 +628,8 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                     if shadow_acc > 0:
                         await hub.cache.update_pipeline_state(backtest_accuracy=round(shadow_acc, 4))
                         pipeline["backtest_accuracy"] = round(shadow_acc, 4)
-                except Exception:
-                    pass  # Non-fatal — stage_health will still compute below
+                except Exception as e:
+                    logger.warning("Failed to bridge backtest_accuracy from shadow stats: %s", e)
 
             # Compute multi-metric stage health from accuracy stats
             stage_health = {}
@@ -670,7 +670,8 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                     stage_health["trend_delta"] = 0.0
 
                 stage_health["predictions_resolved"] = total
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to compute stage health metrics: %s", e)
                 stage_health["error"] = "Could not compute stage health"
 
             pipeline["stage_health"] = stage_health

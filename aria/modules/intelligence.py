@@ -327,7 +327,8 @@ class IntelligenceModule(Module):
                 else data.get("last_trained"),
                 "scores": data[-1].get("scores", {}) if isinstance(data, list) and data else data.get("scores", {}),
             }
-        except Exception:
+        except Exception as e:
+            self.logger.warning("Failed to read ML model training log: %s", e)
             return {"count": 0, "last_trained": None, "scores": {}}
 
     def _read_meta_learning(self) -> Dict[str, Any]:
@@ -348,7 +349,8 @@ class IntelligenceModule(Module):
                 "last_applied": data.get("last_applied"),
                 "suggestions": data.get("suggestions", [])[-5:],
             }
-        except Exception:
+        except Exception as e:
+            self.logger.warning("Failed to read meta-learning applied suggestions: %s", e)
             return {"applied_count": 0, "last_applied": None, "suggestions": []}
 
     def _build_run_log(self) -> List[Dict[str, Any]]:
@@ -408,8 +410,8 @@ class IntelligenceModule(Module):
                                 "message": line.strip()[:200],
                             }
                         )
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.warning("Failed to parse aria log file %s: %s", self.log_path, e)
 
         # Sort by timestamp descending, take most recent 15
         runs.sort(key=lambda r: r.get("timestamp") or "", reverse=True)

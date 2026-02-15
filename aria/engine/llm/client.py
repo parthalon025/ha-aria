@@ -1,10 +1,13 @@
 """Ollama LLM client — low-level chat API and output cleaning."""
 
 import json
+import logging
 import re
 import urllib.request
 
 from aria.engine.config import OllamaConfig
+
+logger = logging.getLogger(__name__)
 
 
 def strip_think_tags(text):
@@ -33,5 +36,6 @@ def ollama_chat(prompt, config: OllamaConfig = None):
         with urllib.request.urlopen(req, timeout=config.timeout) as resp:
             result = json.loads(resp.read())
         return result.get("message", {}).get("content", "")
-    except Exception:
+    except Exception as e:
+        logger.warning("Ollama chat request failed (model=%s): %s", config.model, e)
         return ""

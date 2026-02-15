@@ -5,12 +5,15 @@ mock in tests or swap backends (e.g., SQLite) in the future.
 """
 
 import json
+import logging
 import os
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from aria.engine.config import PathConfig
+
+logger = logging.getLogger(__name__)
 
 
 def _atomic_write_json(path, data, **kwargs):
@@ -90,8 +93,8 @@ class DataStore:
                 try:
                     with open(day_dir / fname) as f:
                         snapshots.append(json.load(f))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to load intraday snapshot %s/%s: %s", date_str, fname, e)
         return snapshots
 
     def load_all_intraday_snapshots(self, days: int = 30) -> list[dict]:
@@ -247,5 +250,6 @@ class DataStore:
         try:
             with open(self.paths.logbook_path) as f:
                 return json.load(f)
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load logbook from %s: %s", self.paths.logbook_path, e)
             return []
