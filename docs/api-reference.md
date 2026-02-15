@@ -81,6 +81,26 @@ curl -s -X POST http://127.0.0.1:8001/api/discovery/run
 curl -s http://127.0.0.1:8001/api/discovery/status | python3 -m json.tool
 ```
 
+## Capability Registry
+
+```bash
+# All registered capabilities (with layer/status summaries)
+curl -s http://127.0.0.1:8001/api/capabilities/registry | python3 -m json.tool
+
+# Filter by layer or status
+curl -s 'http://127.0.0.1:8001/api/capabilities/registry?layer=hub' | python3 -m json.tool
+curl -s 'http://127.0.0.1:8001/api/capabilities/registry?status=stable' | python3 -m json.tool
+
+# Single capability detail
+curl -s http://127.0.0.1:8001/api/capabilities/registry/shadow_predictions | python3 -m json.tool
+
+# Dependency graph (nodes + edges)
+curl -s http://127.0.0.1:8001/api/capabilities/registry/graph | python3 -m json.tool
+
+# Runtime health per capability (maps hub module status)
+curl -s http://127.0.0.1:8001/api/capabilities/registry/health | python3 -m json.tool
+```
+
 ## Config & Curation
 
 ```bash
