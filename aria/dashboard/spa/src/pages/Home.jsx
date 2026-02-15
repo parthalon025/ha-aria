@@ -2,7 +2,6 @@ import { useState, useEffect } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
 import { fetchJson } from '../api.js';
-import { SIGNIFICANCE_PCT, ML_TRAINING_MIN_DAYS } from '../constants.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import AriaLogo from '../components/AriaLogo.jsx';
@@ -12,50 +11,6 @@ import PageBanner from '../components/PageBanner.jsx';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const STATUS = {
-  HEALTHY: { label: 'Healthy', color: 'var(--status-healthy)' },
-  WAITING: { label: 'Waiting', color: 'var(--status-waiting)' },
-  REVIEW:  { label: 'Review', color: 'var(--status-warning)', pulse: true },
-  BLOCKED: { label: 'Blocked', color: 'var(--status-error)' },
-};
-
-// Inline SVG icons for pipeline nodes (monochrome, matches sidebar style)
-const SvgIcon = ({ d, children }) => (
-  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    {d ? <path d={d} /> : children}
-  </svg>
-);
-
-const NodeIcons = {
-  discovery: () => <SvgIcon><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></SvgIcon>,
-  activity_monitor: () => <SvgIcon><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></SvgIcon>,
-  data_quality: () => <SvgIcon><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></SvgIcon>,
-  intelligence: () => <SvgIcon><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z" /><line x1="9" y1="21" x2="15" y2="21" /></SvgIcon>,
-  ml_engine: () => <SvgIcon><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></SvgIcon>,
-  pattern_recognition: () => <SvgIcon><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></SvgIcon>,
-  shadow_engine: () => <SvgIcon><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></SvgIcon>,
-  orchestrator: () => <SvgIcon><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></SvgIcon>,
-  pipeline_gates: () => <SvgIcon><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /><line x1="15" y1="3" x2="15" y2="21" /></SvgIcon>,
-};
-
-const NODE_META = {
-  discovery:           { icon: NodeIcons.discovery,           label: 'Discovery',        lane: 0 },
-  activity_monitor:    { icon: NodeIcons.activity_monitor,    label: 'Activity Monitor', lane: 0 },
-  data_quality:        { icon: NodeIcons.data_quality,        label: 'Data Curation',    lane: 0 },
-  intelligence:        { icon: NodeIcons.intelligence,        label: 'Intelligence',     lane: 1 },
-  ml_engine:           { icon: NodeIcons.ml_engine,           label: 'ML Engine',        lane: 1 },
-  pattern_recognition: { icon: NodeIcons.pattern_recognition, label: 'Patterns',         lane: 1 },
-  shadow_engine:       { icon: NodeIcons.shadow_engine,       label: 'Shadow Engine',    lane: 2 },
-  orchestrator:        { icon: NodeIcons.orchestrator,        label: 'Orchestrator',     lane: 2 },
-  pipeline_gates:      { icon: NodeIcons.pipeline_gates,      label: 'Pipeline Gates',   lane: 2 },
-};
-
-const LANES = [
-  { title: 'Data Collection', subtitle: 'What feeds the system' },
-  { title: 'Learning',        subtitle: 'How the system learns' },
-  { title: 'Actions',         subtitle: 'What the system produces' },
-];
 
 const PHASES = ['collecting', 'baselines', 'ml-training', 'ml-active'];
 const PHASE_LABELS = ['Collecting', 'Baselines', 'ML Training', 'ML Active'];
@@ -67,188 +22,238 @@ const PHASE_MILESTONES = [
 ];
 
 // ---------------------------------------------------------------------------
-// Status computation
+// Bus Architecture Diagram
 // ---------------------------------------------------------------------------
 
-function computeNodeStatus(nodeId, data) {
-  const { health, entities, activity, curation, intelligence, shadow, pipeline } = data;
-  const modules = health ? health.modules || {} : {};
-  const isRegistered = (name) => modules[name] && modules[name] !== 'failed' && modules[name] !== 'unknown';
+const PLANE_DATA = {
+  data: {
+    label: 'DATA PLANE',
+    nodes: [
+      { id: 'discovery', label: 'Discovery', metricKey: 'entity_count' },
+      { id: 'activity_monitor', label: 'Activity', metricKey: 'event_rate' },
+      { id: 'data_quality', label: 'Curation', metricKey: 'included_count' },
+      { id: 'activity_labeler', label: 'Labeler', metricKey: 'current_activity' },
+    ],
+  },
+  learning: {
+    label: 'LEARNING PLANE',
+    nodes: [
+      { id: 'intelligence', label: 'Intel.', metricKey: 'day_count' },
+      { id: 'ml_engine', label: 'ML Engine', metricKey: 'mean_r2' },
+      { id: 'pattern_recognition', label: 'Patterns', metricKey: 'sequence_count' },
+      { id: 'drift_monitor', label: 'Drift', metricKey: 'drift_count' },
+    ],
+  },
+  action: {
+    label: 'ACTION PLANE',
+    nodes: [
+      { id: 'shadow_engine', label: 'Shadow', metricKey: 'accuracy' },
+      { id: 'orchestrator', label: 'Orchestr.', metricKey: 'pending_count' },
+      { id: 'pipeline_gates', label: 'Gates', metricKey: 'pipeline_stage' },
+      { id: 'feedback_health', label: 'Feedback', metricKey: 'feedback_fresh' },
+    ],
+  },
+};
 
-  const maturity = intelligence ? (intelligence.data_maturity || null) : null;
-  const days = maturity ? maturity.days_of_data || 0 : 0;
-  const phase = maturity ? maturity.phase || null : null;
-  const mlActive = phase === 'ml-active';
+function getNodeStatus(moduleStatuses, nodeId) {
+  const status = moduleStatuses?.[nodeId];
+  if (status === 'running') return 'healthy';
+  if (status === 'failed') return 'blocked';
+  if (status === 'starting') return 'waiting';
+  return 'waiting';
+}
 
-  const entityCount = entities && entities.data ? Object.keys(entities.data || {}).length : 0;
-  const wsObj = activity && activity.data ? (activity.data.websocket || null) : null;
-  const snapshotCount = maturity ? (maturity.intraday_count || 0) : 0;
-  const predTotal = shadow ? (shadow.predictions_total || 0) : 0;
-  const stage = pipeline ? (pipeline.current_stage || 'backtest') : 'backtest';
+function getNodeMetric(cacheData, node) {
+  const caps = cacheData?.capabilities?.data || {};
+  const pipeline = cacheData?.pipeline?.data || {};
+  const shadow = cacheData?.shadow_accuracy?.data || {};
+  const activity = cacheData?.activity_labels?.data || {};
+  const feedback = cacheData?.feedback_health || {};
 
-  const curationTotal = curation ? (curation.total || 0) : 0;
-
-  switch (nodeId) {
-    case 'discovery':
-      if (!isRegistered('discovery')) return STATUS.BLOCKED;
-      return entityCount > 0 ? STATUS.HEALTHY : STATUS.WAITING;
-
-    case 'activity_monitor':
-      if (!isRegistered('activity_monitor')) return STATUS.BLOCKED;
-      if (wsObj === null) return STATUS.WAITING;
-      return wsObj && wsObj.connected ? STATUS.HEALTHY : STATUS.BLOCKED;
-
-    case 'data_quality':
-      return curationTotal > 0 ? STATUS.HEALTHY : STATUS.WAITING;
-
-    case 'intelligence':
-      if (!isRegistered('intelligence')) return STATUS.BLOCKED;
-      if (!maturity) return STATUS.WAITING;
-      return snapshotCount > 0 ? STATUS.HEALTHY : STATUS.WAITING;
-
-    case 'ml_engine':
-      if (!isRegistered('ml_engine')) return STATUS.BLOCKED;
-      if (mlActive) return STATUS.HEALTHY;
-      if (days >= ML_TRAINING_MIN_DAYS) return STATUS.REVIEW;
-      return STATUS.WAITING;
-
-    case 'pattern_recognition':
-      if (!isRegistered('pattern_recognition')) return STATUS.BLOCKED;
-      return days >= 1 ? STATUS.HEALTHY : STATUS.WAITING;
-
-    case 'shadow_engine':
-      if (!isRegistered('shadow_engine')) return STATUS.BLOCKED;
-      return predTotal > 0 ? STATUS.HEALTHY : STATUS.WAITING;
-
-    case 'orchestrator':
-      if (!isRegistered('orchestrator')) return STATUS.BLOCKED;
-      return mlActive ? STATUS.HEALTHY : STATUS.WAITING;
-
-    case 'pipeline_gates':
-      return stage === 'autonomous' ? STATUS.HEALTHY : STATUS.WAITING;
-
-    default:
-      return STATUS.WAITING;
+  switch (node.id) {
+    case 'discovery': {
+      const count = Object.values(caps).filter((entry) => entry && typeof entry === 'object' && entry.entities).reduce((sum, entry) => sum + (entry.entities?.length || 0), 0);
+      return count ? `${count} entities` : '\u2014';
+    }
+    case 'activity_monitor': return pipeline?.events_per_minute ? `${pipeline.events_per_minute.toFixed(1)} ev/m` : '\u2014';
+    case 'data_quality': return pipeline?.included_entities ? `${pipeline.included_entities} incl.` : '\u2014';
+    case 'activity_labeler': {
+      const curr = activity?.current_activity;
+      return curr?.predicted || '\u2014';
+    }
+    case 'intelligence': return pipeline?.intelligence_day ? `Day ${pipeline.intelligence_day}` : '\u2014';
+    case 'ml_engine': {
+      const mlCaps = Object.values(caps).filter((entry) => entry?.ml_accuracy);
+      if (mlCaps.length === 0) return '\u2014';
+      const avgR2 = mlCaps.reduce((s, entry) => s + (entry.ml_accuracy.mean_r2 || 0), 0) / mlCaps.length;
+      return `R\u00B2: ${avgR2.toFixed(2)}`;
+    }
+    case 'pattern_recognition': return '\u2014';
+    case 'drift_monitor': {
+      const drifted = Object.values(caps).filter((entry) => entry?.drift_flagged).length;
+      return `${drifted} flagged`;
+    }
+    case 'shadow_engine': return shadow?.overall_accuracy ? `${(shadow.overall_accuracy * 100).toFixed(0)}%` : '\u2014';
+    case 'orchestrator': return '\u2014';
+    case 'pipeline_gates': return pipeline?.stage || 'shadow';
+    case 'feedback_health': {
+      const fresh = (feedback?.capabilities_with_ml_feedback || 0) + (feedback?.capabilities_with_shadow_feedback || 0);
+      return `${fresh} fresh`;
+    }
+    default: return '\u2014';
   }
 }
 
-function computeNodeStats(data) {
-  const { entities, activity, curation, intelligence, shadow, pipeline } = data;
-
-  const entityCount = entities && entities.data ? Object.keys(entities.data || {}).length : 0;
-  const maturity = intelligence ? (intelligence.data_maturity || null) : null;
-  const days = maturity ? maturity.days_of_data || 0 : 0;
-  const phase = maturity ? maturity.phase || null : null;
-  const snapshotCount = maturity ? (maturity.intraday_count || 0) : 0;
-  const mlActive = phase === 'ml-active';
-
-  const actRate = activity && activity.data ? (activity.data.activity_rate || null) : null;
-  const rate = actRate ? actRate.current : null;
-
-  const perStatus = curation ? (curation.per_status || {}) : {};
-  const included = perStatus.included || 0;
-  const excluded = (perStatus.excluded || 0) + (perStatus.auto_excluded || 0);
-
-  const predTotal = shadow ? (shadow.predictions_total || 0) : 0;
-  const acc = shadow ? Math.round((shadow.overall_accuracy || 0) * 100) : 0;
-
-  const stage = pipeline ? (pipeline.current_stage || 'backtest') : 'backtest';
-
-  return {
-    discovery: entityCount > 0 ? `${entityCount} entities discovered` : 'Scanning...',
-    activity_monitor: rate !== null ? `${rate} events/min` : 'Connecting to HA...',
-    data_quality: curation ? `${included} included, ${excluded} filtered` : 'Loading...',
-    intelligence: snapshotCount > 0 ? `Day ${days}/7 \u2014 ${snapshotCount} snapshots` : 'Waiting for first snapshot',
-    ml_engine: mlActive ? 'Models trained and active' : (days >= ML_TRAINING_MIN_DAYS ? 'Ready to train' : `${Math.max(0, ML_TRAINING_MIN_DAYS - days)} days until ML training`),
-    pattern_recognition: days >= 1 ? 'Analyzing event sequences' : 'Needs activity data',
-    shadow_engine: predTotal > 0 ? `${predTotal} predictions, ${acc}% accuracy` : 'No predictions yet',
-    orchestrator: mlActive ? 'Generating automation suggestions' : 'Waiting for ML + patterns',
-    pipeline_gates: `Stage: ${stage}`,
+function ModuleNode({ x, y, status, label, metric }) {
+  const colors = {
+    healthy: 'var(--status-healthy)',
+    waiting: 'var(--status-waiting)',
+    blocked: 'var(--status-error)',
+    review: 'var(--status-warning)',
   };
-}
+  const color = colors[status] || colors.waiting;
 
-// ---------------------------------------------------------------------------
-// Small components
-// ---------------------------------------------------------------------------
-
-function StatusChip({ status }) {
   return (
-    <span class="t-status" style={`border-left-color: ${status.color}; color: ${status.color};`}>
-      <span style={`width: 6px; height: 6px; border-radius: 50%; background: ${status.color};${status.pulse ? ' animation: pulse-amber 2s ease-in-out infinite;' : ''}`} />
-      {status.label}
-    </span>
+    <g transform={`translate(${x}, ${y})`}>
+      <rect width="180" height="55" rx="4" fill="var(--bg-surface)" stroke="var(--border-primary)" stroke-width="1" />
+      <circle cx="16" cy="16" r="5" fill={color} filter="url(#led-glow)">
+        {status === 'healthy' && <animate attributeName="opacity" values="1;0.6;1" dur="3s" repeatCount="indefinite" />}
+      </circle>
+      <text x="28" y="20" fill="var(--text-primary)" font-size="11" font-weight="600" font-family="var(--font-mono)">{label}</text>
+      <text x="16" y="42" fill="var(--text-tertiary)" font-size="10" font-family="var(--font-mono)">{metric}</text>
+    </g>
   );
 }
 
-function LaneHeader({ lane }) {
+function PlaneLabel({ x, y, label }) {
+  return <text x={x} y={y} text-anchor="middle" fill="var(--text-tertiary)" font-size="10" font-weight="700" font-family="var(--font-mono)" letter-spacing="2">{label}</text>;
+}
+
+function BusConnector({ x, y1, y2, label }) {
   return (
-    <div style="margin-bottom: 16px;">
-      <div class="t-bracket" style="font-size: var(--type-headline); font-weight: 700; color: var(--accent);">
-        {lane.title}
-      </div>
-      <p class="text-xs" style="color: var(--text-tertiary); margin-top: 4px; font-family: var(--font-mono);">{lane.subtitle}</p>
-    </div>
+    <g>
+      <line x1={x} y1={y1} x2={x} y2={y2} class="bus-connector-line" stroke="var(--border-primary)" stroke-width="1" />
+      {label && <text x={x + 4} y={(y1 + y2) / 2} fill="var(--text-tertiary)" font-size="8" font-family="var(--font-mono)">{label}</text>}
+    </g>
   );
 }
 
-function DownArrow() {
-  return (
-    <div class="flex justify-center lg:hidden py-1">
-      <svg width="20" height="24" viewBox="0 0 20 24" fill="none">
-        <path d="M10 2 L10 18 M4 14 L10 20 L16 14" stroke="var(--border-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-    </div>
-  );
-}
+function BusArchitecture({ moduleStatuses, cacheData, feedbackHealth }) {
+  const nodeX = [50, 260, 470, 680];
+  const connectorLabelsData = ['entities', 'events', 'rules', 'labels'];
+  const connectorLabelsLearning = ['', 'accuracy', '', ''];
 
-function LaneArrow() {
-  return (
-    <div class="hidden lg:flex items-center justify-center px-2">
-      <svg width="40" height="24" viewBox="0 0 40 24" fill="none">
-        <line x1="0" y1="12" x2="30" y2="12" stroke="var(--border-primary)" stroke-width="2" stroke-dasharray="6 4" class="animate-dash-flow" />
-        <path d="M28 6 L36 12 L28 18" stroke="var(--border-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-      </svg>
-    </div>
-  );
-}
-
-function PipelineNode({ nodeId, status, stat, link }) {
-  const meta = NODE_META[nodeId];
-  if (!meta) return null;
-
-  const isHealthy = status === STATUS.HEALTHY;
-  const cursorClass = status === STATUS.HEALTHY ? 'cursor-active'
-    : status === STATUS.REVIEW ? 'cursor-working'
-    : status === STATUS.WAITING ? 'cursor-idle'
-    : '';
-
-  const inner = (
-    <div class={`t-frame ${cursorClass}${isHealthy ? ' t1-pulse-ring' : ''}`} data-label={meta.label}>
-      <StatusChip status={status} />
-      {stat && <p class="text-xs mt-1.5" style="color: var(--text-tertiary)">{stat}</p>}
-    </div>
-  );
-
-  if (link) {
-    return <a href={link} class="block no-underline">{inner}</a>;
+  function renderPlane(planeKey, yOffset) {
+    const plane = PLANE_DATA[planeKey];
+    return (
+      <g transform={`translate(0, ${yOffset})`}>
+        <PlaneLabel x={450} y={15} label={plane.label} />
+        {plane.nodes.map((node, idx) => (
+          <ModuleNode
+            key={node.id}
+            x={nodeX[idx]}
+            y={25}
+            status={getNodeStatus(moduleStatuses, node.id)}
+            label={node.label}
+            metric={getNodeMetric(cacheData, node)}
+          />
+        ))}
+      </g>
+    );
   }
-  return inner;
-}
 
-function YouNode({ title, guidance, linkHref, linkLabel }) {
   return (
-    <div class="t-frame" data-label="your action" style="border-left: 3px solid var(--accent);">
-      <div class="flex items-center gap-2 mb-1">
-        <span class="text-xs font-bold px-1.5 py-0.5" style="background: var(--accent); color: var(--bg-surface); border-radius: var(--radius);">YOU</span>
-        <span class="text-sm font-medium" style="color: var(--text-primary)">{title}</span>
-      </div>
-      <p class="text-xs" style="color: var(--text-secondary)">{guidance}</p>
-      {linkHref && (
-        <a href={linkHref} class="text-xs font-medium mt-1 inline-block" style="color: var(--accent);">
-          {linkLabel || 'View'} &rarr;
-        </a>
-      )}
-    </div>
+    <section class="t-terminal-bg rounded-lg p-4 overflow-x-auto">
+      <svg viewBox="0 0 900 530" class="w-full" style="min-width: 700px; max-width: 100%;">
+        {/* Defs for animations and filters */}
+        <defs>
+          <pattern id="bus-flow" width="20" height="4" patternUnits="userSpaceOnUse">
+            <rect width="10" height="4" fill="var(--accent)" opacity="0.5">
+              <animate attributeName="x" from="-20" to="20" dur="1.5s" repeatCount="indefinite" />
+            </rect>
+          </pattern>
+          <pattern id="feedback-flow" width="20" height="4" patternUnits="userSpaceOnUse">
+            <rect width="10" height="4" fill="var(--status-healthy)" opacity="0.5">
+              <animate attributeName="x" from="20" to="-20" dur="2s" repeatCount="indefinite" />
+            </rect>
+          </pattern>
+          <filter id="led-glow">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* DATA PLANE */}
+        {renderPlane('data', 0)}
+
+        {/* Connectors: data plane -> capabilities bus */}
+        {nodeX.map((nx, idx) => (
+          <BusConnector key={`dc${idx}`} x={nx + 90} y1={80} y2={110} label={connectorLabelsData[idx]} />
+        ))}
+
+        {/* CAPABILITIES BUS */}
+        <g transform="translate(0, 110)">
+          <rect x="30" y="0" width="840" height="24" rx="4" fill="url(#bus-flow)" />
+          <rect x="30" y="0" width="840" height="24" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity="0.4" />
+          <text x="450" y="16" text-anchor="middle" fill="var(--accent)" font-size="9" font-family="var(--font-mono)">
+            CAPABILITIES BUS  [entities] [activity] [curation] [labels] [usefulness]
+          </text>
+          <circle r="3" fill="var(--accent)">
+            <animateMotion dur="3s" repeatCount="indefinite" path="M30,12 L870,12" />
+          </circle>
+        </g>
+
+        {/* Connectors: capabilities bus -> learning plane */}
+        {nodeX.map((nx, idx) => (
+          <BusConnector key={`cl${idx}`} x={nx + 90} y1={134} y2={160} />
+        ))}
+
+        {/* LEARNING PLANE */}
+        {renderPlane('learning', 150)}
+
+        {/* Connectors: learning plane -> feedback bus */}
+        {nodeX.map((nx, idx) => (
+          <BusConnector key={`lf${idx}`} x={nx + 90} y1={230} y2={260} label={connectorLabelsLearning[idx]} />
+        ))}
+
+        {/* FEEDBACK BUS */}
+        <g transform="translate(0, 260)">
+          <rect x="30" y="0" width="840" height="24" rx="4" fill="url(#feedback-flow)" />
+          <rect x="30" y="0" width="840" height="24" rx="4" fill="none" stroke="var(--status-healthy)" stroke-width="1.5" opacity="0.4" />
+          <text x="450" y="16" text-anchor="middle" fill="var(--status-healthy)" font-size="9" font-family="var(--font-mono)">
+            FEEDBACK BUS  [accuracy] [hit_rate] [suggestions] [drift] [corrections]
+          </text>
+          <circle r="3" fill="var(--status-healthy)">
+            <animateMotion dur="4s" repeatCount="indefinite" path="M870,12 L30,12" />
+          </circle>
+        </g>
+
+        {/* Connectors: feedback bus -> action plane */}
+        {nodeX.map((nx, idx) => (
+          <BusConnector key={`fa${idx}`} x={nx + 90} y1={284} y2={310} />
+        ))}
+
+        {/* ACTION PLANE */}
+        {renderPlane('action', 300)}
+
+        {/* YOU node at bottom */}
+        <g transform="translate(310, 390)">
+          <rect x="0" y="0" width="280" height="35" rx="4" fill="var(--bg-inset)" stroke="var(--accent)" stroke-width="2" />
+          <text x="140" y="22" text-anchor="middle" fill="var(--accent)" font-size="12" font-weight="bold" font-family="var(--font-mono)">
+            {'YOU:  Label \u00B7 Curate \u00B7 Review \u00B7 Advance'}
+          </text>
+        </g>
+
+        {/* Feedback loop tracer */}
+        <circle r="4" fill="var(--status-healthy)" opacity="0.8" filter="url(#led-glow)">
+          <animateMotion dur="8s" repeatCount="indefinite" path="M350,230 L350,272 L140,272 L140,134 L140,110" />
+          <animate attributeName="r" values="4;6;4" dur="8s" repeatCount="indefinite" />
+        </circle>
+      </svg>
+    </section>
   );
 }
 
@@ -333,106 +338,6 @@ function RightNowStrip({ activity, intraday }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// PipelineFlow
-// ---------------------------------------------------------------------------
-
-const LANE_NODES = [
-  ['discovery', 'activity_monitor', 'data_quality'],
-  ['intelligence', 'ml_engine', 'pattern_recognition'],
-  ['shadow_engine', 'orchestrator', 'pipeline_gates'],
-];
-
-const NODE_LINKS = {
-  discovery: '#/discovery',
-  activity_monitor: '#/intelligence',
-  data_quality: '#/data-curation',
-  intelligence: '#/intelligence',
-  ml_engine: '#/intelligence',
-  pattern_recognition: '#/patterns',
-  shadow_engine: '#/shadow',
-  orchestrator: '#/automations',
-  pipeline_gates: '#/shadow',
-};
-
-function PipelineFlow({ statusData, curation, maturity, shadow, pipeline }) {
-  const statuses = {};
-  const statStrings = computeNodeStats(statusData);
-  Object.keys(NODE_META).forEach((nid) => {
-    statuses[nid] = computeNodeStatus(nid, statusData);
-  });
-
-  const included = curation && curation.per_status ? (curation.per_status.included || 0) : 0;
-  const mlActive = maturity && maturity.phase === 'ml-active';
-  const days = maturity ? (maturity.days_of_data || 0) : 0;
-  const stage = pipeline ? (pipeline.current_stage || 'backtest') : 'backtest';
-
-  const youNodes = [
-    {
-      title: 'Curate Your Entities',
-      guidance: `${included} entities feeding data. Exclude noisy sensors to improve signal quality.`,
-      linkHref: '#/data-curation',
-      linkLabel: 'Data Curation',
-    },
-    {
-      title: 'Adjust Parameters',
-      guidance: mlActive
-        ? 'Fine-tune training parameters'
-        : `${Math.max(0, ML_TRAINING_MIN_DAYS - days)} more days of data needed. No action needed.`,
-      linkHref: '#/settings',
-      linkLabel: 'Settings',
-    },
-    {
-      title: 'Review & Advance',
-      guidance: stage === 'autonomous'
-        ? 'System is fully autonomous'
-        : `Pipeline at ${stage} stage. Accuracy gates control progression.`,
-      linkHref: '#/shadow',
-      linkLabel: 'Shadow Mode',
-    },
-  ];
-
-  return (
-    <section class="t-terminal-bg rounded-lg p-4">
-      <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr_auto_1fr] gap-4 lg:gap-2">
-        {LANE_NODES.map((nodes, laneIdx) => {
-          const lane = LANES[laneIdx];
-          const you = youNodes[laneIdx];
-          return (
-            <>
-              {/* Lane arrow before 2nd and 3rd lanes (desktop only) */}
-              {laneIdx > 0 && <LaneArrow />}
-              <div key={laneIdx}>
-                <LaneHeader lane={lane} />
-                <div class="space-y-2">
-                  {nodes.map((nid, nIdx) => (
-                    <>
-                      {nIdx > 0 && <DownArrow />}
-                      <PipelineNode
-                        key={nid}
-                        nodeId={nid}
-                        status={statuses[nid]}
-                        stat={statStrings[nid]}
-                        link={NODE_LINKS[nid]}
-                      />
-                    </>
-                  ))}
-                  <DownArrow />
-                  <YouNode
-                    title={you.title}
-                    guidance={you.guidance}
-                    linkHref={you.linkHref}
-                    linkLabel={you.linkLabel}
-                  />
-                </div>
-              </div>
-            </>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Home (default export)
@@ -447,6 +352,7 @@ export default function Home() {
   const [shadow, setShadow] = useState(null);
   const [pipeline, setPipeline] = useState(null);
   const [curation, setCuration] = useState(null);
+  const [feedbackHealth, setFeedbackHealth] = useState(null);
   const [fetchError, setFetchError] = useState(null);
 
   useEffect(() => {
@@ -455,11 +361,14 @@ export default function Home() {
       fetchJson('/api/shadow/accuracy').catch(() => null),
       fetchJson('/api/pipeline').catch(() => null),
       fetchJson('/api/curation/summary').catch(() => null),
-    ]).then(([h, s, p, c]) => {
-      setHealth(h);
+      fetchJson('/api/capabilities/feedback/health').catch(() => null),
+      fetchJson('/api/activity/current').catch(() => null),
+    ]).then(([hlth, s, p, c, fb, act]) => {
+      setHealth(hlth);
       setShadow(s);
       setPipeline(p);
       setCuration(c);
+      setFeedbackHealth(fb);
     }).catch((err) => setFetchError(err.message || String(err)));
   }, []);
 
@@ -480,15 +389,13 @@ export default function Home() {
     return pipeline ? (pipeline.current_stage || null) : null;
   }, [pipeline]);
 
-  const statusData = useComputed(() => ({
-    health,
-    entities: entities.data,
-    activity: activity.data,
-    curation,
-    intelligence: intelligence.data ? intelligence.data.data : null,
-    shadow,
-    pipeline,
-  }), [health, entities.data, activity.data, curation, intelligence.data, shadow, pipeline]);
+  const cacheData = useComputed(() => ({
+    capabilities: entities.data,
+    pipeline: { data: pipeline },
+    shadow_accuracy: { data: shadow },
+    activity_labels: activity.data,
+    feedback_health: feedbackHealth,
+  }), [entities.data, pipeline, shadow, activity.data, feedbackHealth]);
 
   if (loading && !intelligence.data) {
     return (
@@ -544,12 +451,10 @@ export default function Home() {
 
       <RightNowStrip activity={activity} intraday={intraday} />
 
-      <PipelineFlow
-        statusData={statusData}
-        curation={curation}
-        maturity={maturity}
-        shadow={shadow}
-        pipeline={pipeline}
+      <BusArchitecture
+        moduleStatuses={health?.modules || {}}
+        cacheData={cacheData}
+        feedbackHealth={feedbackHealth}
       />
     </div>
   );

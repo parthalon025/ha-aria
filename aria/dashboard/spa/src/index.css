@@ -529,6 +529,22 @@ body {
   animation: grow-width 0.8s ease-out both;
 }
 
+/* ── Bus architecture animations ── */
+@keyframes led-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes connector-flow {
+  0% { stroke-dashoffset: 12; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.bus-connector-line {
+  stroke-dasharray: 4 4;
+  animation: connector-flow 1s linear infinite;
+}
+
 .delay-100 { animation-delay: 0.1s; }
 .delay-200 { animation-delay: 0.2s; }
 .delay-300 { animation-delay: 0.3s; }
