@@ -226,7 +226,7 @@ class OrganicDiscoveryModule(Module):
                 avg_activity = sum(rates) / len(rates)
 
             components = UsefulnessComponents(
-                predictability=0.0,  # no ML model yet for organic clusters
+                predictability=self._compute_predictability(name, seed_caps),
                 stability=self._compute_stability(name),
                 entity_coverage=len(member_ids) / total_entities,
                 activity=min(avg_activity / 50.0, 1.0),  # normalize: 50 changes/day = 1.0
@@ -279,7 +279,7 @@ class OrganicDiscoveryModule(Module):
 
                 silhouette = cluster.get("silhouette", 0.0)
                 components = UsefulnessComponents(
-                    predictability=0.0,
+                    predictability=self._compute_predictability(name, seed_caps),
                     stability=self._compute_stability(name),
                     entity_coverage=len(member_ids) / total_entities,
                     activity=min(avg_activity / 50.0, 1.0),
@@ -449,6 +449,20 @@ class OrganicDiscoveryModule(Module):
         if len(domains) <= 1:
             return "domain"
         return "behavioral"
+
+    def _compute_predictability(self, cap_name: str, existing_caps: dict) -> float:
+        """Compute predictability from ML + shadow feedback signals.
+
+        Blends ML accuracy (mean_r2, weight 0.7) with shadow accuracy
+        (hit_rate, weight 0.3) from the capabilities cache.
+        """
+        caps = existing_caps.get("data", existing_caps) if isinstance(existing_caps, dict) else {}
+        existing = caps.get(cap_name, {})
+        ml_r2 = existing.get("ml_accuracy", {}).get("mean_r2", 0.0)
+        shadow_hr = existing.get("shadow_accuracy", {}).get("hit_rate", 0.0)
+        if ml_r2 + shadow_hr == 0:
+            return 0.0
+        return ml_r2 * 0.7 + shadow_hr * 0.3
 
     def _compute_stability(self, cap_name: str) -> float:
         """Compute stability score (0-1) from history.

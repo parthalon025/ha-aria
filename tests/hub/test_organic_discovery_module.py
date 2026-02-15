@@ -571,3 +571,72 @@ class TestOnEvent:
         """on_event should not raise."""
         # Intentionally no assertion — verifies on_event doesn't raise
         await module.on_event("cache_updated", {"category": "entities"})
+
+
+# ---------------------------------------------------------------------------
+# Predictability feedback
+# ---------------------------------------------------------------------------
+
+
+class TestPredictabilityFeedback:
+    """Tests for _compute_predictability reading ML/shadow feedback."""
+
+    def test_compute_predictability_with_ml_and_shadow(self, module):
+        """Both ML and shadow present — weighted blend (0.7 * ML + 0.3 * shadow)."""
+        caps = {
+            "living_room": {
+                "ml_accuracy": {"mean_r2": 0.8},
+                "shadow_accuracy": {"hit_rate": 0.6},
+            }
+        }
+        result = module._compute_predictability("living_room", caps)
+        expected = 0.8 * 0.7 + 0.6 * 0.3  # 0.56 + 0.18 = 0.74
+        assert abs(result - expected) < 1e-9
+
+    def test_compute_predictability_ml_only(self, module):
+        """Only ML accuracy present, no shadow — shadow defaults to 0."""
+        caps = {
+            "kitchen": {
+                "ml_accuracy": {"mean_r2": 0.5},
+            }
+        }
+        result = module._compute_predictability("kitchen", caps)
+        expected = 0.5 * 0.7 + 0.0 * 0.3  # 0.35
+        assert abs(result - expected) < 1e-9
+
+    def test_compute_predictability_shadow_only(self, module):
+        """Only shadow accuracy present, no ML — ML defaults to 0."""
+        caps = {
+            "bedroom": {
+                "shadow_accuracy": {"hit_rate": 0.9},
+            }
+        }
+        result = module._compute_predictability("bedroom", caps)
+        expected = 0.0 * 0.7 + 0.9 * 0.3  # 0.27
+        assert abs(result - expected) < 1e-9
+
+    def test_compute_predictability_neither(self, module):
+        """No ML or shadow data — returns 0.0."""
+        caps = {"some_cap": {"entities": ["light.test"]}}
+        result = module._compute_predictability("some_cap", caps)
+        assert result == 0.0
+
+    def test_compute_predictability_missing_cap(self, module):
+        """Capability not in cache at all — returns 0.0."""
+        caps = {"other_cap": {"ml_accuracy": {"mean_r2": 0.9}}}
+        result = module._compute_predictability("missing_cap", caps)
+        assert result == 0.0
+
+    def test_compute_predictability_from_cache_wrapper(self, module):
+        """Handles {"data": {...}} wrapper from cache entries."""
+        caps = {
+            "data": {
+                "garage": {
+                    "ml_accuracy": {"mean_r2": 0.6},
+                    "shadow_accuracy": {"hit_rate": 0.4},
+                }
+            }
+        }
+        result = module._compute_predictability("garage", caps)
+        expected = 0.6 * 0.7 + 0.4 * 0.3  # 0.42 + 0.12 = 0.54
+        assert abs(result - expected) < 1e-9
