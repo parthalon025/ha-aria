@@ -1,4 +1,4 @@
-"""Tests for the capability registry and CLI commands."""
+"""Tests for aria.capabilities — Capability dataclass, registry, and CLI."""
 
 import json
 import subprocess
@@ -12,78 +12,307 @@ from aria.capabilities import Capability, CapabilityRegistry
 PROJECT_ROOT = str(Path(__file__).parent.parent)
 
 
-class TestCapabilityDataclass:
-    """Tests for the Capability frozen dataclass."""
+# --- Capability dataclass ---
 
-    def test_valid_capability(self):
-        cap = Capability(
-            id="test_cap",
-            name="Test Capability",
-            description="A test capability",
-            module="test_module",
-            layer="hub",
-        )
-        assert cap.id == "test_cap"
+
+def _make_cap(**overrides):
+    """Create a valid Capability with sensible defaults, overridable per-test."""
+    defaults = dict(
+        id="lighting",
+        name="Lighting Control",
+        description="Controls lights across zones",
+        module="aria.modules.discovery",
+        layer="hub",
+        config_keys=["light_threshold"],
+        test_paths=["tests/hub/test_discovery.py"],
+        test_markers=["lighting"],
+        runtime_deps=["aiohttp"],
+        optional_deps=[],
+        data_paths=["~/ha-logs/intelligence/"],
+        systemd_units=["aria-hub.service"],
+        pipeline_stage=None,
+        status="stable",
+        added_version="1.0.0",
+        depends_on=[],
+    )
+    defaults.update(overrides)
+    return Capability(**defaults)
+
+
+class TestCapabilityCreation:
+    """Valid Capability creation."""
+
+    def test_basic_creation(self):
+        cap = _make_cap()
+        assert cap.id == "lighting"
+        assert cap.name == "Lighting Control"
         assert cap.layer == "hub"
         assert cap.status == "stable"
 
-    def test_invalid_layer_raises(self):
-        with pytest.raises(ValueError, match="layer must be one of"):
-            Capability(
-                id="bad", name="Bad", description="x", module="m", layer="invalid"
-            )
+    def test_frozen(self):
+        cap = _make_cap()
+        with pytest.raises(AttributeError):
+            cap.id = "something_else"
 
-    def test_invalid_status_raises(self):
-        with pytest.raises(ValueError, match="status must be one of"):
-            Capability(
-                id="bad", name="Bad", description="x", module="m", layer="hub", status="bad"
-            )
+    def test_all_layers_valid(self):
+        for layer in ("hub", "engine", "dashboard", "cross-cutting"):
+            cap = _make_cap(id=f"cap_{layer}", layer=layer)
+            assert cap.layer == layer
 
-    def test_empty_id_raises(self):
-        with pytest.raises(ValueError, match="id must not be empty"):
-            Capability(id="", name="Name", description="x", module="m", layer="hub")
+    def test_all_statuses_valid(self):
+        for status in ("stable", "experimental", "planned"):
+            cap = _make_cap(id=f"cap_{status}", status=status)
+            assert cap.status == status
+
+    def test_all_pipeline_stages_valid(self):
+        for stage in ("backtest", "shadow", "suggest", "autonomous", None):
+            cap = _make_cap(id=f"cap_{stage}", pipeline_stage=stage)
+            assert cap.pipeline_stage == stage
+
+    def test_with_depends_on(self):
+        cap = _make_cap(depends_on=["discovery", "ml_engine"])
+        assert cap.depends_on == ["discovery", "ml_engine"]
 
 
-class TestCapabilityRegistry:
-    """Tests for the CapabilityRegistry."""
+class TestCapabilityValidation:
+    """Reject invalid field values in __post_init__."""
 
-    def test_register_and_list(self):
+    def test_invalid_layer_rejected(self):
+        with pytest.raises(ValueError, match="layer"):
+            _make_cap(layer="invalid_layer")
+
+    def test_invalid_status_rejected(self):
+        with pytest.raises(ValueError, match="status"):
+            _make_cap(status="deprecated")
+
+    def test_invalid_pipeline_stage_rejected(self):
+        with pytest.raises(ValueError, match="pipeline_stage"):
+            _make_cap(pipeline_stage="production")
+
+    def test_empty_id_rejected(self):
+        with pytest.raises(ValueError, match="id"):
+            _make_cap(id="")
+
+    def test_empty_name_rejected(self):
+        with pytest.raises(ValueError, match="name"):
+            _make_cap(name="")
+
+
+# --- CapabilityRegistry ---
+
+
+class TestRegistryBasics:
+    """Register, get, and list capabilities."""
+
+    def test_register_and_get(self):
         reg = CapabilityRegistry()
-        cap = Capability(id="a", name="A", description="x", module="m", layer="hub")
+        cap = _make_cap()
         reg.register(cap)
-        assert reg.list_ids() == ["a"]
-        assert reg.list_all() == [cap]
+        assert reg.get("lighting") is cap
 
-    def test_duplicate_raises(self):
+    def test_get_missing_returns_none(self):
         reg = CapabilityRegistry()
-        cap = Capability(id="a", name="A", description="x", module="m", layer="hub")
-        reg.register(cap)
+        assert reg.get("nonexistent") is None
+
+    def test_list_ids(self):
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="a"))
+        reg.register(_make_cap(id="b"))
+        assert sorted(reg.list_ids()) == ["a", "b"]
+
+    def test_list_all(self):
+        reg = CapabilityRegistry()
+        cap_a = _make_cap(id="a")
+        cap_b = _make_cap(id="b")
+        reg.register(cap_a)
+        reg.register(cap_b)
+        result = reg.list_all()
+        assert len(result) == 2
+        assert cap_a in result
+        assert cap_b in result
+
+    def test_duplicate_rejected(self):
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="lighting"))
         with pytest.raises(ValueError, match="already registered"):
-            reg.register(cap)
+            reg.register(_make_cap(id="lighting"))
 
-    def test_collect_from_modules(self):
-        reg = CapabilityRegistry()
-        reg.collect_from_modules()
-        caps = reg.list_all()
-        assert len(caps) >= 22
-        ids = reg.list_ids()
-        assert "discovery" in ids
-        assert "snapshot" in ids
-        assert "shadow_predictions" in ids
 
-    def test_list_by_layer(self):
-        reg = CapabilityRegistry()
-        reg.collect_from_modules()
-        engine_caps = reg.list_by_layer("engine")
-        assert all(c.layer == "engine" for c in engine_caps)
-        assert any(c.id == "snapshot" for c in engine_caps)
+class TestRegistryFiltering:
+    """Filter by layer and status."""
 
-    def test_list_by_status(self):
+    @pytest.fixture()
+    def populated_registry(self):
         reg = CapabilityRegistry()
-        reg.collect_from_modules()
-        stable = reg.list_by_status("stable")
-        assert all(c.status == "stable" for c in stable)
-        assert len(stable) > 0
+        reg.register(_make_cap(id="hub1", layer="hub", status="stable"))
+        reg.register(_make_cap(id="hub2", layer="hub", status="experimental"))
+        reg.register(_make_cap(id="eng1", layer="engine", status="stable"))
+        reg.register(_make_cap(id="dash1", layer="dashboard", status="planned"))
+        return reg
+
+    def test_list_by_layer(self, populated_registry):
+        hub_caps = populated_registry.list_by_layer("hub")
+        assert {c.id for c in hub_caps} == {"hub1", "hub2"}
+
+    def test_list_by_layer_empty(self, populated_registry):
+        assert populated_registry.list_by_layer("cross-cutting") == []
+
+    def test_list_by_status(self, populated_registry):
+        stable = populated_registry.list_by_status("stable")
+        assert {c.id for c in stable} == {"hub1", "eng1"}
+
+
+class TestRegistryDependencyGraph:
+    """dependency_graph() and validate_deps()."""
+
+    def test_dependency_graph_structure(self):
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="base", depends_on=[]))
+        reg.register(_make_cap(id="mid", depends_on=["base"]))
+        reg.register(_make_cap(id="top", depends_on=["mid"]))
+
+        graph = reg.dependency_graph()
+        assert graph == {
+            "base": [],
+            "mid": ["base"],
+            "top": ["mid"],
+        }
+
+    def test_validate_deps_no_issues(self):
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="base", depends_on=[]))
+        reg.register(_make_cap(id="child", depends_on=["base"]))
+        errors = reg.validate_deps()
+        assert errors == []
+
+    def test_validate_deps_missing_dependency(self):
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="orphan", depends_on=["nonexistent"]))
+        errors = reg.validate_deps()
+        assert any("nonexistent" in e for e in errors)
+
+    def test_validate_deps_cycle_detection(self):
+        """Two-node cycle: a->b->a."""
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="a", depends_on=["b"]))
+        reg.register(_make_cap(id="b", depends_on=["a"]))
+        errors = reg.validate_deps()
+        assert any("cycle" in e.lower() for e in errors)
+
+    def test_validate_deps_three_node_cycle(self):
+        """a->b->c->a."""
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="a", depends_on=["b"]))
+        reg.register(_make_cap(id="b", depends_on=["c"]))
+        reg.register(_make_cap(id="c", depends_on=["a"]))
+        errors = reg.validate_deps()
+        assert any("cycle" in e.lower() for e in errors)
+
+    def test_validate_deps_self_reference(self):
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="self_ref", depends_on=["self_ref"]))
+        errors = reg.validate_deps()
+        assert any("cycle" in e.lower() for e in errors)
+
+
+# --- Validation Engine (config keys, test paths, validate_all) ---
+
+
+class TestValidateConfigKeys:
+    """validate_config_keys() checks declared config_keys against CONFIG_DEFAULTS."""
+
+    def test_validate_config_keys_missing(self):
+        """Cap with a nonexistent config key should produce an issue."""
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="bad_cfg", config_keys=["totally.fake.key"]))
+        issues = reg.validate_config_keys()
+        assert len(issues) == 1
+        assert "totally.fake.key" in issues[0]
+
+    def test_validate_config_keys_present(self):
+        """Cap with a real config key should produce no issue."""
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="good_cfg", config_keys=["shadow.min_confidence"]))
+        issues = reg.validate_config_keys()
+        assert issues == []
+
+
+class TestValidateTestPaths:
+    """validate_test_paths() checks declared test_paths exist on disk."""
+
+    def test_validate_test_paths_missing(self):
+        """Cap with a nonexistent test path should produce an issue."""
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="bad_path", test_paths=["tests/nonexistent_file.py"]))
+        issues = reg.validate_test_paths()
+        assert len(issues) == 1
+        assert "tests/nonexistent_file.py" in issues[0]
+
+    def test_validate_test_paths_present(self):
+        """Cap with a real test path should produce no issue."""
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(id="good_path", test_paths=["tests/hub/test_shadow_engine.py"]))
+        issues = reg.validate_test_paths()
+        assert issues == []
+
+
+class TestValidateAll:
+    """validate_all() combines all validation checks."""
+
+    def test_validate_all_combines_checks(self):
+        """Cap with fake config key + fake test path + missing dep should produce >=3 issues."""
+        reg = CapabilityRegistry()
+        reg.register(_make_cap(
+            id="broken",
+            config_keys=["fake.config.key"],
+            test_paths=["tests/does_not_exist.py"],
+            depends_on=["missing_dep"],
+        ))
+        issues = reg.validate_all()
+        assert len(issues) >= 3
+        assert any("fake.config.key" in i for i in issues)
+        assert any("tests/does_not_exist.py" in i for i in issues)
+        assert any("missing_dep" in i for i in issues)
+
+
+# --- collect_from_modules ---
+
+
+class TestCollectFromModules:
+    """Tests for CapabilityRegistry.collect_from_modules()."""
+
+    def test_collect_finds_hub_modules(self):
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        hub_caps = registry.list_by_layer("hub")
+        hub_module_ids = {c.module for c in hub_caps}
+        expected = {
+            "discovery", "ml_engine", "pattern_recognition", "orchestrator",
+            "shadow_engine", "data_quality", "organic_discovery",
+            "intelligence", "activity_monitor",
+        }
+        assert expected.issubset(hub_module_ids), f"Missing: {expected - hub_module_ids}"
+
+    def test_collect_finds_engine_capabilities(self):
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        engine_caps = registry.list_by_layer("engine")
+        assert len(engine_caps) >= 10
+
+    def test_all_collected_capabilities_validate(self):
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        issues = registry.validate_all()
+        assert issues == [], f"Validation issues:\n" + "\n".join(issues)
+
+    def test_total_capability_count(self):
+        registry = CapabilityRegistry()
+        registry.collect_from_modules()
+        stable = registry.list_by_status("stable")
+        assert len(stable) >= 22
+
+
+# --- CLI Commands ---
 
 
 class TestCapabilitiesCLI:
@@ -125,7 +354,6 @@ class TestCapabilitiesCLI:
             cwd=PROJECT_ROOT,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        # Verbose output should include description text
         assert len(result.stdout) > 500
 
     def test_verify_command(self):
