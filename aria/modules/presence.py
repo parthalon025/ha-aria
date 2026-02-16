@@ -8,6 +8,7 @@ Camera-to-room mapping is configured via the camera_rooms dict.
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -67,7 +68,7 @@ class PresenceModule(Module):
         ),
     ]
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — constructor with well-defined config params
         self,
         hub: IntelligenceHub,
         ha_url: str,
@@ -153,10 +154,8 @@ class PresenceModule(Module):
     async def shutdown(self):
         """Clean up MQTT connection."""
         if self._mqtt_client:
-            try:
+            with contextlib.suppress(Exception):
                 self._mqtt_client.disconnect()
-            except Exception:
-                pass
         self.logger.info("Presence module shut down")
 
     # ------------------------------------------------------------------
@@ -409,6 +408,28 @@ class PresenceModule(Module):
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, 60)
 
+    def _handle_person_state(self, entity_id: str, state: str, now: datetime):
+        """Handle person entity home/away signals."""
+        if state == "home":
+            self._add_signal("overall", "device_tracker", 0.9, f"{entity_id} is home", now)
+        elif state == "not_home":
+            self._add_signal("overall", "device_tracker", 0.1, f"{entity_id} is away", now)
+
+    def _handle_room_entity(  # noqa: PLR0913 — entity signal dispatch needs all context params
+        self, entity_id: str, state: str, attrs: dict, device_class: str, room: str, now: datetime
+    ):
+        """Handle room-associated entity signals (motion, lights, dimmers, doors)."""
+        if entity_id.startswith("binary_sensor.") and device_class == "motion" and state == "on":
+            self._add_signal(room, "motion", 0.95, f"{entity_id} triggered", now)
+        elif entity_id.startswith("light.") and state in ("on", "off"):
+            self._add_signal(room, "light_interaction", 0.8, f"{entity_id} turned {state}", now)
+        elif entity_id.startswith("event.hue_dimmer"):
+            event_type = attrs.get("event_type", "")
+            if event_type in ("initial_press", "short_release"):
+                self._add_signal(room, "dimmer_press", 0.95, f"{entity_id} pressed", now)
+        elif entity_id.startswith("binary_sensor.") and device_class == "door" and state in ("on", "off"):
+            self._add_signal(room, "door", 0.7, f"{entity_id} {'opened' if state == 'on' else 'closed'}", now)
+
     async def _handle_ha_state_change(self, data: dict):
         """Process a state_changed event for presence-relevant entities."""
         new_state = data.get("new_state")
@@ -421,75 +442,15 @@ class PresenceModule(Module):
         device_class = attrs.get("device_class", "")
         now = datetime.now()
 
-        # Person/device tracker (home/away) — doesn't need room resolution
         if entity_id.startswith("person."):
-            if state == "home":
-                self._add_signal(
-                    "overall",
-                    "device_tracker",
-                    0.9,
-                    f"{entity_id} is home",
-                    now,
-                )
-            elif state == "not_home":
-                self._add_signal(
-                    "overall",
-                    "device_tracker",
-                    0.1,
-                    f"{entity_id} is away",
-                    now,
-                )
+            self._handle_person_state(entity_id, state, now)
             return
 
-        # Resolve entity to room (use area_id from attributes or device)
         room = await self._resolve_room(entity_id, attrs)
         if not room:
             return
 
-        # Motion sensors
-        if entity_id.startswith("binary_sensor.") and device_class == "motion":
-            if state == "on":
-                self._add_signal(
-                    room,
-                    "motion",
-                    0.95,
-                    f"{entity_id} triggered",
-                    now,
-                )
-
-        # Light state changes (someone turned it on/off)
-        elif entity_id.startswith("light."):
-            if state in ("on", "off"):
-                self._add_signal(
-                    room,
-                    "light_interaction",
-                    0.8,
-                    f"{entity_id} turned {state}",
-                    now,
-                )
-
-        # Hue dimmer switch button presses
-        elif entity_id.startswith("event.hue_dimmer"):
-            event_type = attrs.get("event_type", "")
-            if event_type in ("initial_press", "short_release"):
-                self._add_signal(
-                    room,
-                    "dimmer_press",
-                    0.95,
-                    f"{entity_id} pressed",
-                    now,
-                )
-
-        # Door sensors
-        elif entity_id.startswith("binary_sensor.") and device_class == "door":
-            if state in ("on", "off"):
-                self._add_signal(
-                    room,
-                    "door",
-                    0.7,
-                    f"{entity_id} {'opened' if state == 'on' else 'closed'}",
-                    now,
-                )
+        self._handle_room_entity(entity_id, state, attrs, device_class, room, now)
 
     async def _resolve_room(self, entity_id: str, attrs: dict) -> str | None:
         """Resolve an entity to its room/area name.

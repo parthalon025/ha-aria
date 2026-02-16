@@ -76,6 +76,55 @@ class DataQualityModule(Module):
         )
         self.logger.info("Data quality module initialized")
 
+    async def _read_config_thresholds(self) -> dict[str, Any]:
+        """Read classification thresholds from config store."""
+        auto_exclude_str = await self.hub.cache.get_config_value(
+            CONFIG_AUTO_EXCLUDE_DOMAINS, DEFAULT_AUTO_EXCLUDE_DOMAINS
+        )
+        auto_exclude_domains = {d.strip() for d in auto_exclude_str.split(",")}
+
+        noise_threshold = await self.hub.cache.get_config_value(
+            CONFIG_NOISE_EVENT_THRESHOLD, DEFAULT_NOISE_EVENT_THRESHOLD
+        )
+        stale_days = await self.hub.cache.get_config_value(
+            CONFIG_STALE_DAYS_THRESHOLD, DEFAULT_STALE_DAYS_THRESHOLD
+        )
+        vehicle_patterns_str = await self.hub.cache.get_config_value(
+            CONFIG_VEHICLE_PATTERNS, DEFAULT_VEHICLE_PATTERNS
+        )
+        vehicle_patterns = [p.strip().lower() for p in vehicle_patterns_str.split(",")]
+        unavailable_grace_hours = await self.hub.cache.get_config_value(
+            CONFIG_UNAVAILABLE_GRACE_HOURS, DEFAULT_UNAVAILABLE_GRACE_HOURS
+        )
+
+        return {
+            "auto_exclude_domains": auto_exclude_domains,
+            "noise_event_threshold": noise_threshold,
+            "stale_days_threshold": stale_days,
+            "vehicle_patterns": vehicle_patterns,
+            "unavailable_grace_hours": unavailable_grace_hours,
+        }
+
+    @staticmethod
+    def _build_vehicle_sets(
+        entities_data: dict[str, Any],
+        vehicle_patterns: list[str],
+    ) -> tuple[set[str], set[str]]:
+        """Build vehicle entity IDs and device IDs from entity data."""
+        vehicle_entity_ids = set()
+        for eid, edata in entities_data.items():
+            name = (edata.get("friendly_name") or eid).lower()
+            if any(pat in name for pat in vehicle_patterns):
+                vehicle_entity_ids.add(eid)
+
+        vehicle_device_ids = set()
+        for eid in vehicle_entity_ids:
+            did = entities_data[eid].get("device_id")
+            if did:
+                vehicle_device_ids.add(did)
+
+        return vehicle_entity_ids, vehicle_device_ids
+
     async def run_classification(self):
         """Main pipeline: read cache → compute metrics → classify → upsert."""
         self.logger.info("Starting entity classification...")
@@ -96,59 +145,15 @@ class DataQualityModule(Module):
         if activity_entry and activity_entry.get("data"):
             activity_windows = activity_entry["data"].get("windows", [])
 
-        # Read config thresholds
-        auto_exclude_str = await self.hub.cache.get_config_value(
-            CONFIG_AUTO_EXCLUDE_DOMAINS, DEFAULT_AUTO_EXCLUDE_DOMAINS
+        config_thresholds = await self._read_config_thresholds()
+        vehicle_entity_ids, vehicle_device_ids = self._build_vehicle_sets(
+            entities_data, config_thresholds["vehicle_patterns"]
         )
-        auto_exclude_domains = {d.strip() for d in auto_exclude_str.split(",")}
-
-        noise_threshold = await self.hub.cache.get_config_value(
-            CONFIG_NOISE_EVENT_THRESHOLD, DEFAULT_NOISE_EVENT_THRESHOLD
-        )
-
-        stale_days = await self.hub.cache.get_config_value(CONFIG_STALE_DAYS_THRESHOLD, DEFAULT_STALE_DAYS_THRESHOLD)
-
-        vehicle_patterns_str = await self.hub.cache.get_config_value(CONFIG_VEHICLE_PATTERNS, DEFAULT_VEHICLE_PATTERNS)
-        vehicle_patterns = [p.strip().lower() for p in vehicle_patterns_str.split(",")]
-
-        unavailable_grace_hours = await self.hub.cache.get_config_value(
-            CONFIG_UNAVAILABLE_GRACE_HOURS, DEFAULT_UNAVAILABLE_GRACE_HOURS
-        )
-
-        config_thresholds = {
-            "auto_exclude_domains": auto_exclude_domains,
-            "noise_event_threshold": noise_threshold,
-            "stale_days_threshold": stale_days,
-            "vehicle_patterns": vehicle_patterns,
-            "unavailable_grace_hours": unavailable_grace_hours,
-        }
-
-        # Build vehicle entity set for group detection
-        vehicle_entity_ids = set()
-        for eid, edata in entities_data.items():
-            name = (edata.get("friendly_name") or eid).lower()
-            if any(pat in name for pat in vehicle_patterns):
-                vehicle_entity_ids.add(eid)
-
-        # Build device_id → entity_ids map
-        device_entities: dict[str, list[str]] = {}
-        for eid, edata in entities_data.items():
-            did = edata.get("device_id")
-            if did:
-                device_entities.setdefault(did, []).append(eid)
-
-        # Find device_ids that contain a vehicle entity
-        vehicle_device_ids = set()
-        for eid in vehicle_entity_ids:
-            did = entities_data[eid].get("device_id")
-            if did:
-                vehicle_device_ids.add(did)
 
         classified = 0
         skipped = 0
 
         for entity_id, entity_data in entities_data.items():
-            # Check for human override
             existing = await self.hub.cache.get_curation(entity_id)
             if existing and existing.get("human_override"):
                 skipped += 1
@@ -215,10 +220,7 @@ class DataQualityModule(Module):
                         unique_states.add(to_state)
 
         # Scale to daily rate
-        if total_window_seconds > 0:
-            event_rate_day = (total_events / total_window_seconds) * 86400
-        else:
-            event_rate_day = 0.0
+        event_rate_day = (total_events / total_window_seconds) * 86400 if total_window_seconds > 0 else 0.0
 
         # Last changed days ago
         last_changed_days_ago = None
@@ -248,7 +250,7 @@ class DataQualityModule(Module):
             "device_class": device_class,
         }
 
-    def _classify(
+    def _classify(  # noqa: PLR0913, PLR0911 — well-established classification API
         self,
         entity_id: str,
         metrics: dict[str, Any],

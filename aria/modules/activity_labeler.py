@@ -428,9 +428,8 @@ class ActivityLabeler(Module):
 
         # Extract intelligence features and supplement power_watts fallback
         intel_data = intelligence_entry.get("data", {}) if intelligence_entry else {}
-        if intel_data:
-            if "power_watts" in intel_data and not context["power_watts"]:
-                context["power_watts"] = intel_data.get("power_watts", 0)
+        if intel_data and "power_watts" in intel_data and not context["power_watts"]:
+            context["power_watts"] = intel_data.get("power_watts", 0)
         intel_features = self._extract_intelligence_features(intel_data)
         context.update(intel_features)
 

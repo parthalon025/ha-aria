@@ -187,55 +187,48 @@ def build_feature_matrix(
     for row, entity in enumerate(entities):
         eid = entity.get("entity_id", "")
         entity_ids.append(eid)
-
-        # Domain one-hot
-        domain = entity.get("domain", "")
-        key = f"domain_{domain}"
-        if key in col_index:
-            matrix[row, col_index[key]] = 1.0
-
-        # Device class one-hot
-        dc = entity.get("device_class")
-        if dc:
-            key = f"device_class_{dc}"
-            if key in col_index:
-                matrix[row, col_index[key]] = 1.0
-
-        # Unit of measurement one-hot
-        uom = entity.get("unit_of_measurement")
-        if uom:
-            key = f"unit_{uom}"
-            if key in col_index:
-                matrix[row, col_index[key]] = 1.0
-
-        # Area one-hot (entity direct > device fallback)
-        area = _resolve_area(entity, devices)
-        if area:
-            key = f"area_{area}"
-            if key in col_index:
-                matrix[row, col_index[key]] = 1.0
-
-        # Manufacturer one-hot
-        mfr = _resolve_manufacturer(entity, devices)
-        if mfr:
-            key = f"manufacturer_{mfr}"
-            if key in col_index:
-                matrix[row, col_index[key]] = 1.0
-
-        # State cardinality
-        matrix[row, col_index["state_cardinality"]] = _estimate_state_cardinality(entity)
-
-        # Average daily state changes
-        matrix[row, col_index["avg_daily_changes"]] = activity_rates.get(eid, 0.0)
-
-        # Available flag
-        state = entity.get("state", "")
-        matrix[row, col_index["available"]] = 0.0 if state == "unavailable" else 1.0
-
-        # Capability flags
-        attrs = entity.get("attributes", {})
-        for flag_name, attr_key in _CAPABILITY_FLAGS:
-            if attr_key in attrs:
-                matrix[row, col_index[flag_name]] = 1.0
+        _fill_entity_row(matrix, row, entity, eid, devices, activity_rates, col_index)
 
     return matrix, entity_ids, feature_names
+
+
+def _fill_entity_row(  # noqa: PLR0913 — matrix row builder needs all context
+    matrix: np.ndarray,
+    row: int,
+    entity: dict[str, Any],
+    eid: str,
+    devices: dict[str, dict[str, Any]],
+    activity_rates: dict[str, float],
+    col_index: dict[str, int],
+) -> None:
+    """Fill a single entity row in the feature matrix."""
+    # One-hot categorical features
+    _set_one_hot(matrix, row, col_index, "domain", entity.get("domain", ""))
+    _set_one_hot(matrix, row, col_index, "device_class", entity.get("device_class"))
+    _set_one_hot(matrix, row, col_index, "unit", entity.get("unit_of_measurement"))
+    _set_one_hot(matrix, row, col_index, "area", _resolve_area(entity, devices))
+    _set_one_hot(matrix, row, col_index, "manufacturer", _resolve_manufacturer(entity, devices))
+
+    # Scalar features
+    matrix[row, col_index["state_cardinality"]] = _estimate_state_cardinality(entity)
+    matrix[row, col_index["avg_daily_changes"]] = activity_rates.get(eid, 0.0)
+    state = entity.get("state", "")
+    matrix[row, col_index["available"]] = 0.0 if state == "unavailable" else 1.0
+
+    # Capability flags
+    attrs = entity.get("attributes", {})
+    for flag_name, attr_key in _CAPABILITY_FLAGS:
+        if attr_key in attrs:
+            matrix[row, col_index[flag_name]] = 1.0
+
+
+def _set_one_hot(
+    matrix: np.ndarray, row: int, col_index: dict[str, int],
+    prefix: str, value: str | None,
+) -> None:
+    """Set a one-hot column in the feature matrix if the value is present."""
+    if not value:
+        return
+    key = f"{prefix}_{value}"
+    if key in col_index:
+        matrix[row, col_index[key]] = 1.0

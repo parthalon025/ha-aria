@@ -11,6 +11,7 @@ Exploration strategy (configurable via shadow.explore_strategy):
 """
 
 import asyncio
+import contextlib
 import logging
 import math
 import random
@@ -282,10 +283,8 @@ class ShadowEngine(Module):
 
         if self._resolution_task and not self._resolution_task.done():
             self._resolution_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._resolution_task
-            except asyncio.CancelledError:
-                pass
             self._resolution_task = None
 
         self.logger.info("Shadow engine shut down")
@@ -303,41 +302,21 @@ class ShadowEngine(Module):
     # Event handling
     # ------------------------------------------------------------------
 
-    async def _on_state_changed(self, data: dict[str, Any]):
-        """Handle a state_changed event from the activity monitor.
-
-        Buffers the event, records it against open prediction windows,
-        and generates new predictions if cooldown has elapsed.
-
-        Args:
-            data: Event data with entity_id, domain, from, to, timestamp, etc.
-        """
-        now = datetime.now()
-
-        # Build normalized event record
-        entity_id = data.get("entity_id", "")
-        domain = entity_id.split(".")[0] if "." in entity_id else ""
-
-        # Phase 2: Check entity curation — skip excluded entities
-        included_ids = await self.hub.cache.get_included_entity_ids()
-        if included_ids and entity_id not in included_ids:
-            return
-
-        # Extract state values from either flat or nested format
+    @staticmethod
+    def _normalize_event(data: dict[str, Any], entity_id: str, domain: str, now: datetime) -> dict[str, Any]:
+        """Normalize event data from either flat or nested HA format."""
         if "new_state" in data:
-            # Nested format from HA WebSocket
             new_state = data.get("new_state", {})
             old_state = data.get("old_state", {})
             to_state = new_state.get("state", "")
             from_state = old_state.get("state", "")
             friendly_name = new_state.get("attributes", {}).get("friendly_name", entity_id)
         else:
-            # Flat format from activity_monitor buffer
             to_state = data.get("to", "")
             from_state = data.get("from", "")
             friendly_name = data.get("friendly_name", entity_id)
 
-        event = {
+        return {
             "entity_id": entity_id,
             "domain": domain,
             "from": from_state,
@@ -347,15 +326,31 @@ class ShadowEngine(Module):
             "friendly_name": friendly_name,
         }
 
-        # Add to recent events buffer
+    async def _on_state_changed(self, data: dict[str, Any]):
+        """Handle a state_changed event from the activity monitor.
+
+        Buffers the event, records it against open prediction windows,
+        and generates new predictions if cooldown has elapsed.
+        """
+        now = datetime.now()
+
+        entity_id = data.get("entity_id", "")
+        domain = entity_id.split(".")[0] if "." in entity_id else ""
+
+        # Phase 2: Check entity curation — skip excluded entities
+        included_ids = await self.hub.cache.get_included_entity_ids()
+        if included_ids and entity_id not in included_ids:
+            return
+
+        event = self._normalize_event(data, entity_id, domain, now)
+
         self._recent_events.append(event)
         self._prune_recent_events(now)
 
-        # Record event against all open prediction windows
         for pred_id in list(self._window_events.keys()):
             self._window_events[pred_id].append(event)
 
-        # Check cooldown before generating predictions (config with constant fallback)
+        # Check cooldown
         cooldown = (
             await self.hub.cache.get_config_value("shadow.prediction_cooldown_s", PREDICTION_COOLDOWN_S)
             or PREDICTION_COOLDOWN_S
@@ -365,45 +360,39 @@ class ShadowEngine(Module):
             if elapsed < cooldown:
                 return
 
-        # Batch flood detection: if >50 events arrived in the last 5 seconds,
-        # this is likely a bulk ha-log-sync flush, not real-time activity.
-        # Skip predictions to avoid tanking accuracy with stale-context guesses.
+        # Batch flood detection
         recent_cutoff = (now - timedelta(seconds=5)).isoformat()
         recent_burst = sum(1 for e in self._recent_events if e.get("timestamp", "") >= recent_cutoff)
         if recent_burst > 50:
-            self._last_prediction_time = now  # Reset cooldown to throttle further
+            self._last_prediction_time = now
             self.logger.info(f"Batch flood detected ({recent_burst} events in 5s), skipping prediction")
             return
 
-        # Only predict on actionable domains
         if domain not in PREDICTABLE_DOMAINS:
             return
 
-        # Set cooldown BEFORE generating predictions (optimistic lock).
-        # Prevents async race where concurrent events all pass the cooldown check
-        # before any prediction completes and sets the timestamp.
         self._last_prediction_time = now
 
-        # Generate predictions
         try:
-            context = await self._capture_context(data)
-            predictions = await self._generate_predictions(context)
-
-            if predictions:
-                # Determine explore/exploit via configured strategy
-                explore_strategy = (
-                    await self.hub.cache.get_config_value("shadow.explore_strategy", "epsilon") or "epsilon"
-                )
-
-                if explore_strategy == "thompson":
-                    is_exploration = self._thompson.should_explore(context)
-                else:
-                    # Default epsilon-greedy (80% exploit, 20% explore)
-                    is_exploration = random.random() < 0.2
-
-                await self._store_predictions(context, predictions, is_exploration=is_exploration)
+            await self._generate_and_store_predictions(data)
         except Exception as e:
             self.logger.error(f"Prediction generation failed: {e}")
+
+    async def _generate_and_store_predictions(self, data: dict[str, Any]):
+        """Generate predictions from context and store with explore/exploit decision."""
+        context = await self._capture_context(data)
+        predictions = await self._generate_predictions(context)
+
+        if predictions:
+            explore_strategy = (
+                await self.hub.cache.get_config_value("shadow.explore_strategy", "epsilon") or "epsilon"
+            )
+            if explore_strategy == "thompson":
+                is_exploration = self._thompson.should_explore(context)
+            else:
+                is_exploration = random.random() < 0.2
+
+            await self._store_predictions(context, predictions, is_exploration=is_exploration)
 
     def _prune_recent_events(self, now: datetime):
         """Remove events older than the max age from the buffer."""
@@ -775,11 +764,9 @@ class ShadowEngine(Module):
         # Pick the top room — if we have multiple rooms, predict the second
         # most active (it's likely to get more attention next)
         predicted_room = sorted_rooms[0][0]
-        if len(sorted_rooms) > 1 and current_rooms:
-            # If the top room is already the most recently active,
-            # predict the next one
-            if sorted_rooms[0][0] in current_rooms[:1]:
-                predicted_room = sorted_rooms[1][0]
+        # If the top room is already the most recently active, predict the next one
+        if len(sorted_rooms) > 1 and current_rooms and sorted_rooms[0][0] in current_rooms[:1]:
+            predicted_room = sorted_rooms[1][0]
 
         total = sum(room_counts.values())
         confidence = room_counts.get(predicted_room, 0) / total if total > 0 else 0
@@ -792,19 +779,31 @@ class ShadowEngine(Module):
             "window_seconds": DEFAULT_WINDOW_SECONDS,
         }
 
+    @staticmethod
+    def _match_pattern(pattern: dict[str, Any], current_minutes: int) -> float:
+        """Score a pattern against current time. Returns adjusted confidence or 0."""
+        typical_time = pattern.get("typical_time", "")
+        if not typical_time:
+            return 0.0
+        try:
+            parts = typical_time.split(":")
+            pattern_minutes = int(parts[0]) * 60 + int(parts[1])
+        except (ValueError, IndexError):
+            return 0.0
+
+        variance = pattern.get("variance_minutes", 30)
+        distance = abs(current_minutes - pattern_minutes)
+        distance = min(distance, 1440 - distance)  # midnight wrap
+
+        if distance > variance:
+            return 0.0
+
+        confidence = pattern.get("confidence", 0)
+        proximity_factor = 1.0 - (distance / max(variance, 1))
+        return confidence * proximity_factor
+
     async def _predict_routine_trigger(self, context: dict[str, Any]) -> dict[str, Any] | None:
-        """Predict whether a known routine is about to start.
-
-        Uses cached pattern data to check if current time/context
-        matches a known behavioral pattern.
-
-        Args:
-            context: Context snapshot.
-
-        Returns:
-            Prediction dict or None.
-        """
-        # Load patterns from cache
+        """Predict whether a known routine is about to start."""
         patterns_cache = await self.hub.get_cache("patterns")
         if not patterns_cache or not patterns_cache.get("data"):
             return None
@@ -813,48 +812,25 @@ class ShadowEngine(Module):
         if not patterns:
             return None
 
-        now = datetime.now()
-        current_minutes = now.hour * 60 + now.minute
+        current_minutes = datetime.now().hour * 60 + datetime.now().minute
 
         best_match = None
         best_confidence = 0.0
 
         for pattern in patterns:
-            typical_time = pattern.get("typical_time", "")
-            if not typical_time:
-                continue
-
-            try:
-                parts = typical_time.split(":")
-                pattern_minutes = int(parts[0]) * 60 + int(parts[1])
-            except (ValueError, IndexError):
-                continue
-
-            # Check if we're within the pattern's variance window
-            variance = pattern.get("variance_minutes", 30)
-            distance = abs(current_minutes - pattern_minutes)
-            # Handle midnight wrap
-            distance = min(distance, 1440 - distance)
-
-            if distance <= variance:
-                confidence = pattern.get("confidence", 0)
-                # Scale confidence by proximity (closer = higher)
-                proximity_factor = 1.0 - (distance / max(variance, 1))
-                adjusted_confidence = confidence * proximity_factor
-
-                if adjusted_confidence > best_confidence:
-                    best_confidence = adjusted_confidence
-                    best_match = pattern
+            adjusted = self._match_pattern(pattern, current_minutes)
+            if adjusted > best_confidence:
+                best_confidence = adjusted
+                best_match = pattern
 
         if not best_match or best_confidence < MIN_CONFIDENCE:
             return None
 
-        # Extract expected domains from the pattern's associated signals
-        # so the scorer can verify domain overlap instead of just event count
-        expected_domains = set()
-        for signal in best_match.get("associated_signals", []):
-            if isinstance(signal, str) and "." in signal:
-                expected_domains.add(signal.split(".")[0])
+        expected_domains = {
+            signal.split(".")[0]
+            for signal in best_match.get("associated_signals", [])
+            if isinstance(signal, str) and "." in signal
+        }
 
         return {
             "type": "routine_trigger",
@@ -992,28 +968,10 @@ class ShadowEngine(Module):
         # Clean up any stale window_events entries
         self._cleanup_stale_windows()
 
-    def _score_prediction(
-        self,
-        prediction: dict[str, Any],
-        actual_events: list[dict[str, Any]],
-    ) -> tuple:
-        """Score a prediction against actual events.
-
-        Args:
-            prediction: Prediction record from the database.
-            actual_events: Events that occurred during the prediction window.
-
-        Returns:
-            Tuple of (outcome, actual_data) where outcome is one of:
-            - "correct": prediction matched actual events
-            - "disagreement": events occurred but prediction was wrong
-            - "nothing": prediction expected something but nothing happened
-        """
-        predictions_list = prediction.get("predictions", [])
-        if not predictions_list:
-            return "nothing", None
-
-        # Build summary of what actually happened
+    def _build_actual_summary(
+        self, actual_events: list[dict[str, Any]]
+    ) -> tuple[set[str], set[str], dict[str, Any]]:
+        """Build summary of what actually happened during a prediction window."""
         actual_domains = set()
         actual_rooms = set()
         for evt in actual_events:
@@ -1030,86 +988,86 @@ class ShadowEngine(Module):
             "domains": list(actual_domains),
             "rooms": list(actual_rooms),
         }
+        return actual_domains, actual_rooms, actual_data
+
+    @staticmethod
+    def _check_prediction_correct(
+        pred: dict[str, Any], actual_domains: set[str], actual_rooms: set[str], actual_event_count: int
+    ) -> bool:
+        """Check if a single prediction matches the actual events."""
+        pred_type = pred.get("type", "")
+        predicted_value = pred.get("predicted", "")
+
+        if pred_type == "next_domain_action":
+            return predicted_value in actual_domains
+        if pred_type == "room_activation":
+            return predicted_value in actual_rooms
+        if pred_type == "routine_trigger":
+            expected_domains = set(pred.get("expected_domains", []))
+            if expected_domains:
+                return len(actual_domains & expected_domains) >= 2
+            return actual_event_count >= 3 and len(actual_domains) >= 2
+        return False
+
+    def _score_prediction(
+        self,
+        prediction: dict[str, Any],
+        actual_events: list[dict[str, Any]],
+    ) -> tuple:
+        """Score a prediction against actual events.
+
+        Returns:
+            Tuple of (outcome, actual_data) where outcome is one of:
+            - "correct": prediction matched actual events
+            - "disagreement": events occurred but prediction was wrong
+            - "nothing": prediction expected something but nothing happened
+        """
+        predictions_list = prediction.get("predictions", [])
+        if not predictions_list:
+            return "nothing", None
+
+        actual_domains, actual_rooms, actual_data = self._build_actual_summary(actual_events)
 
         if not actual_events:
             return "nothing", actual_data
 
-        # Score each prediction type
-        any_correct = False
-        for pred in predictions_list:
+        any_correct = any(
+            self._check_prediction_correct(pred, actual_domains, actual_rooms, len(actual_events))
+            for pred in predictions_list
+        )
+
+        return ("correct" if any_correct else "disagreement"), actual_data
+
+    @staticmethod
+    def _extract_involved_domains(resolved: dict[str, Any]) -> set[str]:
+        """Extract all domains involved in a resolved prediction (predicted + actual)."""
+        pred_domains = set()
+        for pred in resolved.get("predictions", []):
             pred_type = pred.get("type", "")
-            predicted_value = pred.get("predicted", "")
-
             if pred_type == "next_domain_action":
-                if predicted_value in actual_domains:
-                    any_correct = True
-                    break
-
-            elif pred_type == "room_activation":
-                if predicted_value in actual_rooms:
-                    any_correct = True
-                    break
-
+                pred_domains.add(pred.get("predicted", ""))
             elif pred_type == "routine_trigger":
-                # Routine triggers must show domain overlap with the
-                # pattern's expected domains — not just "any 2+ events"
-                expected_domains = set(pred.get("expected_domains", []))
-                if expected_domains:
-                    overlap = actual_domains & expected_domains
-                    # At least 2 expected domains must appear
-                    if len(overlap) >= 2:
-                        any_correct = True
-                        break
-                # No expected_domains stored — require 3+ diverse
-                # domain events as a lenient fallback
-                elif len(actual_events) >= 3 and len(actual_domains) >= 2:
-                    any_correct = True
-                    break
+                pred_domains.update(pred.get("expected_domains", []))
 
-        if any_correct:
-            return "correct", actual_data
-        else:
-            return "disagreement", actual_data
+        actual = resolved.get("actual", {}) or {}
+        return pred_domains | set(actual.get("domains", []))
 
     def _get_capability_hit_rates(self) -> dict[str, dict[str, int]]:
         """Compute per-capability hit rates from recently resolved predictions.
 
-        Reads capabilities from cache (synchronously via _recent_resolved data)
-        and tallies hits/total for each capability based on entity overlap
-        between predictions and capability entity lists.
-
         Returns:
             Dict mapping capability name to {"hits": int, "total": int}.
         """
-        if not self._recent_resolved:
-            return {}
-
-        if not hasattr(self, "_cached_cap_entities"):
+        if not self._recent_resolved or not hasattr(self, "_cached_cap_entities"):
             return {}
 
         cap_entities = self._cached_cap_entities
         hit_rates: dict[str, dict[str, int]] = {}
 
         for resolved in self._recent_resolved:
-            outcome = resolved.get("outcome", "")
-            is_correct = outcome == "correct"
-            predictions = resolved.get("predictions", [])
-            actual = resolved.get("actual", {}) or {}
+            is_correct = resolved.get("outcome", "") == "correct"
+            involved_domains = self._extract_involved_domains(resolved)
 
-            # Collect all entity-relevant domains from predictions and actuals
-            pred_domains = set()
-            for pred in predictions:
-                predicted = pred.get("predicted", "")
-                pred_type = pred.get("type", "")
-                if pred_type == "next_domain_action":
-                    pred_domains.add(predicted)
-                elif pred_type == "routine_trigger":
-                    pred_domains.update(pred.get("expected_domains", []))
-
-            actual_domains = set(actual.get("domains", []))
-            involved_domains = pred_domains | actual_domains
-
-            # Match against each capability's entities
             for cap_name, entities in cap_entities.items():
                 cap_domains = {e.split(".")[0] for e in entities if "." in e}
                 if cap_domains & involved_domains:

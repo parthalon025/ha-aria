@@ -67,7 +67,10 @@ class ActivityMonitor(Module):
         Capability(
             id="activity_monitoring",
             name="Activity Monitoring",
-            description="WebSocket listener for state_changed events with 15-min windowed activity log and adaptive snapshots.",
+            description=(
+                "WebSocket listener for state_changed events with "
+                "15-min windowed activity log and adaptive snapshots."
+            ),
             module="activity_monitor",
             layer="hub",
             config_keys=[
@@ -220,6 +223,23 @@ class ActivityMonitor(Module):
     # WebSocket listener (follows discovery.py pattern)
     # ------------------------------------------------------------------
 
+    def _track_ws_reconnect(self):
+        """Update liveness tracking on successful WebSocket reconnection."""
+        now = datetime.now()
+        if self._ws_last_disconnect_at:
+            gap = (now - self._ws_last_disconnect_at).total_seconds()
+            self._ws_total_disconnect_s += gap
+            self._ws_last_disconnect_at = None
+        self._ws_connected = True
+        self._ws_last_connected_at = now.isoformat()
+
+    def _track_ws_disconnect(self):
+        """Update liveness tracking on WebSocket disconnect."""
+        if self._ws_connected:
+            self._ws_connected = False
+            self._ws_disconnect_count += 1
+            self._ws_last_disconnect_at = datetime.now()
+
     async def _ws_listen_loop(self):
         """Connect to HA WebSocket and listen for state_changed events."""
         ws_url = self.ha_url.replace("http", "ws", 1) + "/api/websocket"
@@ -249,15 +269,7 @@ class ActivityMonitor(Module):
 
                     self.logger.info("Activity WebSocket connected — listening for state_changed")
                     retry_delay = 5  # reset backoff
-
-                    # Track liveness
-                    now = datetime.now()
-                    if self._ws_last_disconnect_at:
-                        gap = (now - self._ws_last_disconnect_at).total_seconds()
-                        self._ws_total_disconnect_s += gap
-                        self._ws_last_disconnect_at = None
-                    self._ws_connected = True
-                    self._ws_last_connected_at = now.isoformat()
+                    self._track_ws_reconnect()
 
                     # 2b. Seed occupancy from current person entity states
                     await self._seed_occupancy(session)
@@ -289,11 +301,7 @@ class ActivityMonitor(Module):
             except Exception as e:
                 self.logger.error(f"Activity WebSocket unexpected error: {e}")
 
-            # Track disconnect
-            if self._ws_connected:
-                self._ws_connected = False
-                self._ws_disconnect_count += 1
-                self._ws_last_disconnect_at = datetime.now()
+            self._track_ws_disconnect()
 
             # Backoff: 5s → 10s → 20s → 60s max
             await asyncio.sleep(retry_delay)
@@ -303,6 +311,35 @@ class ActivityMonitor(Module):
     # Event handling
     # ------------------------------------------------------------------
 
+    def _should_filter_entity(self, entity_id: str, domain: str, new_state: dict[str, Any]) -> bool:
+        """Check if an entity should be filtered out based on curation or domain rules.
+
+        Returns True if the entity should be skipped.
+        """
+        # Note: _included_entities/_excluded_entities are replaced atomically by
+        # _load_curation_rules(). CPython's GIL ensures set reads are safe without
+        # locks. Worst case during reload: a few events use stale curation data.
+        if self._curation_loaded:
+            if entity_id in self._excluded_entities:
+                return True
+            if entity_id not in self._included_entities:
+                return self._domain_filter(domain, new_state)
+        else:
+            # Curation not loaded — use domain-based filtering (first boot / fallback)
+            return self._domain_filter(domain, new_state)
+        return False
+
+    @staticmethod
+    def _domain_filter(domain: str, new_state: dict[str, Any]) -> bool:
+        """Return True if the entity should be filtered based on domain rules."""
+        if domain not in TRACKED_DOMAINS and domain not in CONDITIONAL_DOMAINS:
+            return True
+        if domain in CONDITIONAL_DOMAINS:
+            device_class = new_state.get("attributes", {}).get("device_class", "")
+            if device_class != "power":
+                return True
+        return False
+
     def _handle_state_changed(self, data: dict[str, Any]):
         """Filter and buffer a single state_changed event."""
         entity_id = data.get("entity_id", "")
@@ -310,31 +347,9 @@ class ActivityMonitor(Module):
         old_state = data.get("old_state") or {}
 
         domain = entity_id.split(".")[0] if "." in entity_id else ""
-        from_state = old_state.get("state", "")
-        to_state = new_state.get("state", "")
 
-        # Note: _included_entities/_excluded_entities are replaced atomically by
-        # _load_curation_rules(). CPython's GIL ensures set reads are safe without
-        # locks. Worst case during reload: a few events use stale curation data.
-        if self._curation_loaded:
-            if entity_id in self._excluded_entities:
-                return
-            if entity_id not in self._included_entities:
-                # Unknown entity — fall back to domain-level filtering
-                if domain not in TRACKED_DOMAINS and domain not in CONDITIONAL_DOMAINS:
-                    return
-                if domain in CONDITIONAL_DOMAINS:
-                    device_class = new_state.get("attributes", {}).get("device_class", "")
-                    if device_class != "power":
-                        return
-        else:
-            # Curation not loaded — use domain-based filtering (first boot / fallback)
-            if domain not in TRACKED_DOMAINS and domain not in CONDITIONAL_DOMAINS:
-                return
-            if domain in CONDITIONAL_DOMAINS:
-                device_class = new_state.get("attributes", {}).get("device_class", "")
-                if device_class != "power":
-                    return
+        if self._should_filter_entity(entity_id, domain, new_state):
+            return
 
         from_state = old_state.get("state", "")
         to_state = new_state.get("state", "")
@@ -631,39 +646,49 @@ class ActivityMonitor(Module):
     # Activity pattern mining (frequent 3-event sequences)
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _build_domain_sequence(windows: list[dict[str, Any]]) -> list[str]:
+        """Build flat domain sequence from windowed activity data."""
+        domain_sequence: list[str] = []
+        for w in windows:
+            by_domain = w.get("by_domain", {})
+            for domain, count in by_domain.items():
+                domain_sequence.extend([domain] * count)
+        return domain_sequence
+
+    @staticmethod
+    def _compute_trigram_last_seen(
+        domain_sequence: list[str], windows: list[dict[str, Any]]
+    ) -> dict[str, str]:
+        """Compute approximate last-seen timestamps for each trigram."""
+        trigram_last_seen: dict[str, str] = {}
+        domain_offset = 0
+        for w in windows:
+            w_total = sum(w.get("by_domain", {}).values())
+            for i in range(domain_offset, min(domain_offset + w_total - 2, len(domain_sequence) - 2)):
+                key = "|".join([domain_sequence[i], domain_sequence[i + 1], domain_sequence[i + 2]])
+                trigram_last_seen[key] = w.get("window_start", "")[:16]
+            domain_offset += w_total
+        return trigram_last_seen
+
     def _detect_activity_patterns(self, windows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Find frequent 3-event domain sequences from rolling 24h windows.
 
         A sequence is "frequent" if it occurs 3+ times in the last 24h.
         Returns the top patterns sorted by count descending.
         """
-        # Build flat event domain list with timestamps from notable_changes
-        # and domain counts
-        domain_sequence: list[str] = []
-        for w in windows:
-            by_domain = w.get("by_domain", {})
-            for domain, count in by_domain.items():
-                domain_sequence.extend([domain] * count)
+        domain_sequence = self._build_domain_sequence(windows)
 
         if len(domain_sequence) < 3:
             return []
 
         # Count all 3-grams
         trigram_counts: dict[str, int] = defaultdict(int)
-        trigram_last_seen: dict[str, str] = {}
         for i in range(len(domain_sequence) - 2):
-            trigram = (domain_sequence[i], domain_sequence[i + 1], domain_sequence[i + 2])
-            key = "|".join(trigram)
+            key = "|".join((domain_sequence[i], domain_sequence[i + 1], domain_sequence[i + 2]))
             trigram_counts[key] += 1
 
-        # Get last_seen from windows (approximate: use window time)
-        domain_offset = 0
-        for w in windows:
-            w_total = sum(w.get("by_domain", {}).values())
-            for i in range(domain_offset, min(domain_offset + w_total - 2, len(domain_sequence) - 2)):
-                key = "|".join([domain_sequence[i], domain_sequence[i + 1], domain_sequence[i + 2]])
-                trigram_last_seen[key] = w.get("window_start", "")[:16]  # HH:MM
-            domain_offset += w_total
+        trigram_last_seen = self._compute_trigram_last_seen(domain_sequence, windows)
 
         # Filter to frequent (3+) and non-trivial (not all same domain)
         MIN_COUNT = 3
@@ -672,7 +697,6 @@ class ActivityMonitor(Module):
             if count < MIN_COUNT:
                 continue
             parts = key.split("|")
-            # Skip trivial: all same domain
             if len(set(parts)) == 1:
                 continue
             patterns.append(
@@ -682,7 +706,7 @@ class ActivityMonitor(Module):
                     "last_seen": trigram_last_seen.get(key, ""),
                 }
             )
-            if len(patterns) >= 10:  # cap at 10 patterns
+            if len(patterns) >= 10:
                 break
 
         return patterns
@@ -691,64 +715,53 @@ class ActivityMonitor(Module):
     # Occupancy arrival prediction (day-of-week historical)
     # ------------------------------------------------------------------
 
-    def _predict_next_arrival(self, windows: list[dict[str, Any]]) -> dict[str, Any]:
-        """Predict when someone will arrive home based on historical occupancy transitions.
-
-        Looks at the last 7 days of windows for transitions from away (occupancy=False)
-        to home (occupancy=True), grouped by day of week. Averages the first arrival
-        time for the current day of week.
-        """
-        now = datetime.now()
-        current_dow = now.strftime("%A")
-
-        # Only predict if nobody is currently home
-        if self._occupancy_state:
-            return {
-                "status": "home",
-                "message": "Someone is already home",
-            }
-
-        # Find occupancy transitions (away → home) in windows
-        # Group by day of week
+    @staticmethod
+    def _extract_arrivals_by_dow(windows: list[dict[str, Any]]) -> dict[str, list[str]]:
+        """Extract occupancy transitions (away->home) grouped by day of week."""
         arrivals_by_dow: dict[str, list[str]] = defaultdict(list)
-
         for i in range(1, len(windows)):
             prev = windows[i - 1]
             curr = windows[i]
             if not prev.get("occupancy") and curr.get("occupancy"):
-                # Transition: away → home
                 ws = curr.get("window_start", "")
                 if not ws:
                     continue
                 try:
                     dt = datetime.fromisoformat(ws)
-                    dow = dt.strftime("%A")
-                    time_str = dt.strftime("%H:%M")
-                    arrivals_by_dow[dow].append(time_str)
+                    arrivals_by_dow[dt.strftime("%A")].append(dt.strftime("%H:%M"))
                 except (ValueError, TypeError):
                     continue
+        return arrivals_by_dow
+
+    @staticmethod
+    def _average_arrival_time(arrivals: list[str]) -> tuple[int, str]:
+        """Compute average arrival time from HH:MM strings. Returns (avg_minutes, HH:MM)."""
+        total_minutes = 0
+        for t in arrivals:
+            parts = t.split(":")
+            total_minutes += int(parts[0]) * 60 + int(parts[1])
+        avg_minutes = total_minutes // len(arrivals)
+        return avg_minutes, f"{avg_minutes // 60:02d}:{avg_minutes % 60:02d}"
+
+    def _predict_next_arrival(self, windows: list[dict[str, Any]]) -> dict[str, Any]:
+        """Predict when someone will arrive home based on historical occupancy transitions."""
+        now = datetime.now()
+        current_dow = now.strftime("%A")
+
+        if self._occupancy_state:
+            return {"status": "home", "message": "Someone is already home"}
+
+        arrivals_by_dow = self._extract_arrivals_by_dow(windows)
 
         arrivals_today = arrivals_by_dow.get(current_dow, [])
         if not arrivals_today:
-            # Fall back to all-day average
-            all_arrivals = []
-            for times in arrivals_by_dow.values():
-                all_arrivals.extend(times)
+            all_arrivals = [t for times in arrivals_by_dow.values() for t in times]
             if not all_arrivals:
                 return {}
             arrivals_today = all_arrivals
 
-        # Compute average arrival time
-        total_minutes = 0
-        for t in arrivals_today:
-            parts = t.split(":")
-            total_minutes += int(parts[0]) * 60 + int(parts[1])
-        avg_minutes = total_minutes // len(arrivals_today)
-        avg_hour = avg_minutes // 60
-        avg_min = avg_minutes % 60
-        predicted_time = f"{avg_hour:02d}:{avg_min:02d}"
+        avg_minutes, predicted_time = self._average_arrival_time(arrivals_today)
 
-        # Only predict if the predicted time is in the future
         now_minutes = now.hour * 60 + now.minute
         if avg_minutes <= now_minutes:
             return {
@@ -758,11 +771,7 @@ class ActivityMonitor(Module):
                 "based_on": len(arrivals_today),
             }
 
-        confidence = "low"
-        if len(arrivals_today) >= 5:
-            confidence = "high"
-        elif len(arrivals_today) >= 3:
-            confidence = "medium"
+        confidence = "high" if len(arrivals_today) >= 5 else "medium" if len(arrivals_today) >= 3 else "low"
 
         return {
             "status": "predicted",
@@ -918,11 +927,8 @@ class ActivityMonitor(Module):
         # Update summary cache
         await self._update_summary_cache()
 
-    async def _update_summary_cache(self):
-        """Write current activity summary for dashboard consumption."""
-        now = datetime.now()
-
-        # Recent activity: last 15 events from ring buffer (survives flushes)
+    def _build_recent_activity(self) -> list[dict[str, Any]]:
+        """Build recent activity list from ring buffer (last 15 events)."""
         recent = []
         for evt in reversed(list(self._recent_events)):
             recent.append(
@@ -938,6 +944,26 @@ class ActivityMonitor(Module):
             )
             if len(recent) >= 15:
                 break
+        return recent
+
+    def _compute_domains_1h(
+        self, recent_windows: list[dict[str, Any]], one_hour_ago: str
+    ) -> dict[str, int]:
+        """Aggregate domain counts from last-hour windows plus current buffer."""
+        domains_1h: dict[str, int] = defaultdict(int)
+        for w in recent_windows:
+            for domain, count in w.get("by_domain", {}).items():
+                domains_1h[domain] += count
+        for evt in self._activity_buffer:
+            if evt.get("timestamp", "") >= one_hour_ago:
+                domains_1h[evt["domain"]] += 1
+        return domains_1h
+
+    async def _update_summary_cache(self):
+        """Write current activity summary for dashboard consumption."""
+        now = datetime.now()
+
+        recent = self._build_recent_activity()
 
         # Activity rate from cached windows
         activity_log = await self.hub.get_cache(CACHE_ACTIVITY_LOG)
@@ -947,13 +973,9 @@ class ActivityMonitor(Module):
 
         current_count = len(self._activity_buffer)
 
-        # Average events/window over last hour (up to 4 windows)
         one_hour_ago = (now - timedelta(hours=1)).isoformat()
         recent_windows = [w for w in windows if w.get("window_start", "") >= one_hour_ago]
-        if recent_windows:
-            avg_1h = sum(w["event_count"] for w in recent_windows) / len(recent_windows)
-        else:
-            avg_1h = 0
+        avg_1h = sum(w["event_count"] for w in recent_windows) / len(recent_windows) if recent_windows else 0
 
         trend = "stable"
         if current_count > avg_1h * 1.5 and avg_1h > 0:
@@ -961,27 +983,12 @@ class ActivityMonitor(Module):
         elif current_count < avg_1h * 0.5 and avg_1h > 0:
             trend = "decreasing"
 
-        # Domain counts in last hour
-        domains_1h: dict[str, int] = defaultdict(int)
-        for w in recent_windows:
-            for domain, count in w.get("by_domain", {}).items():
-                domains_1h[domain] += count
-        # Also count current buffer
-        for evt in self._activity_buffer:
-            if evt.get("timestamp", "") >= one_hour_ago:
-                domains_1h[evt["domain"]] += 1
+        domains_1h = self._compute_domains_1h(recent_windows, one_hour_ago)
 
-        # Cooldown remaining
         cooldown_remaining = 0
         if self._last_snapshot_time:
             elapsed = (now - self._last_snapshot_time).total_seconds()
             cooldown_remaining = max(0, SNAPSHOT_COOLDOWN_S - elapsed)
-
-        # Compute intelligence enhancements from windowed history
-        event_predictions = self._event_sequence_prediction(windows)
-        patterns = self._detect_activity_patterns(windows)
-        occupancy_prediction = self._predict_next_arrival(windows)
-        anomalies = self._detect_activity_anomalies(windows)
 
         summary = {
             "occupancy": {
@@ -1009,10 +1016,10 @@ class ActivityMonitor(Module):
                 "disconnect_count": self._ws_disconnect_count,
                 "total_disconnect_s": round(self._ws_total_disconnect_s, 1),
             },
-            "event_predictions": event_predictions,
-            "patterns": patterns,
-            "occupancy_prediction": occupancy_prediction,
-            "anomalies": anomalies,
+            "event_predictions": self._event_sequence_prediction(windows),
+            "patterns": self._detect_activity_patterns(windows),
+            "occupancy_prediction": self._predict_next_arrival(windows),
+            "anomalies": self._detect_activity_anomalies(windows),
         }
 
         await self.hub.set_cache(
