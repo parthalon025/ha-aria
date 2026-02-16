@@ -27,7 +27,6 @@ def run_validation() -> dict:
         "-v",
         "--timeout=120",
         "--tb=short",
-        "-q",
     ]
 
     try:
@@ -156,18 +155,21 @@ def _extract_backtest_scores(lines: list[str]) -> dict:
 
 
 def _extract_duration(stdout: str) -> float | None:
-    """Extract test duration from pytest summary line like '95 passed in 61.33s'."""
+    """Extract test duration from pytest summary line like '= 17 passed in 34.11s ='."""
+    import re
+
     for line in reversed(stdout.splitlines()):
         if "passed" in line and " in " in line:
-            parts = line.split(" in ")
-            if parts:
-                time_str = parts[-1].strip().rstrip("s").strip()
-                # Handle "0:01:01" format too
-                if ":" in time_str:
-                    segments = time_str.split(":")
-                    return sum(float(s) * (60**i) for i, s in enumerate(reversed(segments)))
-                try:
-                    return float(time_str)
-                except ValueError:
-                    pass
+            # Match patterns like "34.11s" or "1:02:03" surrounded by any decoration
+            m = re.search(r"in\s+([\d:.]+)s?\b", line)
+            if not m:
+                continue
+            time_str = m.group(1)
+            if ":" in time_str:
+                segments = time_str.split(":")
+                return sum(float(s) * (60**i) for i, s in enumerate(reversed(segments)))
+            try:
+                return float(time_str)
+            except ValueError:
+                continue
     return None
