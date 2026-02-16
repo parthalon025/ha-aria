@@ -69,6 +69,7 @@ def synthetic_snapshots(tmp_path):
         snapshot = {
             "date": date.strftime("%Y-%m-%d"),
             "hour": hour,
+            "entities": {"total": 3050, "unavailable": 10},
             "time_features": {
                 "hour_sin": np.sin(2 * np.pi * hour / 24),
                 "hour_cos": np.cos(2 * np.pi * hour / 24),
@@ -570,6 +571,7 @@ class TestLightGBMIntegration:
             snapshot = {
                 "date": date.strftime("%Y-%m-%d"),
                 "hour": 12,
+                "entities": {"total": 3050, "unavailable": 10},
                 "time_features": {
                     "hour_sin": float(np.sin(2 * np.pi * 12 / 24)),
                     "hour_cos": float(np.cos(2 * np.pi * 12 / 24)),
@@ -1373,6 +1375,7 @@ class TestMLFeedbackToCapabilities:
             snapshot = {
                 "date": date.strftime("%Y-%m-%d"),
                 "hour": 12,
+                "entities": {"total": 3050, "unavailable": 10},
                 "time_features": {
                     "hour_sin": float(np.sin(2 * np.pi * 12 / 24)),
                     "hour_cos": float(np.cos(2 * np.pi * 12 / 24)),
@@ -1674,6 +1677,46 @@ async def test_extract_features_delegates_to_vector_builder(ml_engine):
         assert hub_features[key] == pytest.approx(val, abs=1e-6), (
             f"Feature {key} differs: hub={hub_features[key]} engine={val}"
         )
+
+
+@pytest.mark.asyncio
+async def test_load_training_data_rejects_corrupt_snapshots(ml_engine, tmp_path):
+    """Hub training must reject snapshots with too few entities or high unavailable ratio."""
+    training_data_dir = tmp_path / "training_data"
+    training_data_dir.mkdir(exist_ok=True)
+    ml_engine.training_data_dir = training_data_dir
+
+    today = datetime.now()
+
+    # Good snapshot
+    good = {
+        "date": (today - timedelta(days=1)).strftime("%Y-%m-%d"),
+        "entities": {"total": 3050, "unavailable": 10},
+        "power": {"total_watts": 150},
+    }
+    # Bad: too few entities (HA was down)
+    bad_low = {
+        "date": (today - timedelta(days=2)).strftime("%Y-%m-%d"),
+        "entities": {"total": 50, "unavailable": 2},
+        "power": {"total_watts": 0},
+    }
+    # Bad: high unavailable ratio (HA restarting)
+    bad_unavail = {
+        "date": (today - timedelta(days=3)).strftime("%Y-%m-%d"),
+        "entities": {"total": 3050, "unavailable": 2000},
+        "power": {"total_watts": 50},
+    }
+
+    for snap in [good, bad_low, bad_unavail]:
+        path = training_data_dir / f"{snap['date']}.json"
+        path.write_text(json.dumps(snap))
+
+    result = await ml_engine._load_training_data(days=5)
+
+    # Only the good snapshot should survive validation
+    assert len(result) == 1
+    assert result[0]["entities"]["total"] == 3050
+    assert result[0]["entities"]["unavailable"] == 10
 
 
 if __name__ == "__main__":

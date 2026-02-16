@@ -38,6 +38,7 @@ warnings.filterwarnings(
 
 from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG as _ENGINE_FEATURE_CONFIG  # noqa: E402
 from aria.engine.features.vector_builder import build_feature_vector as _engine_build_feature_vector  # noqa: E402
+from aria.engine.validation import validate_snapshot_batch  # noqa: E402
 from aria.hub.core import Module, IntelligenceHub  # noqa: E402
 from aria.capabilities import Capability, DemandSignal  # noqa: E402
 
@@ -355,7 +356,7 @@ class MLEngine(Module):
         Returns:
             List of snapshot dictionaries
         """
-        snapshots = []
+        raw_snapshots = []
         today = datetime.now()
 
         for i in range(days):
@@ -366,11 +367,18 @@ class MLEngine(Module):
                 try:
                     with open(snapshot_file) as f:
                         snapshot = json.load(f)
-                        snapshots.append(snapshot)
+                        raw_snapshots.append(snapshot)
                 except (json.JSONDecodeError, IOError) as e:
                     self.logger.warning(f"Failed to load snapshot {snapshot_file}: {e}")
 
-        return snapshots
+        valid, rejected = validate_snapshot_batch(raw_snapshots)
+        if rejected:
+            self.logger.warning(
+                f"Rejected {len(rejected)} of {len(raw_snapshots)} snapshots "
+                f"(corrupt/incomplete data)"
+            )
+
+        return valid
 
     async def _train_model_for_target(self, target: str, training_data: List[Dict[str, Any]], capability_name: str):
         """Train a model for a specific prediction target.
