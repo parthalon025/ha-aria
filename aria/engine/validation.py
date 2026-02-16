@@ -4,7 +4,6 @@ Prevents the scenario where HA restarts mid-snapshot, producing a snapshot with
 0 entities or 90% unavailable, which poisons model training for a week.
 """
 
-
 # Minimum viable snapshot requirements
 MIN_ENTITY_COUNT = 100  # HA has ~3050; anything below 100 means HA was down
 MAX_UNAVAILABLE_RATIO = 0.5  # >50% unavailable = HA was likely restarting

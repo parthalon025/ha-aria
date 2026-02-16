@@ -61,9 +61,7 @@ def _add_serve_parser(subparsers):
 def _add_demo_parser(subparsers):
     """Add demo subcommand parser."""
     demo_parser = subparsers.add_parser("demo", help="Generate synthetic demo data for visual testing")
-    demo_parser.add_argument(
-        "--scenario", default="stable_couple", help="Household scenario (default: stable_couple)"
-    )
+    demo_parser.add_argument("--scenario", default="stable_couple", help="Household scenario (default: stable_couple)")
     demo_parser.add_argument("--days", type=int, default=30, help="Days to simulate (default: 30)")
     demo_parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
     demo_parser.add_argument(

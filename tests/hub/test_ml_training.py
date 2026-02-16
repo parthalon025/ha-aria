@@ -1652,12 +1652,20 @@ async def test_extract_features_delegates_to_vector_builder(ml_engine):
         "date": "2026-02-16",
         "hour": 14,
         "time_features": {
-            "hour_sin": 0.5, "hour_cos": -0.866,
-            "dow_sin": 0.0, "dow_cos": 1.0,
-            "month_sin": 0.5, "month_cos": 0.866,
-            "day_of_year_sin": 0.3, "day_of_year_cos": 0.95,
-            "is_weekend": 0, "is_holiday": 0, "is_night": 0, "is_work_hours": 1,
-            "minutes_since_sunrise": 450, "minutes_until_sunset": 270,
+            "hour_sin": 0.5,
+            "hour_cos": -0.866,
+            "dow_sin": 0.0,
+            "dow_cos": 1.0,
+            "month_sin": 0.5,
+            "month_cos": 0.866,
+            "day_of_year_sin": 0.3,
+            "day_of_year_cos": 0.95,
+            "is_weekend": 0,
+            "is_holiday": 0,
+            "is_night": 0,
+            "is_work_hours": 1,
+            "minutes_since_sunrise": 450,
+            "minutes_until_sunset": 270,
             "daylight_remaining_pct": 37.5,
         },
         "power": {"total_watts": 155},
@@ -1732,9 +1740,7 @@ class TestSchedulePeriodicTraining:
     async def test_schedule_periodic_training_runs_immediately_when_stale(self, ml_engine, mock_hub):
         """If last training was >7 days ago, schedule_periodic_training should set run_immediately=True."""
         stale_date = (datetime.now() - timedelta(days=10)).isoformat()
-        mock_hub.get_cache = AsyncMock(return_value={
-            "data": {"last_trained": stale_date}
-        })
+        mock_hub.get_cache = AsyncMock(return_value={"data": {"last_trained": stale_date}})
         mock_hub.schedule_task = AsyncMock()
 
         await ml_engine.schedule_periodic_training(interval_days=7)
@@ -1747,9 +1753,7 @@ class TestSchedulePeriodicTraining:
     async def test_schedule_periodic_training_not_immediate_when_fresh(self, ml_engine, mock_hub):
         """If last training was recent, schedule_periodic_training should set run_immediately=False."""
         fresh_date = (datetime.now() - timedelta(days=2)).isoformat()
-        mock_hub.get_cache = AsyncMock(return_value={
-            "data": {"last_trained": fresh_date}
-        })
+        mock_hub.get_cache = AsyncMock(return_value={"data": {"last_trained": fresh_date}})
         mock_hub.schedule_task = AsyncMock()
 
         await ml_engine.schedule_periodic_training(interval_days=7)

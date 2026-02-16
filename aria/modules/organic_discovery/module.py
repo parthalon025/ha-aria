@@ -186,12 +186,24 @@ class OrganicDiscoveryModule(Module):
         demand_signals = self._collect_demand_signals()
         total_entities = len(entity_ids) if entity_ids else 1
         organic_caps = await self._score_domain_clusters(
-            clusters, entities, devices, seed_caps, activity_rates, demand_signals, total_entities,
+            clusters,
+            entities,
+            devices,
+            seed_caps,
+            activity_rates,
+            demand_signals,
+            total_entities,
         )
 
         # Phase 2: Behavioral clustering
         await self._score_behavioral_clusters(
-            organic_caps, entities, devices, seed_caps, activity_rates, demand_signals, total_entities,
+            organic_caps,
+            entities,
+            devices,
+            seed_caps,
+            activity_rates,
+            demand_signals,
+            total_entities,
         )
 
         # 7-8. Merge and apply autonomy
@@ -228,15 +240,22 @@ class OrganicDiscoveryModule(Module):
         return entities, devices, seed_caps, activity_rates
 
     def _build_and_cluster(
-        self, entities: list, devices: dict, activity_rates: dict[str, float],
+        self,
+        entities: list,
+        devices: dict,
+        activity_rates: dict[str, float],
     ) -> tuple[list, list[str]]:
         """Build feature matrix and run HDBSCAN clustering."""
         if entities:
             matrix, entity_ids, _feature_names = build_feature_matrix(
-                entities=entities, devices=devices, entity_registry={}, activity_rates=activity_rates,
+                entities=entities,
+                devices=devices,
+                entity_registry={},
+                activity_rates=activity_rates,
             )
         else:
             import numpy as np
+
             matrix = np.empty((0, 0))
             entity_ids = []
 
@@ -275,8 +294,15 @@ class OrganicDiscoveryModule(Module):
 
         for cluster in clusters:
             cap_entry = await self._build_capability_entry(
-                cluster, entities, devices, seed_caps, activity_rates,
-                demand_signals, total_entities, organic_caps, today,
+                cluster,
+                entities,
+                devices,
+                seed_caps,
+                activity_rates,
+                demand_signals,
+                total_entities,
+                organic_caps,
+                today,
             )
             if cap_entry:
                 name, data = cap_entry
@@ -305,9 +331,17 @@ class OrganicDiscoveryModule(Module):
         for cluster in behavioral_clusters:
             cluster_info_extra = {"temporal_pattern": cluster.get("temporal_pattern", {})}
             cap_entry = await self._build_capability_entry(
-                cluster, entities, devices, seed_caps, activity_rates,
-                demand_signals, total_entities, organic_caps, run_start,
-                layer_override="behavioral", name_prefix="behavioral_",
+                cluster,
+                entities,
+                devices,
+                seed_caps,
+                activity_rates,
+                demand_signals,
+                total_entities,
+                organic_caps,
+                run_start,
+                layer_override="behavioral",
+                name_prefix="behavioral_",
                 extra_info=cluster_info_extra,
                 extra_fields={"temporal_pattern": cluster.get("temporal_pattern", {})},
             )
@@ -396,7 +430,8 @@ class OrganicDiscoveryModule(Module):
 
     @staticmethod
     def _merge_capabilities(
-        seed_caps: dict[str, Any], organic_caps: dict[str, dict[str, Any]],
+        seed_caps: dict[str, Any],
+        organic_caps: dict[str, dict[str, Any]],
     ) -> dict[str, dict[str, Any]]:
         """Merge seed and organic capabilities, seeds always preserved."""
         merged: dict[str, dict[str, Any]] = {}
@@ -423,11 +458,17 @@ class OrganicDiscoveryModule(Module):
         return merged
 
     async def _persist_discovery_results(
-        self, merged_caps: dict, clusters: list, organic_caps: dict, seed_validation: dict,
+        self,
+        merged_caps: dict,
+        clusters: list,
+        organic_caps: dict,
+        seed_validation: dict,
     ) -> dict[str, Any]:
         """Write merged capabilities to cache, record history, publish event."""
         await self.hub.set_cache(
-            "capabilities", merged_caps, {"count": len(merged_caps), "source": "organic_discovery"},
+            "capabilities",
+            merged_caps,
+            {"count": len(merged_caps), "source": "organic_discovery"},
         )
 
         run_record = {

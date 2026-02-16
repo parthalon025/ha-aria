@@ -311,8 +311,15 @@ class DriftDetector:
         return adwin_results
 
     def _build_result(  # noqa: PLR0913 — internal builder aggregating all check outputs
-        self, needs_retrain, reason, rolling_mae, current_mae,
-        thresholds, window, ph_results, adwin_results,
+        self,
+        needs_retrain,
+        reason,
+        rolling_mae,
+        current_mae,
+        thresholds,
+        window,
+        ph_results,
+        adwin_results,
     ):
         """Build a standardized check result dict."""
         return {
@@ -348,8 +355,8 @@ class DriftDetector:
         window = scores[-self.window_days :]
         latest = scores[-1]
 
-        rolling_mae, current_mae, thresholds, drift_detected, ph_results, metric_errors = (
-            self._analyze_metric_errors(window, latest)
+        rolling_mae, current_mae, thresholds, drift_detected, ph_results, metric_errors = self._analyze_metric_errors(
+            window, latest
         )
         adwin_results = self._run_adwin_analysis(metric_errors, drift_detected)
 
@@ -361,8 +368,14 @@ class DriftDetector:
                 methods.append("adwin")
             method = " + ".join(methods)
             result = self._build_result(
-                True, f"drift detected in {', '.join(drift_detected)} (method: {method})",
-                rolling_mae, current_mae, thresholds, window, ph_results, adwin_results,
+                True,
+                f"drift detected in {', '.join(drift_detected)} (method: {method})",
+                rolling_mae,
+                current_mae,
+                thresholds,
+                window,
+                ph_results,
+                adwin_results,
             )
             result["drifted_metrics"] = drift_detected
             return result
@@ -377,12 +390,23 @@ class DriftDetector:
                     f"overall accuracy dropped >10% "
                     f"({statistics.mean(recent_overall):.0f}% vs "
                     f"{statistics.mean(earlier_overall):.0f}%)",
-                    rolling_mae, current_mae, thresholds, window, ph_results, adwin_results,
+                    rolling_mae,
+                    current_mae,
+                    thresholds,
+                    window,
+                    ph_results,
+                    adwin_results,
                 )
 
         return self._build_result(
-            False, "no drift detected, error within normal range",
-            rolling_mae, current_mae, thresholds, window, ph_results, adwin_results,
+            False,
+            "no drift detected, error within normal range",
+            rolling_mae,
+            current_mae,
+            thresholds,
+            window,
+            ph_results,
+            adwin_results,
         )
 
     def should_skip_scheduled_retrain(self, accuracy_history: dict) -> bool:

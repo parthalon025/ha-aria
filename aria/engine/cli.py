@@ -228,9 +228,14 @@ def cmd_predict():
         ml_preds, device_failures, ctx_anomalies = _run_ml_predictions(config, store, baselines, weather, tomorrow)
 
     predictions = generate_predictions(
-        tomorrow, baselines, correlations, weather,
-        ml_predictions=ml_preds, device_failures=device_failures,
-        contextual_anomalies=ctx_anomalies, paths=config.paths,
+        tomorrow,
+        baselines,
+        correlations,
+        weather,
+        ml_predictions=ml_preds,
+        device_failures=device_failures,
+        contextual_anomalies=ctx_anomalies,
+        paths=config.paths,
     )
     store.save_predictions(predictions)
     print(f"Predictions for {tomorrow} ({predictions.get('prediction_method', 'statistical')}):")

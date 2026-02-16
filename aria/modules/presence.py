@@ -190,10 +190,13 @@ class PresenceModule(Module):
     async def get_frigate_thumbnail(self, event_id: str) -> bytes | None:
         """Proxy a Frigate event thumbnail. Returns JPEG bytes or None."""
         try:
-            async with aiohttp.ClientSession() as session, session.get(
-                f"{self._frigate_url}/api/events/{event_id}/thumbnail.jpg",
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    f"{self._frigate_url}/api/events/{event_id}/thumbnail.jpg",
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp,
+            ):
                 if resp.status == 200:
                     return await resp.read()
         except Exception:
@@ -203,10 +206,13 @@ class PresenceModule(Module):
     async def get_frigate_snapshot(self, event_id: str) -> bytes | None:
         """Proxy a Frigate event snapshot. Returns JPEG bytes or None."""
         try:
-            async with aiohttp.ClientSession() as session, session.get(
-                f"{self._frigate_url}/api/events/{event_id}/snapshot.jpg",
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    f"{self._frigate_url}/api/events/{event_id}/snapshot.jpg",
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp,
+            ):
                 if resp.status == 200:
                     return await resp.read()
         except Exception:

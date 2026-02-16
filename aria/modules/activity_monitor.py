@@ -68,8 +68,7 @@ class ActivityMonitor(Module):
             id="activity_monitoring",
             name="Activity Monitoring",
             description=(
-                "WebSocket listener for state_changed events with "
-                "15-min windowed activity log and adaptive snapshots."
+                "WebSocket listener for state_changed events with 15-min windowed activity log and adaptive snapshots."
             ),
             module="activity_monitor",
             layer="hub",
@@ -657,9 +656,7 @@ class ActivityMonitor(Module):
         return domain_sequence
 
     @staticmethod
-    def _compute_trigram_last_seen(
-        domain_sequence: list[str], windows: list[dict[str, Any]]
-    ) -> dict[str, str]:
+    def _compute_trigram_last_seen(domain_sequence: list[str], windows: list[dict[str, Any]]) -> dict[str, str]:
         """Compute approximate last-seen timestamps for each trigram."""
         trigram_last_seen: dict[str, str] = {}
         domain_offset = 0
@@ -946,9 +943,7 @@ class ActivityMonitor(Module):
                 break
         return recent
 
-    def _compute_domains_1h(
-        self, recent_windows: list[dict[str, Any]], one_hour_ago: str
-    ) -> dict[str, int]:
+    def _compute_domains_1h(self, recent_windows: list[dict[str, Any]], one_hour_ago: str) -> dict[str, int]:
         """Aggregate domain counts from last-hour windows plus current buffer."""
         domains_1h: dict[str, int] = defaultdict(int)
         for w in recent_windows:

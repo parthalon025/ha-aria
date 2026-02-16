@@ -295,8 +295,8 @@ class MediaCollector(BaseCollector):
         active = []
         for s in states:
             if s["entity_id"].startswith("media_player.") and s.get("state") == "playing":
-                    name = s.get("attributes", {}).get("friendly_name", s["entity_id"])
-                    active.append(name)
+                name = s.get("attributes", {}).get("friendly_name", s["entity_id"])
+                active.append(name)
         snapshot["media"] = {"active_players": active, "total_active": len(active)}
 
 

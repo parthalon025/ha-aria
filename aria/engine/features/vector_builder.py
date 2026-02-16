@@ -17,8 +17,13 @@ def _get_time_feature_names(tc):
             names.extend(pair_names)
 
     simple_features = [
-        "is_weekend", "is_holiday", "is_night", "is_work_hours",
-        "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct",
+        "is_weekend",
+        "is_holiday",
+        "is_night",
+        "is_work_hours",
+        "minutes_since_sunrise",
+        "minutes_until_sunset",
+        "daylight_remaining_pct",
     ]
     for simple in simple_features:
         if tc.get(simple):
@@ -59,8 +64,13 @@ def _build_time_features(features, snapshot, tc):
                 features[name] = tf.get(name, 0)
 
     simple_features = [
-        "is_weekend", "is_holiday", "is_night", "is_work_hours",
-        "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct",
+        "is_weekend",
+        "is_holiday",
+        "is_night",
+        "is_work_hours",
+        "minutes_since_sunrise",
+        "minutes_until_sunset",
+        "daylight_remaining_pct",
     ]
     for simple in simple_features:
         if tc.get(simple):

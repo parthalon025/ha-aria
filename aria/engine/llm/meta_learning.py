@@ -286,8 +286,13 @@ def _gather_meta_context(config, store):
     available_fields = list(DEFAULT_FEATURE_CONFIG.get("interaction_features", {}).keys())
 
     return (
-        accuracy_history, recent_scores, feature_importance,
-        feature_config, correlations, applied_history, available_fields,
+        accuracy_history,
+        recent_scores,
+        feature_importance,
+        feature_config,
+        correlations,
+        applied_history,
+        available_fields,
     )
 
 
@@ -335,12 +340,14 @@ def _apply_suggestions(suggestions, snapshots, feature_config, store):
             results.append({"suggestion": suggestion, "applied": True, "improvement": improvement})
             print(f"  Applied: {suggestion.get('action')} {suggestion.get('target')} (+{improvement:.1f}%)")
         else:
-            results.append({
-                "suggestion": suggestion,
-                "applied": False,
-                "reason": f"improvement {improvement:.1f}% < {ACCEPT_IMPROVEMENT_PCT}% threshold",
-                "accuracy_delta": improvement,
-            })
+            results.append(
+                {
+                    "suggestion": suggestion,
+                    "applied": False,
+                    "reason": f"improvement {improvement:.1f}% < {ACCEPT_IMPROVEMENT_PCT}% threshold",
+                    "accuracy_delta": improvement,
+                }
+            )
             print(f"  Rejected: {suggestion.get('target')} ({improvement:+.1f}%, need >={ACCEPT_IMPROVEMENT_PCT}%)")
 
     return results, applied_count
@@ -355,8 +362,12 @@ def _save_weekly_report(config, week_str, report):
 
 
 def _build_meta_prompt(  # noqa: PLR0913 — prompt requires all context fields
-    recent_scores, feature_importance, feature_config,
-    available_fields, correlations, applied_history,
+    recent_scores,
+    feature_importance,
+    feature_config,
+    available_fields,
+    correlations,
+    applied_history,
 ):
     """Build the LLM prompt for meta-learning analysis."""
     return META_LEARNING_PROMPT.format(
@@ -370,8 +381,14 @@ def _build_meta_prompt(  # noqa: PLR0913 — prompt requires all context fields
 
 
 def _finalize_meta_learning(  # noqa: PLR0913 — aggregates all meta-learning outputs
-    results, applied_count, applied_history, store,
-    config, week_str, recent_scores, suggestions,
+    results,
+    applied_count,
+    applied_history,
+    store,
+    config,
+    week_str,
+    recent_scores,
+    suggestions,
 ):
     """Save report, update history, and retrain if needed."""
     weekly_report = {
@@ -385,16 +402,19 @@ def _finalize_meta_learning(  # noqa: PLR0913 — aggregates all meta-learning o
 
     for r in results:
         if r.get("applied"):
-            applied_history["applied"].append({
-                "date": datetime.now().isoformat(),
-                "suggestion": r["suggestion"],
-                "improvement": r["improvement"],
-            })
+            applied_history["applied"].append(
+                {
+                    "date": datetime.now().isoformat(),
+                    "suggestion": r["suggestion"],
+                    "improvement": r["improvement"],
+                }
+            )
     applied_history["total_applied"] = len(applied_history["applied"])
     store.save_applied_suggestions(applied_history)
 
     if applied_count > 0:
         from aria.engine.models.training import train_all_models
+
         print(f"Retraining models with {applied_count} config changes...")
         train_all_models(config=config, store=store, days=90)
 
@@ -422,12 +442,23 @@ def run_meta_learning(config: AppConfig = None, store: DataStore = None):
         print(f"Insufficient data for meta-learning ({days} days, need 14+)")
         return {"error": f"insufficient data ({days} days)"}
 
-    (accuracy_history, recent_scores, feature_importance, feature_config,
-     correlations, applied_history, available_fields) = _gather_meta_context(config, store)
+    (
+        accuracy_history,
+        recent_scores,
+        feature_importance,
+        feature_config,
+        correlations,
+        applied_history,
+        available_fields,
+    ) = _gather_meta_context(config, store)
 
     prompt = _build_meta_prompt(
-        recent_scores, feature_importance, feature_config,
-        available_fields, correlations, applied_history,
+        recent_scores,
+        feature_importance,
+        feature_config,
+        available_fields,
+        correlations,
+        applied_history,
     )
 
     print("Querying LLM for meta-learning analysis...")
@@ -453,6 +484,12 @@ def run_meta_learning(config: AppConfig = None, store: DataStore = None):
     results, applied_count = _apply_suggestions(suggestions, snapshots, feature_config, store)
 
     return _finalize_meta_learning(
-        results, applied_count, applied_history, store,
-        config, week_str, recent_scores, suggestions,
+        results,
+        applied_count,
+        applied_history,
+        store,
+        config,
+        week_str,
+        recent_scores,
+        suggestions,
     )

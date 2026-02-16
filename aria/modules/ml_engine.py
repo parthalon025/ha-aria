@@ -380,10 +380,7 @@ class MLEngine(Module):
 
         valid, rejected = validate_snapshot_batch(raw_snapshots)
         if rejected:
-            self.logger.warning(
-                f"Rejected {len(rejected)} of {len(raw_snapshots)} snapshots "
-                f"(corrupt/incomplete data)"
-            )
+            self.logger.warning(f"Rejected {len(rejected)} of {len(raw_snapshots)} snapshots (corrupt/incomplete data)")
 
         return valid
 
@@ -391,8 +388,12 @@ class MLEngine(Module):
     def _fit_all_models(X_train, y_train, w_train):
         """Fit GB, RF, LightGBM, and IsolationForest models on training data."""
         gb_model = GradientBoostingRegressor(
-            n_estimators=100, learning_rate=0.1, max_depth=4,
-            min_samples_leaf=max(3, len(X_train) // 20), subsample=0.8, random_state=42,
+            n_estimators=100,
+            learning_rate=0.1,
+            max_depth=4,
+            min_samples_leaf=max(3, len(X_train) // 20),
+            subsample=0.8,
+            random_state=42,
         )
         gb_model.fit(X_train, y_train, sample_weight=w_train)
 
@@ -400,9 +401,15 @@ class MLEngine(Module):
         rf_model.fit(X_train, y_train, sample_weight=w_train)
 
         lgbm_model = lgb.LGBMRegressor(
-            n_estimators=100, learning_rate=0.1, max_depth=4, num_leaves=15,
-            min_child_samples=max(3, len(X_train) // 20), subsample=0.8,
-            random_state=42, verbosity=-1, importance_type="gain",
+            n_estimators=100,
+            learning_rate=0.1,
+            max_depth=4,
+            num_leaves=15,
+            min_child_samples=max(3, len(X_train) // 20),
+            subsample=0.8,
+            random_state=42,
+            verbosity=-1,
+            importance_type="gain",
         )
         lgbm_model.fit(X_train, y_train, sample_weight=w_train)
 
@@ -448,8 +455,7 @@ class MLEngine(Module):
         config = await self._get_feature_config()
         feature_names = await self._get_feature_names(config)
         feature_importance = {
-            name: round(float(imp), 4)
-            for name, imp in zip(feature_names, rf_model.feature_importances_, strict=False)
+            name: round(float(imp), 4) for name, imp in zip(feature_names, rf_model.feature_importances_, strict=False)
         }
         lgbm_feature_importance = {
             name: round(float(imp), 4)
@@ -460,11 +466,17 @@ class MLEngine(Module):
         scaler.fit(X_train)
 
         model_data = {
-            "target": target, "capability": capability_name,
-            "gb_model": gb_model, "rf_model": rf_model, "lgbm_model": lgbm_model,
-            "iso_model": iso_model, "scaler": scaler,
+            "target": target,
+            "capability": capability_name,
+            "gb_model": gb_model,
+            "rf_model": rf_model,
+            "lgbm_model": lgbm_model,
+            "iso_model": iso_model,
+            "scaler": scaler,
             "trained_at": datetime.now().isoformat(),
-            "num_samples": len(X), "num_train": len(X_train), "num_val": len(X_val),
+            "num_samples": len(X),
+            "num_train": len(X_train),
+            "num_val": len(X_val),
             "feature_names": feature_names,
             "feature_importance": feature_importance,
             "lgbm_feature_importance": lgbm_feature_importance,
@@ -652,12 +664,14 @@ class MLEngine(Module):
 
         # Rolling window features (always included)
         for hours in ROLLING_WINDOWS_HOURS:
-            names.extend([
-                f"rolling_{hours}h_event_count",
-                f"rolling_{hours}h_domain_entropy",
-                f"rolling_{hours}h_dominant_domain_pct",
-                f"rolling_{hours}h_trend",
-            ])
+            names.extend(
+                [
+                    f"rolling_{hours}h_event_count",
+                    f"rolling_{hours}h_domain_entropy",
+                    f"rolling_{hours}h_dominant_domain_pct",
+                    f"rolling_{hours}h_trend",
+                ]
+            )
 
         return names
 
@@ -674,15 +688,22 @@ class MLEngine(Module):
             if tc.get(key):
                 names.extend(pair)
         for simple in [
-            "is_weekend", "is_holiday", "is_night", "is_work_hours",
-            "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct",
+            "is_weekend",
+            "is_holiday",
+            "is_night",
+            "is_work_hours",
+            "minutes_since_sunrise",
+            "minutes_until_sunset",
+            "daylight_remaining_pct",
         ]:
             if tc.get(simple):
                 names.append(simple)
 
     @staticmethod
     def _collect_dict_feature_names(
-        section: dict[str, Any], names: list[str], prefix: str = "",
+        section: dict[str, Any],
+        names: list[str],
+        prefix: str = "",
     ) -> None:
         """Append enabled feature names from a config section to names list."""
         for key, enabled in section.items():
@@ -883,7 +904,9 @@ class MLEngine(Module):
 
     @staticmethod
     def _compute_single_window_stats(
-        stats: dict[str, float], hours: int, relevant: list[dict[str, Any]],
+        stats: dict[str, float],
+        hours: int,
+        relevant: list[dict[str, Any]],
     ) -> None:
         """Compute event count, entropy, dominant domain pct, and trend for one window size."""
         prefix = f"rolling_{hours}h"
@@ -1019,7 +1042,10 @@ class MLEngine(Module):
         }
 
         await self.hub.set_cache(
-            "ml_predictions", result, category="predictions", ttl_seconds=86400,
+            "ml_predictions",
+            result,
+            category="predictions",
+            ttl_seconds=86400,
         )
 
         self.logger.info(f"Generated {len(predictions_dict)} predictions (anomaly_detected={is_anomaly})")
@@ -1042,8 +1068,11 @@ class MLEngine(Module):
         config = await self._get_feature_config()
 
         features = await self._extract_features(
-            snapshot, config=config, prev_snapshot=prev_snapshot,
-            rolling_stats=rolling_stats, rolling_window_stats=rolling_window_stats,
+            snapshot,
+            config=config,
+            prev_snapshot=prev_snapshot,
+            rolling_stats=rolling_stats,
+            rolling_window_stats=rolling_window_stats,
         )
         if features is None:
             self.logger.error("Failed to extract features from snapshot")
@@ -1090,7 +1119,11 @@ class MLEngine(Module):
         return predictions_dict
 
     def _predict_single_target(
-        self, target: str, model_data: dict, X: np.ndarray, is_anomaly: bool,
+        self,
+        target: str,
+        model_data: dict,
+        X: np.ndarray,
+        is_anomaly: bool,
     ) -> dict[str, Any] | None:
         """Predict a single target using model blending.
 

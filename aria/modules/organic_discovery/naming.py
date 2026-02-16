@@ -162,11 +162,14 @@ async def _call_ollama(prompt: str, model: str = "deepseek-r1:8b") -> str:
     """
     import aiohttp
 
-    async with aiohttp.ClientSession() as session, session.post(
-        "http://127.0.0.1:7683/api/generate",
-        json={"model": model, "prompt": prompt, "stream": False},
-        timeout=aiohttp.ClientTimeout(total=120),
-    ) as resp:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(
+            "http://127.0.0.1:7683/api/generate",
+            json={"model": model, "prompt": prompt, "stream": False},
+            timeout=aiohttp.ClientTimeout(total=120),
+        ) as resp,
+    ):
         data = await resp.json()
         return data.get("response", "").strip()
 

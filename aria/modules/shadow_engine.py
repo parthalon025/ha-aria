@@ -384,9 +384,7 @@ class ShadowEngine(Module):
         predictions = await self._generate_predictions(context)
 
         if predictions:
-            explore_strategy = (
-                await self.hub.cache.get_config_value("shadow.explore_strategy", "epsilon") or "epsilon"
-            )
+            explore_strategy = await self.hub.cache.get_config_value("shadow.explore_strategy", "epsilon") or "epsilon"
             if explore_strategy == "thompson":
                 is_exploration = self._thompson.should_explore(context)
             else:
@@ -968,9 +966,7 @@ class ShadowEngine(Module):
         # Clean up any stale window_events entries
         self._cleanup_stale_windows()
 
-    def _build_actual_summary(
-        self, actual_events: list[dict[str, Any]]
-    ) -> tuple[set[str], set[str], dict[str, Any]]:
+    def _build_actual_summary(self, actual_events: list[dict[str, Any]]) -> tuple[set[str], set[str], dict[str, Any]]:
         """Build summary of what actually happened during a prediction window."""
         actual_domains = set()
         actual_rooms = set()

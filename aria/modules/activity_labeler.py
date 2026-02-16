@@ -238,11 +238,14 @@ class ActivityLabeler(Module):
                 "options": {"temperature": 0.3},
             }
 
-            async with aiohttp.ClientSession() as session, session.post(
-                f"{OLLAMA_URL}/api/generate",
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=60),
-            ) as resp:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(
+                    f"{OLLAMA_URL}/api/generate",
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=60),
+                ) as resp,
+            ):
                 if resp.status == 200:
                     result = await resp.json()
                     response_text = result.get("response", "{}")

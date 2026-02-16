@@ -149,7 +149,12 @@ def generate_predictions(  # noqa: PLR0913 — prediction requires all context i
     metrics = ["power_watts", "lights_on", "devices_home", "unavailable", "useful_events"]
     for metric in metrics:
         predictions[metric] = _predict_single_metric(
-            metric, baseline, weather_forecast, correlations, ml_predictions, days,
+            metric,
+            baseline,
+            weather_forecast,
+            correlations,
+            ml_predictions,
+            days,
         )
 
     if device_failures:

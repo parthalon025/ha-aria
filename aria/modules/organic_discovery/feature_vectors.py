@@ -223,8 +223,11 @@ def _fill_entity_row(  # noqa: PLR0913 — matrix row builder needs all context
 
 
 def _set_one_hot(
-    matrix: np.ndarray, row: int, col_index: dict[str, int],
-    prefix: str, value: str | None,
+    matrix: np.ndarray,
+    row: int,
+    col_index: dict[str, int],
+    prefix: str,
+    value: str | None,
 ) -> None:
     """Set a one-hot column in the feature matrix if the value is present."""
     if not value:

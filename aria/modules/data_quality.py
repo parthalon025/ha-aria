@@ -86,12 +86,8 @@ class DataQualityModule(Module):
         noise_threshold = await self.hub.cache.get_config_value(
             CONFIG_NOISE_EVENT_THRESHOLD, DEFAULT_NOISE_EVENT_THRESHOLD
         )
-        stale_days = await self.hub.cache.get_config_value(
-            CONFIG_STALE_DAYS_THRESHOLD, DEFAULT_STALE_DAYS_THRESHOLD
-        )
-        vehicle_patterns_str = await self.hub.cache.get_config_value(
-            CONFIG_VEHICLE_PATTERNS, DEFAULT_VEHICLE_PATTERNS
-        )
+        stale_days = await self.hub.cache.get_config_value(CONFIG_STALE_DAYS_THRESHOLD, DEFAULT_STALE_DAYS_THRESHOLD)
+        vehicle_patterns_str = await self.hub.cache.get_config_value(CONFIG_VEHICLE_PATTERNS, DEFAULT_VEHICLE_PATTERNS)
         vehicle_patterns = [p.strip().lower() for p in vehicle_patterns_str.split(",")]
         unavailable_grace_hours = await self.hub.cache.get_config_value(
             CONFIG_UNAVAILABLE_GRACE_HOURS, DEFAULT_UNAVAILABLE_GRACE_HOURS
