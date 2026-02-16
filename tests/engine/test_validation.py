@@ -67,3 +67,16 @@ class TestSnapshotValidation:
         valid, rejected = validate_snapshot_batch([bad1, bad2])
         assert len(valid) == 0
         assert len(rejected) == 2
+
+    def test_training_pipeline_filters_corrupt_snapshots(self):
+        """Integration: validate_snapshot_batch correctly filters a mixed batch."""
+        snapshots = [
+            {"date": "2026-02-15", "entities": {"total": 3050, "unavailable": 50}},
+            {"date": "2026-02-14", "entities": {"total": 0, "unavailable": 0}},  # corrupt
+            {"entities": {"total": 500}},  # missing date
+            {"date": "2026-02-13", "entities": {"total": 2900, "unavailable": 100}},
+        ]
+        valid, rejected = validate_snapshot_batch(snapshots)
+        assert len(valid) == 2
+        assert len(rejected) == 2
+        assert all(v["date"] in ("2026-02-15", "2026-02-13") for v in valid)

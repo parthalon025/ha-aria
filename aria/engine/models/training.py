@@ -1,12 +1,16 @@
 """Model training orchestration and ML prediction pipeline."""
 
 import json
+import logging
 import os
 import pickle
 from datetime import datetime
 
 from aria.engine.config import AppConfig, PathConfig
 from aria.engine.storage.data_store import DataStore
+from aria.engine.validation import validate_snapshot_batch
+
+logger = logging.getLogger(__name__)
 
 HAS_SKLEARN = True
 try:
@@ -42,6 +46,12 @@ def train_all_models(days=90, config=None, store=None):
     if len(snapshots) < 14:
         # Fall back to daily snapshots
         snapshots = store.load_recent_snapshots(days)
+
+    # Validate snapshots — filter corrupt data before training
+    snapshots, rejected = validate_snapshot_batch(snapshots)
+    if rejected:
+        logger.warning("Rejected %d corrupt snapshots from training data", len(rejected))
+
     if len(snapshots) < 14:
         print(f"Insufficient training data ({len(snapshots)} snapshots, need 14+)")
         return {"error": f"insufficient data ({len(snapshots)} snapshots)"}
@@ -90,6 +100,9 @@ def train_all_models(days=90, config=None, store=None):
 
     # Train device failure model (uses daily snapshots for longer history)
     daily_snaps = store.load_recent_snapshots(days)
+    daily_snaps, daily_rejected = validate_snapshot_batch(daily_snaps)
+    if daily_rejected:
+        logger.warning("Rejected %d corrupt snapshots from device failure training", len(daily_rejected))
     failure_result = train_device_failure_model(daily_snaps, models_dir)
     results["models"]["device_failure"] = failure_result
     if "error" not in failure_result:

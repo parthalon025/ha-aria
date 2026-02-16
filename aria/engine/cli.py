@@ -22,11 +22,15 @@ Usage (internal flag-style, called by aria CLI dispatcher):
 """
 
 import json
+import logging
 import sys
 from datetime import datetime, timedelta
 
 from aria.engine.config import AppConfig
 from aria.engine.storage.data_store import DataStore
+from aria.engine.validation import validate_snapshot_batch
+
+logger = logging.getLogger(__name__)
 
 # sklearn availability check (same pattern as v2)
 HAS_SKLEARN = True
@@ -98,6 +102,10 @@ def cmd_analyze():
         snapshot = build_snapshot(date_str=today, config=config, store=store)
 
     recent = store.load_recent_snapshots(30)
+    recent, rejected = validate_snapshot_batch(recent)
+    if rejected:
+        logger.warning("Rejected %d corrupt snapshots from analysis data", len(rejected))
+
     baselines = compute_baselines(recent)
     store.save_baselines(baselines)
 
@@ -186,6 +194,9 @@ def cmd_predict():
 
         # Device failure predictions
         recent = store.load_recent_snapshots(90)
+        recent, rejected = validate_snapshot_batch(recent)
+        if rejected:
+            logger.warning("Rejected %d corrupt snapshots from prediction data", len(rejected))
         device_failures = predict_device_failures(recent, str(config.paths.models_dir))
         if device_failures:
             print(f"Device failure warnings: {len(device_failures)}")
@@ -267,6 +278,10 @@ def cmd_report(dry_run=False):
         store.save_snapshot(snapshot)
 
     recent = store.load_recent_snapshots(30)
+    recent, rejected = validate_snapshot_batch(recent)
+    if rejected:
+        logger.warning("Rejected %d corrupt snapshots from report data", len(rejected))
+
     baselines = compute_baselines(recent)
     anomalies = detect_anomalies(snapshot, baselines)
     reliability = compute_device_reliability(recent)
@@ -483,6 +498,13 @@ def cmd_train_prophet():
         if snap:
             snapshots.append((date_str, snap))
 
+    # Validate snapshots — filter corrupt data before training
+    valid_snaps, rejected = validate_snapshot_batch([s for _, s in snapshots])
+    if rejected:
+        logger.warning("Rejected %d corrupt snapshots from prophet training data", len(rejected))
+    valid_dates = {s.get("date") for s in valid_snaps}
+    snapshots = [(d, s) for d, s in snapshots if d in valid_dates]
+
     if len(snapshots) < 14:
         print(f"Insufficient data for forecasting ({len(snapshots)} days, need 14+)")
         return None
@@ -568,6 +590,14 @@ def cmd_power_profiles():
         ts = snap.get("timestamp", snap.get("metadata", {}).get("date", ""))
         if ts:
             snapshots.append((ts, snap))
+
+    # Validate snapshots — filter corrupt data before analysis
+    all_snaps = [s for _, s in snapshots]
+    valid_snaps, rejected = validate_snapshot_batch(all_snaps)
+    if rejected:
+        logger.warning("Rejected %d corrupt snapshots from power profile data", len(rejected))
+    valid_set = set(id(s) for s in valid_snaps)
+    snapshots = [(t, s) for t, s in snapshots if id(s) in valid_set]
 
     if len(snapshots) < 2:
         print("Insufficient power data.")
