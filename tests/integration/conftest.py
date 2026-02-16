@@ -2,6 +2,7 @@
 
 import pytest
 
+from tests.synthetic.events import EventStreamGenerator
 from tests.synthetic.pipeline import PipelineRunner
 from tests.synthetic.simulator import HouseholdSimulator
 
@@ -57,10 +58,12 @@ def all_scenario_results(tmp_path_factory):
         snapshots = sim.generate()
         runner = PipelineRunner(snapshots, data_dir=tmp)
         result = runner.run_full()
+        events = EventStreamGenerator(snapshots).generate()
         results[scenario] = {
             "runner": runner,
             "snapshots": snapshots,
             "result": result,
             "days": days,
+            "events": events,
         }
     return results

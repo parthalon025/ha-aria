@@ -1,5 +1,7 @@
 """Cross-scenario validation and final accuracy KPI report."""
 
+from collections import Counter
+
 from tests.synthetic.pipeline import PipelineRunner
 from tests.synthetic.simulator import HouseholdSimulator
 
@@ -98,3 +100,59 @@ class TestAccuracyKPI:
         print("-" * len(header))
         print(f"{'OVERALL':<22} {overall:>7.0f}%")
         print(f"{'=' * len(header)}")
+
+
+class TestModuleCoverage:
+    """Report which ARIA modules have synthetic event coverage."""
+
+    # Domains that each hub module consumes
+    MODULE_DOMAINS = {
+        "activity_monitor": {"light", "switch", "binary_sensor", "media_player", "fan"},
+        "shadow_engine": {"light", "switch", "lock", "cover", "climate", "fan"},
+        "pattern_recognition": {"light", "binary_sensor", "lock", "media_player"},
+        "presence": {"binary_sensor", "person", "device_tracker"},
+        "discovery": {"light", "switch", "binary_sensor", "lock", "climate", "sensor"},
+        "activity_labeler": {"light", "binary_sensor", "sensor", "person"},
+    }
+
+    def test_module_coverage_report(self, all_scenario_results):
+        """Print per-module event coverage across all scenarios."""
+        print(f"\n{'=' * 70}")
+        print("  MODULE COVERAGE REPORT")
+        print(f"{'=' * 70}")
+
+        header = f"{'Module':<22}"
+        scenarios = list(all_scenario_results.keys())
+        for s in scenarios:
+            header += f" {s[:10]:>10}"
+        print(header)
+        print("-" * len(header))
+
+        all_covered = True
+        for module, domains in self.MODULE_DOMAINS.items():
+            line = f"{module:<22}"
+            for scenario in scenarios:
+                events = all_scenario_results[scenario].get("events", [])
+                event_domains = {e["domain"] for e in events}
+                overlap = domains & event_domains
+                pct = (len(overlap) / len(domains) * 100) if domains else 0
+                line += f" {pct:>9.0f}%"
+                if pct == 0:
+                    all_covered = False
+            print(line)
+
+        print(f"{'=' * 70}")
+
+        # Also print total event counts per scenario
+        print(f"\n{'Event Counts':<22}", end="")
+        for scenario in scenarios:
+            events = all_scenario_results[scenario].get("events", [])
+            print(f" {len(events):>10}", end="")
+        print()
+
+        # Domain distribution for stable_couple
+        stable_events = all_scenario_results["stable_couple"].get("events", [])
+        domain_counts = Counter(e["domain"] for e in stable_events)
+        print(f"\nDomain distribution (stable_couple): {dict(domain_counts)}")
+
+        assert all_covered, "Some modules have 0% coverage in at least one scenario"
