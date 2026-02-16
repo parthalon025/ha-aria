@@ -393,6 +393,57 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             logger.exception("Error getting SHAP attributions")
             raise HTTPException(status_code=500, detail="Internal server error")
 
+    @router.get("/api/ml/pipeline")
+    async def get_ml_pipeline():
+        """Aggregate ML pipeline state for the Pipeline Overview UI."""
+        try:
+            intel = await hub.cache.get("intelligence") or {}
+            training_meta = await hub.cache.get("ml_training_metadata")
+            training_data = (training_meta or {}).get("data", training_meta or {})
+            presence = await hub.cache.get("presence")
+            presence_data = (presence or {}).get("data", presence or {})
+            feedback_health = await hub.cache.get("feedback_health")
+            fb_data = (feedback_health or {}).get("data", feedback_health or {})
+
+            snapshot_log = intel.get("snapshot_log", {})
+            feature_sel = intel.get("feature_selection", {})
+            ml_models = intel.get("ml_models", {})
+
+            return {
+                "data_collection": {
+                    "entity_count": intel.get("entity_count", 0),
+                    "snapshot_count_intraday": snapshot_log.get("intraday_count", 0),
+                    "snapshot_count_daily": snapshot_log.get("daily_count", 0),
+                    "last_snapshot": snapshot_log.get("last_snapshot"),
+                    "health_guard": intel.get("health_guard", {}).get("status", "unknown"),
+                    "presence_connected": bool(presence_data.get("connected", False)),
+                },
+                "feature_engineering": {
+                    "total_features": feature_sel.get("total_features", 0),
+                    "selected_features": feature_sel.get("selected_features", []),
+                    "method": feature_sel.get("method", "none"),
+                },
+                "model_training": {
+                    "last_trained": training_data.get("last_trained"),
+                    "model_types": ["GradientBoosting", "RandomForest", "LightGBM"],
+                    "targets": training_data.get("targets_trained", []),
+                    "validation_split": "80/20 chronological",
+                    "total_snapshots_used": training_data.get("num_snapshots", 0),
+                },
+                "predictions": {
+                    "scores": ml_models.get("scores", {}),
+                },
+                "feedback_loop": {
+                    "ml_feedback_caps": (fb_data.get("ml_feedback", {}) or {}).get("capabilities_updated", 0),
+                    "shadow_feedback_caps": (fb_data.get("shadow_feedback", {}) or {}).get("capabilities_updated", 0),
+                    "drift_flagged": len(intel.get("drift_status", {}).get("drifted_metrics", [])),
+                    "last_feedback_write": training_data.get("last_trained"),
+                },
+            }
+        except Exception:
+            logger.exception("Error getting ML pipeline state")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
     # --- Organic discovery endpoints ---
 
     @router.get("/api/capabilities/candidates")

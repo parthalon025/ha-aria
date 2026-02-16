@@ -660,3 +660,52 @@ body {
   .t3-badge-appear { animation: none; opacity: 1; }
   .t-section-header::after { animation: none; }
 }
+
+/* Pipeline Flow Bar */
+.pipeline-flow-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  overflow-x: auto;
+}
+.pipeline-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 80px;
+  padding: 8px;
+}
+.pipeline-node-label {
+  font-family: var(--font-mono);
+  font-size: var(--type-body);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.pipeline-node-metric {
+  font-size: var(--type-label);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.pipeline-led {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.pipeline-arrow {
+  font-family: var(--font-mono);
+  font-size: var(--type-headline);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .pipeline-flow-bar { gap: 4px; padding: 12px 8px; }
+  .pipeline-node { min-width: 56px; padding: 4px; }
+  .pipeline-node-metric { font-size: 10px; }
+}

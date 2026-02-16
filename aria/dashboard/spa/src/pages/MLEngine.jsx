@@ -53,6 +53,201 @@ function formatPct(val) {
   return `${(val * 100).toFixed(1)}%`;
 }
 
+// ─── Pipeline Overview ───────────────────────────────────────────────────────
+
+function StatusLed({ status }) {
+  const color = status === 'active' || status === 'passing' || status === 'connected'
+    ? 'var(--status-healthy)'
+    : status === 'stale' || status === 'warning'
+    ? 'var(--status-warning)'
+    : 'var(--text-tertiary)';
+  return (
+    <span
+      class="pipeline-led"
+      style={`background: ${color}; box-shadow: 0 0 6px ${color};`}
+    />
+  );
+}
+
+function PipelineNode({ label, metric, status }) {
+  return (
+    <div class="pipeline-node">
+      <StatusLed status={status} />
+      <span class="pipeline-node-label">{label}</span>
+      <span class="pipeline-node-metric data-mono">{metric}</span>
+    </div>
+  );
+}
+
+function PipelineFlowBar({ pipeline }) {
+  if (!pipeline) return null;
+  const dc = pipeline.data_collection || {};
+  const fe = pipeline.feature_engineering || {};
+  const mt = pipeline.model_training || {};
+  const pr = pipeline.predictions || {};
+  const fb = pipeline.feedback_loop || {};
+
+  return (
+    <div class="pipeline-flow-bar">
+      <PipelineNode label="Data" metric={`${dc.entity_count || 0} entities`} status={dc.last_snapshot ? 'active' : 'unknown'} />
+      <span class="pipeline-arrow">{'\u2192'}</span>
+      <PipelineNode label="Features" metric={`${fe.total_features || 0} signals`} status={fe.total_features > 0 ? 'active' : 'unknown'} />
+      <span class="pipeline-arrow">{'\u2192'}</span>
+      <PipelineNode label="Models" metric={mt.last_trained ? formatDate(mt.last_trained) : 'untrained'} status={mt.last_trained ? 'active' : 'unknown'} />
+      <span class="pipeline-arrow">{'\u2192'}</span>
+      <PipelineNode label="Predictions" metric={pr.scores ? `${Object.keys(pr.scores).length} targets` : 'none'} status={pr.scores && Object.keys(pr.scores).length > 0 ? 'active' : 'unknown'} />
+      <span class="pipeline-arrow">{'\u2192'}</span>
+      <PipelineNode label="Feedback" metric={`${(fb.ml_feedback_caps || 0) + (fb.shadow_feedback_caps || 0)} caps`} status={(fb.ml_feedback_caps || 0) + (fb.shadow_feedback_caps || 0) > 0 ? 'active' : 'unknown'} />
+    </div>
+  );
+}
+
+function PipelineOverview({ pipeline, loading }) {
+  if (!pipeline && !loading) return null;
+  const dc = pipeline?.data_collection || {};
+  const fe = pipeline?.feature_engineering || {};
+  const mt = pipeline?.model_training || {};
+  const pr = pipeline?.predictions || {};
+  const fb = pipeline?.feedback_loop || {};
+
+  return (
+    <div class="space-y-4">
+      <PipelineFlowBar pipeline={pipeline} />
+
+      <CollapsibleSection title="1. Data Collection" subtitle="Raw sensor readings from Home Assistant" summary={dc.last_snapshot ? `${dc.snapshot_count_intraday || 0} snapshots` : 'no data'} defaultOpen={false} loading={loading}>
+        <p style="font-size: var(--type-body); color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px;">
+          ARIA snapshots your home's state every hour — sensors, lights, motion, power, and presence.
+          Each snapshot captures ~{dc.entity_count || '?'} entities into a single data point.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="t-frame" data-label="Intraday Snapshots">
+            <span class="data-mono" style="font-size: var(--type-headline); color: var(--accent);">{dc.snapshot_count_intraday || 0}</span>
+          </div>
+          <div class="t-frame" data-label="Daily Snapshots">
+            <span class="data-mono" style="font-size: var(--type-headline); color: var(--accent);">{dc.snapshot_count_daily || 0}</span>
+          </div>
+          <div class="t-frame" data-label="Health Guard">
+            <Badge label={dc.health_guard || 'unknown'} color={dc.health_guard === 'passing' ? 'var(--status-healthy)' : 'var(--status-warning)'} />
+          </div>
+        </div>
+        {dc.presence_connected && (
+          <p style="font-size: var(--type-label); color: var(--text-tertiary); margin-top: 8px;">
+            Presence detection connected — camera and sensor signals feeding into snapshots.
+          </p>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection title="2. Feature Engineering" subtitle="Transforming raw data into learnable signals" summary={fe.total_features > 0 ? `${fe.total_features} features` : 'not computed'} defaultOpen={false} loading={loading}>
+        <p style="font-size: var(--type-body); color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px;">
+          Raw sensor readings are transformed into {fe.total_features || '?'} features the models can learn from —
+          time patterns (hour, day-of-week, seasonality), home state (power, lights, occupancy),
+          presence signals, and rolling activity trends.
+        </p>
+        {fe.selected_features && fe.selected_features.length > 0 && (
+          <div class="t-frame" data-label={`Top Features (${fe.method || 'ranked'})`}>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              {fe.selected_features.slice(0, 10).map(name => (
+                <span key={name} class="data-mono" style="font-size: var(--type-label); padding: 2px 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius);">
+                  {name}
+                </span>
+              ))}
+              {fe.selected_features.length > 10 && (
+                <span class="data-mono" style="font-size: var(--type-label); color: var(--text-tertiary);">
+                  +{fe.selected_features.length - 10} more
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection title="3. Model Training" subtitle="Learning your home's patterns" summary={mt.last_trained ? `trained ${formatDate(mt.last_trained)}` : 'untrained'} defaultOpen={false} loading={loading}>
+        <p style="font-size: var(--type-body); color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px;">
+          Three model types learn your home's patterns independently — Gradient Boosting (precise sequential learning),
+          Random Forest (robust ensemble averaging), and LightGBM (fast gradient-based). Their predictions are blended
+          for better accuracy than any single model.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="t-frame" data-label="Snapshots Used">
+            <span class="data-mono" style="font-size: var(--type-headline); color: var(--accent);">{mt.total_snapshots_used || 0}</span>
+          </div>
+          <div class="t-frame" data-label="Targets">
+            <span class="data-mono" style="font-size: var(--type-headline); color: var(--accent);">{(mt.targets || []).length}</span>
+          </div>
+          <div class="t-frame" data-label="Validation Split">
+            <span class="data-mono" style="font-size: var(--type-body); color: var(--text-primary);">{mt.validation_split || '80/20'}</span>
+          </div>
+        </div>
+        {mt.targets && mt.targets.length > 0 && (
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+            {mt.targets.map(t => (
+              <Badge key={t} label={t} color="var(--accent)" />
+            ))}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection title="4. Predictions" subtitle="What your home should look like right now" summary={pr.scores ? `${Object.keys(pr.scores).length} targets` : 'no predictions'} defaultOpen={false} loading={loading}>
+        <p style="font-size: var(--type-body); color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px;">
+          Each model predicts what your home should look like right now. The difference between prediction and reality
+          reveals anomalies — unexpected power spikes, unusual occupancy, or lighting changes that don't match your patterns.
+        </p>
+        {pr.scores && Object.keys(pr.scores).length > 0 && (
+          <div class="t-frame" data-label="Prediction Accuracy">
+            <div style="overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: var(--type-body);">
+                <thead>
+                  <tr style="border-bottom: 2px solid var(--border-subtle);">
+                    <th style="text-align: left; padding: 8px 12px; color: var(--text-secondary); font-weight: 600;">Target</th>
+                    <th style="text-align: right; padding: 8px 12px; color: var(--text-secondary); font-weight: 600;">R²</th>
+                    <th style="text-align: right; padding: 8px 12px; color: var(--text-secondary); font-weight: 600;">MAE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(pr.scores).map(([name, vals]) => (
+                    <tr key={name} style="border-bottom: 1px solid var(--border-subtle);">
+                      <td style="padding: 8px 12px; color: var(--text-primary);">{name}</td>
+                      <td style="text-align: right; padding: 8px 12px; color: var(--accent);">
+                        {vals?.r2 != null ? vals.r2.toFixed(3) : '\u2014'}
+                      </td>
+                      <td style="text-align: right; padding: 8px 12px; color: var(--text-primary);">
+                        {vals?.mae != null ? vals.mae.toFixed(3) : '\u2014'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection title="5. Feedback Loop" subtitle="Closing the loop — accuracy feeds back into learning" summary={(fb.ml_feedback_caps || 0) + (fb.shadow_feedback_caps || 0) > 0 ? `${(fb.ml_feedback_caps || 0) + (fb.shadow_feedback_caps || 0)} capabilities updated` : 'awaiting feedback'} defaultOpen={false} loading={loading}>
+        <p style="font-size: var(--type-body); color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px;">
+          Model accuracy feeds back into capability scoring, so ARIA focuses on what it can actually predict well.
+          Shadow mode tests new capabilities before they go live. Drift detection flags when your home's patterns change
+          and models need retraining.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="t-frame" data-label="ML Feedback">
+            <span class="data-mono" style="font-size: var(--type-headline); color: var(--accent);">{fb.ml_feedback_caps || 0}</span>
+            <span style="font-size: var(--type-label); color: var(--text-tertiary); display: block;">capabilities scored</span>
+          </div>
+          <div class="t-frame" data-label="Shadow Feedback">
+            <span class="data-mono" style="font-size: var(--type-headline); color: var(--accent);">{fb.shadow_feedback_caps || 0}</span>
+            <span style="font-size: var(--type-label); color: var(--text-tertiary); display: block;">shadow-tested</span>
+          </div>
+        </div>
+        {fb.drift_flagged > 0 && (
+          <div style="margin-top: 8px;">
+            <Badge label={`${fb.drift_flagged} drift`} color="var(--status-warning)" />
+          </div>
+        )}
+      </CollapsibleSection>
+    </div>
+  );
+}
+
 // ─── Section A: Feature Selection ─────────────────────────────────────────────
 
 function FeatureSelection({ features, loading }) {
@@ -300,6 +495,7 @@ export default function MLEngine() {
   const [features, setFeatures] = useState(null);
   const [models, setModels] = useState(null);
   const [drift, setDrift] = useState(null);
+  const [pipeline, setPipeline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -310,11 +506,13 @@ export default function MLEngine() {
       fetchJson('/api/ml/features'),
       fetchJson('/api/ml/models'),
       fetchJson('/api/ml/drift'),
+      fetchJson('/api/ml/pipeline'),
     ])
-      .then(([f, m, d]) => {
+      .then(([f, m, d, p]) => {
         setFeatures(f);
         setModels(m);
         setDrift(d);
+        setPipeline(p);
       })
       .catch((err) => setError(err))
       .finally(() => setLoading(false));
@@ -342,8 +540,9 @@ export default function MLEngine() {
 
   return (
     <div class="space-y-6 animate-page-enter">
-      <PageBanner page="MLENGINE" subtitle="Feature selection, model health, and training history" />
+      <PageBanner page="MLENGINE" subtitle="How ARIA learns your home — from raw data to predictions" />
 
+      <PipelineOverview pipeline={pipeline} loading={false} />
       <FeatureSelection features={features} loading={false} />
       <ModelHealth models={models} loading={false} />
       <TrainingHistory models={models} loading={false} />
