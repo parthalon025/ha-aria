@@ -1,0 +1,43 @@
+{
+  "date": "2026-02-17",
+  "overall": 90,
+  "prediction_method": "blended",
+  "days_of_data": 5,
+  "metrics": {
+    "power_watts": {
+      "accuracy": 100,
+      "predicted": 140.9,
+      "actual": 140.614,
+      "error": 0.3,
+      "sigma_error": 0.0
+    },
+    "lights_on": {
+      "accuracy": 68,
+      "predicted": 18.7,
+      "actual": 41,
+      "error": 22.3,
+      "sigma_error": 1.27
+    },
+    "devices_home": {
+      "accuracy": 97,
+      "predicted": 59.0,
+      "actual": 63,
+      "error": 4.0,
+      "sigma_error": 0.14
+    },
+    "unavailable": {
+      "accuracy": 98,
+      "predicted": 865.5,
+      "actual": 908,
+      "error": 42.5,
+      "sigma_error": 0.1
+    },
+    "useful_events": {
+      "accuracy": 86,
+      "predicted": 8232.7,
+      "actual": 5215,
+      "error": 3017.7,
+      "sigma_error": 0.57
+    }
+  }
+}
