@@ -4,6 +4,7 @@ Single class that handles all file-based storage, making it trivial to
 mock in tests or swap backends (e.g., SQLite) in the future.
 """
 
+import contextlib
 import json
 import logging
 import os
@@ -25,10 +26,8 @@ def _atomic_write_json(path, data, **kwargs):
             json.dump(data, f, **kwargs)
         os.replace(tmp_path, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
 
 

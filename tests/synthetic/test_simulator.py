@@ -1,7 +1,8 @@
 """Tests for HouseholdSimulator and scenarios."""
 
 import pytest
-from tests.synthetic.simulator import HouseholdSimulator, INTRADAY_HOURS
+
+from tests.synthetic.simulator import INTRADAY_HOURS, HouseholdSimulator
 
 HOURS_PER_DAY = len(INTRADAY_HOURS)
 
@@ -39,7 +40,7 @@ class TestHouseholdSimulator:
     def test_deterministic(self):
         a = HouseholdSimulator(scenario="stable_couple", days=7, seed=42).generate()
         b = HouseholdSimulator(scenario="stable_couple", days=7, seed=42).generate()
-        for sa, sb in zip(a, b):
+        for sa, sb in zip(a, b, strict=False):
             assert sa["power"]["total_watts"] == sb["power"]["total_watts"]
 
     def test_snapshots_have_variation(self):

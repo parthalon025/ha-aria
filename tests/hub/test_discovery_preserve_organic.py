@@ -1,7 +1,8 @@
 """Tests that seed discovery preserves organic capabilities in the cache."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from aria.modules.discovery import DiscoveryModule
 

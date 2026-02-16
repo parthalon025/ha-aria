@@ -5,10 +5,11 @@ expired window resolution, and event handling.
 """
 
 import asyncio
+import contextlib
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -17,12 +18,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
 from aria.modules.shadow_engine import (
-    ShadowEngine,
     DEFAULT_WINDOW_SECONDS,
     MIN_CONFIDENCE,
     PREDICTION_COOLDOWN_S,
+    ShadowEngine,
 )
-
 
 # ============================================================================
 # Mock Hub
@@ -33,9 +33,9 @@ class MockHub:
     """Lightweight hub mock for shadow engine tests."""
 
     def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         self._running = True
-        self._subscribers: Dict[str, list] = {}
+        self._subscribers: dict[str, list] = {}
 
         # Mock the cache manager's prediction helpers
         self.cache = Mock()
@@ -59,17 +59,17 @@ class MockHub:
         self.logger = Mock()
         self.modules = {}
 
-    async def set_cache(self, category: str, data: Any, metadata: Optional[Dict] = None):
+    async def set_cache(self, category: str, data: Any, metadata: dict | None = None):
         self._cache[category] = {
             "data": data,
             "metadata": metadata,
             "last_updated": datetime.now().isoformat(),
         }
 
-    async def get_cache(self, category: str) -> Optional[Dict[str, Any]]:
+    async def get_cache(self, category: str) -> dict[str, Any] | None:
         return self._cache.get(category)
 
-    async def get_cache_fresh(self, category: str, max_age=None, caller="") -> Optional[Dict[str, Any]]:
+    async def get_cache_fresh(self, category: str, max_age=None, caller="") -> dict[str, Any] | None:
         return self._cache.get(category)
 
     def is_running(self) -> bool:
@@ -90,7 +90,7 @@ class MockHub:
         if event_type in self._subscribers:
             self._subscribers[event_type] = [cb for cb in self._subscribers[event_type] if cb != callback]
 
-    async def publish(self, event_type: str, data: Dict[str, Any]):
+    async def publish(self, event_type: str, data: dict[str, Any]):
         pass
 
 
@@ -215,10 +215,8 @@ class TestInitialization:
 
         # Clean up
         engine._resolution_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await engine._resolution_task
-        except asyncio.CancelledError:
-            pass
 
     @pytest.mark.asyncio
     async def test_initialize_starts_resolution_task(self, engine):
@@ -1263,20 +1261,16 @@ class TestWindowCleanup:
 class IntegrationHub(MockHub):
     """MockHub with a real publish that calls subscribers (like IntelligenceHub)."""
 
-    async def publish(self, event_type: str, data: Dict[str, Any]):
+    async def publish(self, event_type: str, data: dict[str, Any]):
         """Notify subscribers and registered modules, matching real hub behavior."""
         if event_type in self._subscribers:
             for callback in self._subscribers[event_type]:
-                try:
+                with contextlib.suppress(Exception):
                     await callback(data)
-                except Exception:
-                    pass
 
         for mod in self.modules.values():
-            try:
+            with contextlib.suppress(Exception):
                 await mod.on_event(event_type, data)
-            except Exception:
-                pass
 
 
 class TestActivityMonitorIntegration:

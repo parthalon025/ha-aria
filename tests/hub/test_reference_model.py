@@ -1,7 +1,8 @@
 """Tests for clean reference model comparison."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 
 @pytest.mark.asyncio

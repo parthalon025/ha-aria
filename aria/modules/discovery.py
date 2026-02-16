@@ -4,21 +4,20 @@ Wraps the standalone discover.py script and integrates it with the hub.
 Runs discovery on a schedule and stores results in hub cache.
 """
 
-import os
-import sys
-import json
-import subprocess
-import logging
 import asyncio
-from pathlib import Path
-from typing import Dict, Any, Optional
+import json
+import logging
+import os
+import subprocess
+import sys
 from datetime import timedelta
+from pathlib import Path
+from typing import Any
 
 import aiohttp
 
-from aria.hub.core import Module, IntelligenceHub
 from aria.capabilities import Capability
-
+from aria.hub.core import IntelligenceHub, Module
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +68,7 @@ class DiscoveryModule(Module):
         except Exception as e:
             self.logger.error(f"Initial discovery failed: {e}")
 
-    async def run_discovery(self) -> Dict[str, Any]:
+    async def run_discovery(self) -> dict[str, Any]:
         """Run discovery script and store results in hub cache.
 
         Returns:
@@ -114,7 +113,7 @@ class DiscoveryModule(Module):
             self.logger.error(f"Discovery error: {e}")
             raise
 
-    async def _store_discovery_results(self, capabilities: Dict[str, Any]):
+    async def _store_discovery_results(self, capabilities: dict[str, Any]):
         """Store discovery results in hub cache.
 
         Stores separate cache entries for:
@@ -162,7 +161,7 @@ class DiscoveryModule(Module):
         }
         await self.hub.set_cache("discovery_metadata", metadata)
 
-    async def on_event(self, event_type: str, data: Dict[str, Any]):
+    async def on_event(self, event_type: str, data: dict[str, Any]):
         """Handle hub events."""
         pass
 
@@ -183,82 +182,77 @@ class DiscoveryModule(Module):
             "device_registry_updated",
             "area_registry_updated",
         }
-        self._debounce_task: Optional[asyncio.Task] = None
+        self._debounce_task: asyncio.Task | None = None
         self._debounce_seconds = 30
-
-        async def _listen():
-            ws_url = self.ha_url.replace("http", "ws", 1) + "/api/websocket"
-            retry_delay = 5
-
-            while self.hub.is_running():
-                try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.ws_connect(ws_url) as ws:
-                            # 1. Wait for auth_required
-                            msg = await ws.receive_json()
-                            if msg.get("type") != "auth_required":
-                                self.logger.error(f"Unexpected WS message: {msg}")
-                                continue
-
-                            # 2. Authenticate
-                            await ws.send_json(
-                                {
-                                    "type": "auth",
-                                    "access_token": self.ha_token,
-                                }
-                            )
-                            auth_resp = await ws.receive_json()
-                            if auth_resp.get("type") != "auth_ok":
-                                self.logger.error(f"WS auth failed: {auth_resp}")
-                                await asyncio.sleep(retry_delay)
-                                continue
-
-                            self.logger.info("HA WebSocket connected — listening for registry changes")
-                            retry_delay = 5  # reset backoff
-
-                            # 3. Subscribe to events
-                            cmd_id = 1
-                            for evt in self._registry_events:
-                                await ws.send_json(
-                                    {
-                                        "id": cmd_id,
-                                        "type": "subscribe_events",
-                                        "event_type": evt,
-                                    }
-                                )
-                                cmd_id += 1
-
-                            # 4. Listen loop
-                            async for msg in ws:
-                                if msg.type == aiohttp.WSMsgType.TEXT:
-                                    data = json.loads(msg.data)
-                                    if data.get("type") == "event":
-                                        evt_type = data.get("event", {}).get("event_type", "")
-                                        if evt_type in self._registry_events:
-                                            self._schedule_debounced_discovery(evt_type)
-                                elif msg.type in (
-                                    aiohttp.WSMsgType.CLOSED,
-                                    aiohttp.WSMsgType.ERROR,
-                                ):
-                                    break
-
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    self.logger.warning(f"HA WebSocket error: {e} — retrying in {retry_delay}s")
-                except Exception as e:
-                    self.logger.error(f"HA WebSocket unexpected error: {e}")
-
-                # Backoff: 5s → 10s → 20s → 60s max
-                await asyncio.sleep(retry_delay)
-                retry_delay = min(retry_delay * 2, 60)
 
         # Run listener as a background hub task
         await self.hub.schedule_task(
             task_id="discovery_ws_listener",
-            coro=_listen,
+            coro=self._ws_registry_listener,
             interval=None,  # one-shot (loop is internal)
             run_immediately=True,
         )
         self.logger.info("Started HA event listener for registry changes")
+
+    async def _ws_registry_listener(self):
+        """WebSocket listener loop for registry change events."""
+        ws_url = self.ha_url.replace("http", "ws", 1) + "/api/websocket"
+        retry_delay = 5
+
+        while self.hub.is_running():
+            try:
+                retry_delay = await self._ws_registry_session(ws_url, retry_delay)
+            except (TimeoutError, aiohttp.ClientError) as e:
+                self.logger.warning(f"HA WebSocket error: {e} — retrying in {retry_delay}s")
+            except Exception as e:
+                self.logger.error(f"HA WebSocket unexpected error: {e}")
+
+            # Backoff: 5s → 10s → 20s → 60s max
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, 60)
+
+    async def _ws_registry_session(self, ws_url: str, retry_delay: int) -> int:
+        """Run a single WebSocket session for registry events.
+
+        Returns:
+            Updated retry_delay (reset to 5 on successful auth).
+        """
+        async with aiohttp.ClientSession() as session, session.ws_connect(ws_url) as ws:
+            # 1. Wait for auth_required
+            msg = await ws.receive_json()
+            if msg.get("type") != "auth_required":
+                self.logger.error(f"Unexpected WS message: {msg}")
+                return retry_delay
+
+            # 2. Authenticate
+            await ws.send_json({"type": "auth", "access_token": self.ha_token})
+            auth_resp = await ws.receive_json()
+            if auth_resp.get("type") != "auth_ok":
+                self.logger.error(f"WS auth failed: {auth_resp}")
+                await asyncio.sleep(retry_delay)
+                return retry_delay
+
+            self.logger.info("HA WebSocket connected — listening for registry changes")
+            retry_delay = 5  # reset backoff
+
+            # 3. Subscribe to events
+            cmd_id = 1
+            for evt in self._registry_events:
+                await ws.send_json({"id": cmd_id, "type": "subscribe_events", "event_type": evt})
+                cmd_id += 1
+
+            # 4. Listen loop
+            async for msg in ws:
+                if msg.type == aiohttp.WSMsgType.TEXT:
+                    data = json.loads(msg.data)
+                    if data.get("type") == "event":
+                        evt_type = data.get("event", {}).get("event_type", "")
+                        if evt_type in self._registry_events:
+                            self._schedule_debounced_discovery(evt_type)
+                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                    break
+
+        return retry_delay
 
     def _schedule_debounced_discovery(self, event_type: str):
         """Debounce registry events — wait 30s after last event before re-running."""

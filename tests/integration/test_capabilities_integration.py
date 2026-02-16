@@ -31,15 +31,15 @@ class TestCapabilityRegistryIntegration:
 
     def test_every_hub_module_has_capability(self):
         """No hub module should be missing a capability declaration."""
-        from aria.modules.discovery import DiscoveryModule
-        from aria.modules.ml_engine import MLEngine
-        from aria.modules.patterns import PatternRecognition
-        from aria.modules.orchestrator import OrchestratorModule
-        from aria.modules.shadow_engine import ShadowEngine
-        from aria.modules.data_quality import DataQualityModule
-        from aria.modules.organic_discovery.module import OrganicDiscoveryModule
-        from aria.modules.intelligence import IntelligenceModule
         from aria.modules.activity_monitor import ActivityMonitor
+        from aria.modules.data_quality import DataQualityModule
+        from aria.modules.discovery import DiscoveryModule
+        from aria.modules.intelligence import IntelligenceModule
+        from aria.modules.ml_engine import MLEngine
+        from aria.modules.orchestrator import OrchestratorModule
+        from aria.modules.organic_discovery.module import OrganicDiscoveryModule
+        from aria.modules.patterns import PatternRecognition
+        from aria.modules.shadow_engine import ShadowEngine
 
         for module_cls in [
             DiscoveryModule,
@@ -72,9 +72,9 @@ class TestCapabilityRegistryIntegration:
 
     def test_cli_export_matches_registry(self):
         """CLI export JSON should match registry count."""
+        import json
         import subprocess
         import sys
-        import json
         from pathlib import Path
 
         result = subprocess.run(

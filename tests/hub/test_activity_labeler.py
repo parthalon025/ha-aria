@@ -7,7 +7,7 @@ classifier training at threshold, feature extraction, and time-of-day logic.
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -15,10 +15,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from aria.modules.activity_labeler import (
-    ActivityLabeler,
     CLASSIFIER_THRESHOLD,
+    ActivityLabeler,
 )
-
 
 # ============================================================================
 # Mock Hub
@@ -29,18 +28,18 @@ class MockHub:
     """Lightweight hub mock for activity labeler tests."""
 
     def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
-        self._scheduled: List[dict] = []
+        self._cache: dict[str, dict[str, Any]] = {}
+        self._scheduled: list[dict] = []
         self._running = True
 
         self.cache = Mock()
         self.logger = Mock()
         self.modules = {}
 
-    async def get_cache(self, key: str) -> Optional[Dict[str, Any]]:
+    async def get_cache(self, key: str) -> dict[str, Any] | None:
         return self._cache.get(key)
 
-    async def set_cache(self, key: str, data: dict, metadata: Optional[dict] = None) -> int:
+    async def set_cache(self, key: str, data: dict, metadata: dict | None = None) -> int:
         self._cache[key] = {"data": data, "version": 1, "last_updated": "now"}
         return 1
 
@@ -56,7 +55,7 @@ class MockHub:
 # ============================================================================
 
 
-def make_context(
+def make_context(  # noqa: PLR0913
     power_watts: float = 200.0,
     lights_on: int = 3,
     motion_rooms: str = "kitchen,living_room",
@@ -79,7 +78,7 @@ def make_label(
     predicted: str = "cooking",
     actual: str = "cleaning",
     source: str = "corrected",
-    context: Optional[dict] = None,
+    context: dict | None = None,
 ) -> dict:
     """Build a label dict matching the cache format."""
     return {

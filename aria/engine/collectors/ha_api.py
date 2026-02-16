@@ -4,8 +4,8 @@ import json
 import logging
 import re
 import subprocess
-import urllib.request
 import urllib.error
+import urllib.request
 
 from aria.engine.config import HAConfig, WeatherConfig
 

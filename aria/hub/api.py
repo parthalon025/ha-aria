@@ -1,9 +1,14 @@
 """FastAPI routes for ARIA Hub REST API."""
 
+import json
+import logging
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
+from typing import Any
+
 from fastapi import (
     APIRouter,
     Body,
@@ -20,13 +25,8 @@ from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Any, Dict, List, Optional, Set
-import logging
-import json
-from datetime import datetime
 
 from aria.hub.core import IntelligenceHub
-
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class CurationUpdate(BaseModel):
 
 
 class BulkCurationUpdate(BaseModel):
-    entity_ids: List[str]
+    entity_ids: list[str]
     status: str
     decided_by: str = "user"
 
@@ -62,7 +62,7 @@ class WebSocketManager:
     """Manages WebSocket connections and broadcasts."""
 
     def __init__(self):
-        self.active_connections: Set[WebSocket] = set()
+        self.active_connections: set[WebSocket] = set()
 
     async def connect(self, websocket: WebSocket):
         """Accept and store WebSocket connection."""
@@ -75,7 +75,7 @@ class WebSocketManager:
         self.active_connections.discard(websocket)
         logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
 
-    async def broadcast(self, message: Dict[str, Any]):
+    async def broadcast(self, message: dict[str, Any]):
         """Broadcast message to all connected WebSockets."""
         disconnected = set()
 
@@ -91,68 +91,85 @@ class WebSocketManager:
             self.disconnect(conn)
 
 
-def create_api(hub: IntelligenceHub) -> FastAPI:
-    """Create FastAPI application with hub routes.
+PIPELINE_STAGES = ["backtest", "shadow", "suggest", "autonomous"]
+PIPELINE_GATES = {
+    "backtest": {"field": "backtest_accuracy", "threshold": 0.40, "label": "backtest accuracy"},
+    "shadow": {"field": "shadow_accuracy_7d", "threshold": 0.50, "label": "7-day shadow accuracy"},
+    "suggest": {"field": "suggest_approval_rate_14d", "threshold": 0.70, "label": "14-day approval rate"},
+}
 
-    Args:
-        hub: IntelligenceHub instance
 
-    Returns:
-        FastAPI application
-    """
-    from aria import __version__
+def _register_cache_routes(router: APIRouter, hub: IntelligenceHub) -> None:
+    """Register cache CRUD endpoints on the router."""
 
-    app = FastAPI(
-        title="ARIA",
-        description="REST API for ARIA — Adaptive Residence Intelligence Architecture",
-        version=__version__,
-    )
-
-    ws_manager = WebSocketManager()
-
-    # --- Request timing middleware ---
-    @app.middleware("http")
-    async def request_timing_middleware(request: Request, call_next):
-        hub._request_count += 1
-        start = time.monotonic()
-        response = await call_next(request)
-        elapsed = time.monotonic() - start
-        if elapsed > 1.0:
-            logger.warning(f"{request.method} {request.url.path} took {elapsed:.2f}s")
-        else:
-            logger.debug(f"{request.method} {request.url.path} took {elapsed:.3f}s")
-        return response
-
-    # Subscribe to hub events for WebSocket broadcasting
-    async def broadcast_cache_update(data: Dict[str, Any]):
-        await ws_manager.broadcast({"type": "cache_updated", "data": data})
-
-    hub.subscribe("cache_updated", broadcast_cache_update)
-
-    # Mount SPA dashboard (serves index.html for all unmatched /ui/ paths)
-    spa_dist = Path(__file__).parent.parent / "dashboard" / "spa" / "dist"
-    app.mount("/ui", StaticFiles(directory=str(spa_dist), html=True), name="spa")
-
-    # Authenticated router — all /api/* routes require API key when configured
-    router = APIRouter(dependencies=[Depends(verify_api_key)])
-
-    # Health check (unauthenticated — useful for uptime monitors)
-    @app.get("/")
-    async def root():
-        """API root - health check."""
-        return {"status": "ok", "service": "ARIA"}
-
-    @app.get("/health")
-    async def health():
-        """Detailed health check with module status and uptime."""
+    @router.get("/api/cache")
+    async def list_cache_categories():
+        """List all cache categories."""
         try:
-            health_data = await hub.health_check()
-            return JSONResponse(content=health_data)
+            categories = await hub.cache.list_categories()
+            return {"categories": categories}
         except Exception:
-            logger.exception("Health check failed")
-            return JSONResponse(status_code=500, content={"status": "error", "error": "Health check failed"})
+            logger.exception("Error listing cache categories")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
-    # --- New utility endpoints ---
+    @router.get("/api/cache/{category}")
+    async def get_cache(category: str):
+        """Get cache data by category."""
+        try:
+            data = await hub.get_cache(category)
+            if data is None:
+                raise HTTPException(status_code=404, detail=f"Category '{category}' not found")
+            return data
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Error getting cache '%s'", category)
+            raise HTTPException(status_code=500, detail="Internal server error") from None
+
+    @router.post("/api/cache/{category}")
+    async def set_cache(category: str, payload: dict[str, Any]):
+        """Set cache data for category.
+
+        Request body:
+        {
+            "data": {...},
+            "metadata": {...}  // optional
+        }
+        """
+        try:
+            data = payload.get("data")
+            if data is None:
+                raise HTTPException(status_code=400, detail="Missing 'data' field in request body")
+
+            metadata = payload.get("metadata")
+            version = await hub.set_cache(category, data, metadata)
+
+            return {"status": "ok", "category": category, "version": version}
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Error setting cache '%s'", category)
+            raise HTTPException(status_code=500, detail="Internal server error") from None
+
+    @router.delete("/api/cache/{category}")
+    async def delete_cache(category: str):
+        """Delete cache category."""
+        try:
+            deleted = await hub.cache.delete(category)
+            if not deleted:
+                raise HTTPException(status_code=404, detail=f"Category '{category}' not found")
+
+            return {"status": "ok", "category": category, "deleted": True}
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Error deleting cache '%s'", category)
+            raise HTTPException(status_code=500, detail="Internal server error") from None
+
+
+def _register_utility_routes(router: APIRouter, hub: IntelligenceHub, ws_manager: WebSocketManager) -> None:
+    """Register utility endpoints (version, cache keys, metrics, events, modules)."""
+    from aria import __version__
 
     @router.get("/api/version")
     async def get_version():
@@ -181,7 +198,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"keys": keys, "count": len(keys)}
         except Exception:
             logger.exception("Error listing cache keys")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/metrics")
     async def get_metrics():
@@ -193,76 +210,11 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             "websocket_clients": len(ws_manager.active_connections),
         }
 
-    # Cache endpoints
-    @router.get("/api/cache")
-    async def list_cache_categories():
-        """List all cache categories."""
-        try:
-            categories = await hub.cache.list_categories()
-            return {"categories": categories}
-        except Exception:
-            logger.exception("Error listing cache categories")
-            raise HTTPException(status_code=500, detail="Internal server error")
-
-    @router.get("/api/cache/{category}")
-    async def get_cache(category: str):
-        """Get cache data by category."""
-        try:
-            data = await hub.get_cache(category)
-            if data is None:
-                raise HTTPException(status_code=404, detail=f"Category '{category}' not found")
-            return data
-        except HTTPException:
-            raise
-        except Exception:
-            logger.exception("Error getting cache '%s'", category)
-            raise HTTPException(status_code=500, detail="Internal server error")
-
-    @router.post("/api/cache/{category}")
-    async def set_cache(category: str, payload: Dict[str, Any]):
-        """Set cache data for category.
-
-        Request body:
-        {
-            "data": {...},
-            "metadata": {...}  // optional
-        }
-        """
-        try:
-            data = payload.get("data")
-            if data is None:
-                raise HTTPException(status_code=400, detail="Missing 'data' field in request body")
-
-            metadata = payload.get("metadata")
-            version = await hub.set_cache(category, data, metadata)
-
-            return {"status": "ok", "category": category, "version": version}
-        except HTTPException:
-            raise
-        except Exception:
-            logger.exception("Error setting cache '%s'", category)
-            raise HTTPException(status_code=500, detail="Internal server error")
-
-    @router.delete("/api/cache/{category}")
-    async def delete_cache(category: str):
-        """Delete cache category."""
-        try:
-            deleted = await hub.cache.delete(category)
-            if not deleted:
-                raise HTTPException(status_code=404, detail=f"Category '{category}' not found")
-
-            return {"status": "ok", "category": category, "deleted": True}
-        except HTTPException:
-            raise
-        except Exception:
-            logger.exception("Error deleting cache '%s'", category)
-            raise HTTPException(status_code=500, detail="Internal server error")
-
     # Events endpoints
     @router.get("/api/events")
     async def get_events(
-        event_type: Optional[str] = None,
-        category: Optional[str] = None,
+        event_type: str | None = None,
+        category: str | None = None,
         limit: int = Query(default=100, le=1000),
     ):
         """Get recent events from event log."""
@@ -271,18 +223,18 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"events": events, "count": len(events)}
         except Exception:
             logger.exception("Error getting events")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     # Module management endpoints
     @router.get("/api/modules")
     async def list_modules():
         """List all registered modules."""
         try:
-            modules = [{"module_id": module_id, "registered": True} for module_id in hub.modules.keys()]
+            modules = [{"module_id": module_id, "registered": True} for module_id in hub.modules]
             return {"modules": modules, "count": len(modules)}
         except Exception:
             logger.exception("Error listing modules")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/modules/{module_id}")
     async def get_module(module_id: str):
@@ -297,9 +249,12 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             raise
         except Exception:
             logger.exception("Error getting module '%s'", module_id)
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
-    # ML endpoints
+
+def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
+    """Register ML-related endpoints (drift, features, models, anomalies, SHAP, pipeline)."""
+
     @router.get("/api/ml/drift")
     async def get_ml_drift():
         """Get drift detection status per metric."""
@@ -321,7 +276,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             }
         except Exception:
             logger.exception("Error getting ML drift status")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/ml/features")
     async def get_ml_features():
@@ -340,7 +295,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             }
         except Exception:
             logger.exception("Error getting ML features")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/ml/models")
     async def get_ml_models():
@@ -357,7 +312,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             }
         except Exception:
             logger.exception("Error getting ML models")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/ml/anomalies")
     async def get_ml_anomalies():
@@ -373,7 +328,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             }
         except Exception:
             logger.exception("Error getting ML anomalies")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/ml/shap")
     async def get_ml_shap():
@@ -391,7 +346,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             }
         except Exception:
             logger.exception("Error getting SHAP attributions")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/ml/pipeline")
     async def get_ml_pipeline():
@@ -442,7 +397,11 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             }
         except Exception:
             logger.exception("Error getting ML pipeline state")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
+
+
+def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
+    """Register organic discovery and capability registry endpoints."""
 
     # --- Organic discovery endpoints ---
 
@@ -498,7 +457,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         return module.settings
 
     @router.put("/api/settings/discovery")
-    async def update_discovery_settings(body: dict = Body(...)):
+    async def update_discovery_settings(body: dict = Body(...)):  # noqa: B008
         """Update discovery settings."""
         module = hub.modules.get("organic_discovery")
         if not module:
@@ -533,7 +492,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
 
     # Capability prediction toggle
     @router.put("/api/capabilities/{capability_name}/can-predict")
-    async def toggle_can_predict(capability_name: str, body: dict = Body(...)):
+    async def toggle_can_predict(capability_name: str, body: dict = Body(...)):  # noqa: B008
         """Toggle can_predict flag for a capability."""
         try:
             cached = await hub.cache.get("capabilities")
@@ -552,17 +511,18 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             raise
         except Exception:
             logger.exception("Error toggling can_predict")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     # --- Capability Registry API ---
     @router.get("/api/capabilities/registry")
     async def list_capability_registry(
-        layer: Optional[str] = None,
-        status: Optional[str] = None,
+        layer: str | None = None,
+        status: str | None = None,
     ):
         """List all declared capabilities from the code registry."""
-        from aria.capabilities import CapabilityRegistry
         from dataclasses import asdict
+
+        from aria.capabilities import CapabilityRegistry
 
         registry = CapabilityRegistry()
         registry.collect_from_modules()
@@ -610,8 +570,9 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
     @router.get("/api/capabilities/registry/{capability_id}")
     async def get_capability_registry(capability_id: str):
         """Get a single capability by ID from the code registry."""
-        from aria.capabilities import CapabilityRegistry
         from dataclasses import asdict
+
+        from aria.capabilities import CapabilityRegistry
 
         registry = CapabilityRegistry()
         registry.collect_from_modules()
@@ -620,9 +581,13 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"Capability '{capability_id}' not found")
         return asdict(cap)
 
+
+def _register_feedback_routes(router: APIRouter, hub: IntelligenceHub) -> None:
+    """Register automation feedback, feedback health, and activity labeling endpoints."""
+
     # Automation suggestion feedback endpoints
     @router.post("/api/automations/feedback")
-    async def record_automation_feedback(body: dict = Body(...)):
+    async def record_automation_feedback(body: dict = Body(...)):  # noqa: B008
         """Record user feedback on an automation suggestion."""
         suggestion_id = body.get("suggestion_id")
         capability_source = body.get("capability_source")
@@ -643,10 +608,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
 
         # Read existing feedback data or create empty structure
         cached = await hub.get_cache("automation_feedback")
-        if cached and cached.get("data"):
-            feedback_data = cached["data"]
-        else:
-            feedback_data = {"suggestions": {}, "per_capability": {}}
+        feedback_data = cached["data"] if cached and cached.get("data") else {"suggestions": {}, "per_capability": {}}
 
         # Store feedback entry
         feedback_data["suggestions"][suggestion_id] = {
@@ -723,7 +685,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         return entry["data"].get("current_activity", {"predicted": "unknown", "confidence": 0, "method": "none"})
 
     @router.post("/api/activity/label")
-    async def post_activity_label(body: dict = Body(...)):
+    async def post_activity_label(body: dict = Body(...)):  # noqa: B008
         """Record a user-confirmed or corrected activity label."""
         actual = body.get("actual_activity", "")
         if not actual:
@@ -759,7 +721,10 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"total_labels": 0, "classifier_ready": False}
         return entry["data"].get("label_stats", {})
 
-    # Shadow engine endpoints
+
+def _register_shadow_routes(router: APIRouter, hub: IntelligenceHub) -> None:
+    """Register shadow engine endpoints."""
+
     @router.get("/api/shadow/predictions")
     async def get_shadow_predictions(
         limit: int = Query(default=50, le=1000),
@@ -771,7 +736,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"predictions": predictions, "count": len(predictions)}
         except Exception:
             logger.exception("Error getting shadow predictions")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/shadow/accuracy")
     async def get_shadow_accuracy():
@@ -815,7 +780,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return result
         except Exception:
             logger.exception("Error getting shadow accuracy")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/shadow/disagreements")
     async def get_shadow_disagreements(limit: int = Query(default=20, le=1000)):
@@ -827,7 +792,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"disagreements": sorted_preds, "count": len(sorted_preds)}
         except Exception:
             logger.exception("Error getting shadow disagreements")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/shadow/propagation")
     async def get_shadow_propagation():
@@ -850,7 +815,11 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             }
         except Exception:
             logger.exception("Error getting shadow propagation stats")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
+
+
+def _register_pipeline_routes(router: APIRouter, hub: IntelligenceHub) -> None:
+    """Register pipeline status, advance, and retreat endpoints."""
 
     @router.get("/api/pipeline")
     async def get_pipeline_status():
@@ -886,47 +855,11 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                     logger.warning("Failed to bridge backtest_accuracy from shadow stats: %s", e)
 
             # Compute multi-metric stage health from accuracy stats
-            stage_health = {}
             try:
-                stats = await hub.cache.get_accuracy_stats()
-                total = stats.get("total_resolved", 0)
-                total_attempted = stats.get("total_attempted", total)
-
-                # Coverage: predictions attempted / events eligible
-                coverage = (total / max(total_attempted, 1)) if total > 0 else 0.0
-                stage_health["coverage"] = round(coverage, 3)
-
-                # Confidence calibration: compare mean confidence vs actual accuracy
-                overall_acc = stats.get("overall_accuracy", 0) / 100.0  # normalize to 0-1
-                # Calibration error = |mean_confidence - actual_accuracy|
-                # Perfect calibration: predictions with 0.7 confidence are right 70% of the time
-                mean_conf = stats.get("mean_confidence", overall_acc)
-                calibration_error = abs(mean_conf - overall_acc)
-                stage_health["confidence_calibration"] = round(1.0 - calibration_error, 3)
-
-                # Trend direction from daily_trend
-                trend = stats.get("daily_trend", [])
-                if len(trend) >= 3:
-                    recent = [d.get("accuracy", 0) for d in trend[-3:]]
-                    earlier = [d.get("accuracy", 0) for d in trend[-6:-3]] if len(trend) >= 6 else recent
-                    recent_avg = sum(recent) / len(recent)
-                    earlier_avg = sum(earlier) / len(earlier)
-                    delta = recent_avg - earlier_avg
-                    if delta > 2:
-                        stage_health["trend_direction"] = "improving"
-                    elif delta < -2:
-                        stage_health["trend_direction"] = "degrading"
-                    else:
-                        stage_health["trend_direction"] = "stable"
-                    stage_health["trend_delta"] = round(delta, 2)
-                else:
-                    stage_health["trend_direction"] = "insufficient_data"
-                    stage_health["trend_delta"] = 0.0
-
-                stage_health["predictions_resolved"] = total
-            except Exception as e:
-                logger.warning("Failed to compute stage health metrics: %s", e)
-                stage_health["error"] = "Could not compute stage health"
+                accuracy_stats = await hub.cache.get_accuracy_stats()
+            except Exception:
+                accuracy_stats = {}
+            stage_health = _compute_stage_health(accuracy_stats)
 
             pipeline["stage_health"] = stage_health
             pipeline["gates"] = PIPELINE_GATES
@@ -934,14 +867,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return pipeline
         except Exception:
             logger.exception("Error getting pipeline status")
-            raise HTTPException(status_code=500, detail="Internal server error")
-
-    PIPELINE_STAGES = ["backtest", "shadow", "suggest", "autonomous"]
-    PIPELINE_GATES = {
-        "backtest": {"field": "backtest_accuracy", "threshold": 0.40, "label": "backtest accuracy"},
-        "shadow": {"field": "shadow_accuracy_7d", "threshold": 0.50, "label": "7-day shadow accuracy"},
-        "suggest": {"field": "suggest_approval_rate_14d", "threshold": 0.70, "label": "14-day approval rate"},
-    }
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.post("/api/pipeline/advance")
     async def pipeline_advance():
@@ -987,7 +913,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             raise
         except Exception:
             logger.exception("Error advancing pipeline")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.post("/api/pipeline/retreat")
     async def pipeline_retreat():
@@ -1018,9 +944,58 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             raise
         except Exception:
             logger.exception("Error retreating pipeline")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
-    # Config endpoints
+
+def _compute_stage_health(stats: dict) -> dict:
+    """Compute multi-metric stage health from accuracy stats."""
+    stage_health: dict[str, Any] = {}
+    try:
+        total = stats.get("total_resolved", 0)
+        total_attempted = stats.get("total_attempted", total)
+
+        # Coverage: predictions attempted / events eligible
+        coverage = (total / max(total_attempted, 1)) if total > 0 else 0.0
+        stage_health["coverage"] = round(coverage, 3)
+
+        # Confidence calibration: compare mean confidence vs actual accuracy
+        overall_acc = stats.get("overall_accuracy", 0) / 100.0  # normalize to 0-1
+        # Calibration error = |mean_confidence - actual_accuracy|
+        # Perfect calibration: predictions with 0.7 confidence are right 70% of the time
+        mean_conf = stats.get("mean_confidence", overall_acc)
+        calibration_error = abs(mean_conf - overall_acc)
+        stage_health["confidence_calibration"] = round(1.0 - calibration_error, 3)
+
+        # Trend direction from daily_trend
+        trend = stats.get("daily_trend", [])
+        if len(trend) >= 3:
+            recent = [d.get("accuracy", 0) for d in trend[-3:]]
+            earlier = [d.get("accuracy", 0) for d in trend[-6:-3]] if len(trend) >= 6 else recent
+            recent_avg = sum(recent) / len(recent)
+            earlier_avg = sum(earlier) / len(earlier)
+            delta = recent_avg - earlier_avg
+            if delta > 2:
+                stage_health["trend_direction"] = "improving"
+            elif delta < -2:
+                stage_health["trend_direction"] = "degrading"
+            else:
+                stage_health["trend_direction"] = "stable"
+            stage_health["trend_delta"] = round(delta, 2)
+        else:
+            stage_health["trend_direction"] = "insufficient_data"
+            stage_health["trend_delta"] = 0.0
+
+        stage_health["predictions_resolved"] = total
+    except Exception as e:
+        logger.warning("Failed to compute stage health metrics: %s", e)
+        stage_health["error"] = "Could not compute stage health"
+
+    return stage_health
+
+
+def _register_config_routes(router: APIRouter, hub: IntelligenceHub, ws_manager: WebSocketManager) -> None:
+    """Register config CRUD and history endpoints."""
+
     @router.get("/api/config")
     async def get_all_config():
         """Get all configuration parameters."""
@@ -1029,7 +1004,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"configs": configs}
         except Exception:
             logger.exception("Error getting all config")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.post("/api/config/reset/{key:path}")
     async def reset_config(key: str):
@@ -1038,10 +1013,10 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             config = await hub.cache.reset_config(key)
             return config
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception:
             logger.exception("Error resetting config '%s'", key)
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/config/{key:path}")
     async def get_config(key: str):
@@ -1055,7 +1030,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             raise
         except Exception:
             logger.exception("Error getting config '%s'", key)
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.put("/api/config/{key:path}")
     async def put_config(key: str, body: ConfigUpdate):
@@ -1065,14 +1040,14 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             await ws_manager.broadcast({"type": "config_updated", "data": {"key": key}})
             return config
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception:
             logger.exception("Error updating config '%s'", key)
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/config-history")
     async def get_config_history(
-        key: Optional[str] = None,
+        key: str | None = None,
         limit: int = Query(default=50, le=1000),
     ):
         """Get configuration change history."""
@@ -1081,9 +1056,12 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"history": history, "count": len(history)}
         except Exception:
             logger.exception("Error getting config history")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
-    # Curation endpoints
+
+def _register_curation_routes(router: APIRouter, hub: IntelligenceHub) -> None:
+    """Register curation CRUD and bulk update endpoints."""
+
     @router.get("/api/curation")
     async def get_all_curation():
         """Get all entity curation classifications."""
@@ -1092,7 +1070,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"curations": curations}
         except Exception:
             logger.exception("Error getting all curation")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.get("/api/curation/summary")
     async def get_curation_summary():
@@ -1102,7 +1080,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return summary
         except Exception:
             logger.exception("Error getting curation summary")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.put("/api/curation/{entity_id:path}")
     async def put_curation(entity_id: str, body: CurationUpdate):
@@ -1114,10 +1092,10 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             await hub.publish("curation_updated", {"entity_id": entity_id, "status": body.status})
             return result
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception:
             logger.exception("Error updating curation for '%s'", entity_id)
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.post("/api/curation/bulk")
     async def bulk_update_curation(body: BulkCurationUpdate):
@@ -1130,11 +1108,11 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             return {"updated": count}
         except Exception:
             logger.exception("Error bulk updating curation")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
-    # ------------------------------------------------------------------
-    # Frigate proxy (thumbnails/snapshots for dashboard)
-    # ------------------------------------------------------------------
+
+def _register_frigate_routes(router: APIRouter, hub: IntelligenceHub) -> None:
+    """Register Frigate proxy endpoints for thumbnails and snapshots."""
 
     @router.get("/api/frigate/thumbnail/{event_id}")
     async def frigate_thumbnail(event_id: str):
@@ -1161,6 +1139,80 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         from fastapi.responses import Response
 
         return Response(content=data, media_type="image/jpeg")
+
+
+def create_api(hub: IntelligenceHub) -> FastAPI:
+    """Create FastAPI application with hub routes.
+
+    Args:
+        hub: IntelligenceHub instance
+
+    Returns:
+        FastAPI application
+    """
+    from aria import __version__
+
+    app = FastAPI(
+        title="ARIA",
+        description="REST API for ARIA — Adaptive Residence Intelligence Architecture",
+        version=__version__,
+    )
+
+    ws_manager = WebSocketManager()
+
+    # --- Request timing middleware ---
+    @app.middleware("http")
+    async def request_timing_middleware(request: Request, call_next):
+        hub._request_count += 1
+        start = time.monotonic()
+        response = await call_next(request)
+        elapsed = time.monotonic() - start
+        if elapsed > 1.0:
+            logger.warning(f"{request.method} {request.url.path} took {elapsed:.2f}s")
+        else:
+            logger.debug(f"{request.method} {request.url.path} took {elapsed:.3f}s")
+        return response
+
+    # Subscribe to hub events for WebSocket broadcasting
+    async def broadcast_cache_update(data: dict[str, Any]):
+        await ws_manager.broadcast({"type": "cache_updated", "data": data})
+
+    hub.subscribe("cache_updated", broadcast_cache_update)
+
+    # Mount SPA dashboard (serves index.html for all unmatched /ui/ paths)
+    spa_dist = Path(__file__).parent.parent / "dashboard" / "spa" / "dist"
+    app.mount("/ui", StaticFiles(directory=str(spa_dist), html=True), name="spa")
+
+    # Authenticated router — all /api/* routes require API key when configured
+    router = APIRouter(dependencies=[Depends(verify_api_key)])
+
+    # Health check (unauthenticated — useful for uptime monitors)
+    @app.get("/")
+    async def root():
+        """API root - health check."""
+        return {"status": "ok", "service": "ARIA"}
+
+    @app.get("/health")
+    async def health():
+        """Detailed health check with module status and uptime."""
+        try:
+            health_data = await hub.health_check()
+            return JSONResponse(content=health_data)
+        except Exception:
+            logger.exception("Health check failed")
+            return JSONResponse(status_code=500, content={"status": "error", "error": "Health check failed"})
+
+    # Register all route groups
+    _register_utility_routes(router, hub, ws_manager)
+    _register_cache_routes(router, hub)
+    _register_ml_routes(router, hub)
+    _register_discovery_routes(router, hub)
+    _register_feedback_routes(router, hub)
+    _register_shadow_routes(router, hub)
+    _register_pipeline_routes(router, hub)
+    _register_config_routes(router, hub, ws_manager)
+    _register_curation_routes(router, hub)
+    _register_frigate_routes(router, hub)
 
     # WebSocket endpoint (auth handled inline — FastAPI dependency injection
     # doesn't apply to websocket routes on the main app)

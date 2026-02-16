@@ -3,14 +3,14 @@
 import copy
 import unittest
 
-from aria.engine.config import HolidayConfig
 from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.config import HolidayConfig
+from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
 from aria.engine.features.time_features import (
+    _time_to_minutes,
     build_time_features,
     cyclical_encode,
-    _time_to_minutes,
 )
-from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
 from aria.engine.features.vector_builder import (
     build_feature_vector,
     build_training_data,
@@ -291,6 +291,7 @@ class TestMRMRFeatureSelection(unittest.TestCase):
     def test_selects_fewer_features_than_input(self):
         """48 features, max_features=10 → exactly 10 returned."""
         import numpy as np
+
         from aria.engine.features.feature_selection import mrmr_select
 
         rng = np.random.RandomState(42)
@@ -308,6 +309,7 @@ class TestMRMRFeatureSelection(unittest.TestCase):
     def test_selects_relevant_features(self):
         """Signal features (feat_0 weight=5, feat_1 weight=3) should appear in top 5."""
         import numpy as np
+
         from aria.engine.features.feature_selection import mrmr_select
 
         rng = np.random.RandomState(123)
@@ -323,6 +325,7 @@ class TestMRMRFeatureSelection(unittest.TestCase):
     def test_handles_fewer_features_than_max(self):
         """5 features with max_features=10 → returns all 5."""
         import numpy as np
+
         from aria.engine.features.feature_selection import mrmr_select
 
         rng = np.random.RandomState(99)

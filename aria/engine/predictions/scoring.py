@@ -6,7 +6,6 @@ score_all_predictions, accuracy_trend.
 
 import statistics
 
-
 # Mapping from prediction metric to snapshot accessor
 METRIC_TO_ACTUAL = {
     "power_watts": lambda s: s["power"]["total_watts"],

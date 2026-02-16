@@ -1,17 +1,17 @@
 """Tests for predictions: generation, scoring, ML blending."""
 
-import unittest
-import tempfile
 import shutil
+import tempfile
+import unittest
 from pathlib import Path
 
-from aria.engine.config import HolidayConfig, PathConfig
 from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.config import HolidayConfig, PathConfig
 from aria.engine.predictions.predictor import generate_predictions
 from aria.engine.predictions.scoring import (
-    score_prediction,
-    score_all_predictions,
     accuracy_trend,
+    score_all_predictions,
+    score_prediction,
 )
 
 

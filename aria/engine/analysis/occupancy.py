@@ -12,7 +12,6 @@ import math
 from collections import defaultdict
 from datetime import datetime
 
-
 # Sensor type weights and decay rates (seconds)
 SENSOR_CONFIG = {
     "motion": {"weight": 0.9, "decay_seconds": 300},  # High confidence, 5 min decay

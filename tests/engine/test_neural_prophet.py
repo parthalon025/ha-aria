@@ -1,9 +1,10 @@
 """Tests for NeuralProphet seasonal forecaster."""
 
 import os
-import pytest
 import unittest
 from datetime import datetime, timedelta
+
+import pytest
 
 try:
     import neuralprophet  # noqa: F401
@@ -111,8 +112,8 @@ class TestNeuralProphetForecaster(unittest.TestCase):
 
     def test_all_four_metrics_trainable(self):
         from aria.engine.models.neural_prophet_forecaster import (
-            train_neuralprophet_models,
             NEURALPROPHET_METRICS,
+            train_neuralprophet_models,
         )
 
         snapshots = _make_daily_snapshots(n_days=30)

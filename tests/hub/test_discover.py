@@ -1,16 +1,17 @@
 """Tests for HA discovery module."""
 
 import json
-import sys
 import os
-from unittest.mock import patch, MagicMock
+import sys
 from io import BytesIO
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Add bin/ to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "bin"))
 
 import discover
-
 
 # =============================================================================
 # FIXTURES
@@ -100,23 +101,18 @@ def test_fetch_rest_api_auth_error_no_retry():
 
     error = HTTPError("/api/states", 401, "Unauthorized", {}, BytesIO(b"Invalid token"))
 
-    with patch("urllib.request.urlopen", side_effect=error):
-        try:
-            discover.fetch_rest_api("/api/states")
-            assert False, "Should have raised exception"
-        except Exception as e:
-            assert "Authentication failed" in str(e)
+    with patch("urllib.request.urlopen", side_effect=error), pytest.raises(Exception, match="Authentication failed"):
+        discover.fetch_rest_api("/api/states")
 
 
 def test_fetch_rest_api_exhausted_retries():
     """Test failure after exhausting all retries."""
-    with patch("urllib.request.urlopen", side_effect=Exception("Network error")):
-        with patch("time.sleep"):
-            try:
-                discover.fetch_rest_api("/api/states", retries=2)
-                assert False, "Should have raised exception"
-            except Exception as e:
-                assert "after 2 attempts" in str(e)
+    with (
+        patch("urllib.request.urlopen", side_effect=Exception("Network error")),
+        patch("time.sleep"),
+        pytest.raises(Exception, match="after 2 attempts"),
+    ):
+        discover.fetch_rest_api("/api/states", retries=2)
 
 
 # =============================================================================
@@ -182,10 +178,12 @@ def test_fetch_websocket_data_mocked():
 
     parse_responses = [auth_required_msg, auth_ok_msg, result_msg]
 
-    with patch("socket.socket", return_value=mock_sock):
-        with patch.object(discover, "parse_websocket_frame", side_effect=parse_responses):
-            with patch("random.randint", return_value=fixed_request_id):
-                result = discover.fetch_websocket_data("config/entity_registry/list")
+    with (
+        patch("socket.socket", return_value=mock_sock),
+        patch.object(discover, "parse_websocket_frame", side_effect=parse_responses),
+        patch("random.randint", return_value=fixed_request_id),
+    ):
+        result = discover.fetch_websocket_data("config/entity_registry/list")
 
     assert result == MOCK_ENTITY_REGISTRY
 
@@ -275,54 +273,56 @@ def test_capability_entities_all_included():
 def test_discover_all_integration():
     """Test full discovery flow with all mocked APIs."""
     # Mock all API calls
-    with patch.object(discover, "fetch_rest_api") as mock_rest:
-        with patch.object(discover, "fetch_websocket_data") as mock_ws:
-            # Configure mocks
-            mock_rest.side_effect = [
-                MOCK_STATES,  # /api/states
-                MOCK_CONFIG,  # /api/config
-                MOCK_SERVICES,  # /api/services
-            ]
+    with (
+        patch.object(discover, "fetch_rest_api") as mock_rest,
+        patch.object(discover, "fetch_websocket_data") as mock_ws,
+    ):
+        # Configure mocks
+        mock_rest.side_effect = [
+            MOCK_STATES,  # /api/states
+            MOCK_CONFIG,  # /api/config
+            MOCK_SERVICES,  # /api/services
+        ]
 
-            mock_ws.side_effect = [
-                MOCK_ENTITY_REGISTRY,  # entity_registry
-                MOCK_DEVICE_REGISTRY,  # device_registry
-                MOCK_AREA_REGISTRY,  # area_registry
-                Exception("Label registry not available"),  # label_registry
-            ]
+        mock_ws.side_effect = [
+            MOCK_ENTITY_REGISTRY,  # entity_registry
+            MOCK_DEVICE_REGISTRY,  # device_registry
+            MOCK_AREA_REGISTRY,  # area_registry
+            Exception("Label registry not available"),  # label_registry
+        ]
 
-            # Run discovery
-            result = discover.discover_all()
+        # Run discovery
+        result = discover.discover_all()
 
-            # Verify structure
-            assert "discovery_timestamp" in result
-            assert result["ha_version"] == "2026.2.1"
-            assert result["entity_count"] == 4
-            assert "capabilities" in result
-            assert "entities" in result
-            assert "devices" in result
-            assert "areas" in result
-            assert "integrations" in result
+        # Verify structure
+        assert "discovery_timestamp" in result
+        assert result["ha_version"] == "2026.2.1"
+        assert result["entity_count"] == 4
+        assert "capabilities" in result
+        assert "entities" in result
+        assert "devices" in result
+        assert "areas" in result
+        assert "integrations" in result
 
-            # Verify capabilities
-            assert result["capabilities"]["lighting"]["available"] is True
-            assert result["capabilities"]["power_monitoring"]["available"] is True
-            assert result["capabilities"]["motion"]["available"] is True
+        # Verify capabilities
+        assert result["capabilities"]["lighting"]["available"] is True
+        assert result["capabilities"]["power_monitoring"]["available"] is True
+        assert result["capabilities"]["motion"]["available"] is True
 
-            # Verify entities dict
-            assert "light.living_room" in result["entities"]
-            assert "sensor.power_meter" in result["entities"]
+        # Verify entities dict
+        assert "light.living_room" in result["entities"]
+        assert "sensor.power_meter" in result["entities"]
 
-            # Verify devices dict
-            assert "device_1" in result["devices"]
+        # Verify devices dict
+        assert "device_1" in result["devices"]
 
-            # Verify areas dict
-            assert "living_room" in result["areas"]
+        # Verify areas dict
+        assert "living_room" in result["areas"]
 
-            # Verify integrations list (list of dicts with domain + entity_count)
-            integration_domains = [i["domain"] for i in result["integrations"]]
-            assert "light" in integration_domains
-            assert "climate" in integration_domains
+        # Verify integrations list (list of dicts with domain + entity_count)
+        integration_domains = [i["domain"] for i in result["integrations"]]
+        assert "light" in integration_domains
+        assert "climate" in integration_domains
 
 
 if __name__ == "__main__":

@@ -2,9 +2,11 @@
 """Tier 3: End-to-end pipeline flow and handoff validation."""
 
 import json
+
 import pytest
-from tests.synthetic.simulator import HouseholdSimulator, INTRADAY_HOURS
+
 from tests.synthetic.pipeline import PipelineRunner
+from tests.synthetic.simulator import INTRADAY_HOURS, HouseholdSimulator
 
 
 class TestFullPipelineCompletes:
@@ -61,7 +63,7 @@ class TestIntermediateFormats:
         runner.save_snapshots()
         baselines = runner.compute_baselines()
 
-        for day_name, day_data in baselines.items():
+        for _day_name, day_data in baselines.items():
             assert "sample_count" in day_data
             assert "power_watts" in day_data
             assert "mean" in day_data["power_watts"]

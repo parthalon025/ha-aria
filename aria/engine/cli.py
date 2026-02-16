@@ -86,13 +86,13 @@ def cmd_analyze():
     """Run full analysis on latest data, including ML contextual anomaly detection."""
     config, store = _init()
 
-    from aria.engine.collectors.snapshot import build_snapshot
-    from aria.engine.analysis.baselines import compute_baselines
     from aria.engine.analysis.anomalies import detect_anomalies
+    from aria.engine.analysis.baselines import compute_baselines
     from aria.engine.analysis.correlations import cross_correlate
     from aria.engine.analysis.reliability import compute_device_reliability
-    from aria.engine.features.vector_builder import build_feature_vector, get_feature_names
+    from aria.engine.collectors.snapshot import build_snapshot
     from aria.engine.features.feature_config import load_feature_config
+    from aria.engine.features.vector_builder import build_feature_vector, get_feature_names
     from aria.engine.models.device_failure import detect_contextual_anomalies
     from aria.engine.models.training import count_days_of_data
 
@@ -143,20 +143,72 @@ def cmd_analyze():
     return anomalies, correlations, reliability
 
 
+def _build_tomorrow_snapshot(tomorrow, baselines, weather, config):
+    """Build a synthetic snapshot for tomorrow using baselines."""
+    from aria.engine.collectors.snapshot import build_empty_snapshot
+    from aria.engine.features.time_features import build_time_features
+
+    snap = build_empty_snapshot(tomorrow, config.holidays)
+    dow = datetime.strptime(tomorrow, "%Y-%m-%d").strftime("%A")
+    bl = baselines.get(dow, {})
+    snap["power"]["total_watts"] = bl.get("power_watts", {}).get("mean", 0)
+    snap["lights"]["on"] = bl.get("lights_on", {}).get("mean", 0)
+    snap["occupancy"]["device_count_home"] = bl.get("devices_home", {}).get("mean", 0)
+    if weather:
+        snap["weather"] = weather
+    snap["time_features"] = build_time_features(f"{tomorrow}T12:00:00", None, tomorrow)
+    snap["media"] = {"total_active": 0}
+    snap["motion"] = {"active_count": 0}
+    snap["ev"] = {}
+    return snap
+
+
+def _run_ml_predictions(config, store, baselines, weather, tomorrow):
+    """Run ML predictions, device failure predictions, and contextual anomaly detection."""
+    from aria.engine.features.feature_config import load_feature_config
+    from aria.engine.features.vector_builder import build_feature_vector, get_feature_names
+    from aria.engine.models.device_failure import detect_contextual_anomalies, predict_device_failures
+    from aria.engine.models.training import predict_with_ml
+
+    tomorrow_snap = _build_tomorrow_snapshot(tomorrow, baselines, weather, config)
+    ml_preds = predict_with_ml(tomorrow_snap, store=store, models_dir=str(config.paths.models_dir))
+    if ml_preds:
+        print(f"ML predictions available ({len(ml_preds)} metrics)")
+
+    recent = store.load_recent_snapshots(90)
+    recent, rejected = validate_snapshot_batch(recent)
+    if rejected:
+        logger.warning("Rejected %d corrupt snapshots from prediction data", len(rejected))
+    device_failures = predict_device_failures(recent, str(config.paths.models_dir))
+    if device_failures:
+        print(f"Device failure warnings: {len(device_failures)}")
+        for df in device_failures[:3]:
+            print(f"  ! {df['entity_id']}: {df['failure_probability']:.0%} ({df['risk']})")
+
+    ctx_anomalies = None
+    today_snap = store.load_snapshot(datetime.now().strftime("%Y-%m-%d"))
+    if today_snap:
+        feature_config = load_feature_config(store)
+        fv = build_feature_vector(today_snap, feature_config)
+        feature_names = get_feature_names(feature_config)
+        features_list = [fv.get(name, 0) for name in feature_names]
+        ctx_anomalies = detect_contextual_anomalies(features_list, str(config.paths.models_dir))
+        if ctx_anomalies and ctx_anomalies.get("is_anomaly"):
+            print(
+                f"  ! Contextual anomaly detected "
+                f"(score: {ctx_anomalies['anomaly_score']}, "
+                f"severity: {ctx_anomalies['severity']})"
+            )
+
+    return ml_preds, device_failures, ctx_anomalies
+
+
 def cmd_predict():
     """Generate predictions for tomorrow with ML blending."""
     config, store = _init()
 
-    from aria.engine.collectors.snapshot import build_empty_snapshot
     from aria.engine.collectors.ha_api import fetch_weather, parse_weather
-    from aria.engine.features.time_features import build_time_features
-    from aria.engine.features.vector_builder import build_feature_vector, get_feature_names
-    from aria.engine.features.feature_config import load_feature_config
-    from aria.engine.models.training import predict_with_ml, count_days_of_data
-    from aria.engine.models.device_failure import (
-        predict_device_failures,
-        detect_contextual_anomalies,
-    )
+    from aria.engine.models.training import count_days_of_data
     from aria.engine.predictions.predictor import generate_predictions
 
     baselines = store.load_baselines()
@@ -167,67 +219,18 @@ def cmd_predict():
     weather = parse_weather(fetch_weather(config.weather))
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # ML predictions (if models exist and enough data)
     ml_preds = None
     device_failures = None
     ctx_anomalies = None
     days = count_days_of_data(store)
 
     if HAS_SKLEARN and days >= 14:
-        # Build a synthetic snapshot for tomorrow using baselines
-        tomorrow_snap = build_empty_snapshot(tomorrow, config.holidays)
-        dow = datetime.strptime(tomorrow, "%Y-%m-%d").strftime("%A")
-        bl = baselines.get(dow, {})
-        tomorrow_snap["power"]["total_watts"] = bl.get("power_watts", {}).get("mean", 0)
-        tomorrow_snap["lights"]["on"] = bl.get("lights_on", {}).get("mean", 0)
-        tomorrow_snap["occupancy"]["device_count_home"] = bl.get("devices_home", {}).get("mean", 0)
-        if weather:
-            tomorrow_snap["weather"] = weather
-        tomorrow_snap["time_features"] = build_time_features(f"{tomorrow}T12:00:00", None, tomorrow)
-        tomorrow_snap["media"] = {"total_active": 0}
-        tomorrow_snap["motion"] = {"active_count": 0}
-        tomorrow_snap["ev"] = {}
-
-        ml_preds = predict_with_ml(tomorrow_snap, store=store, models_dir=str(config.paths.models_dir))
-        if ml_preds:
-            print(f"ML predictions available ({len(ml_preds)} metrics)")
-
-        # Device failure predictions
-        recent = store.load_recent_snapshots(90)
-        recent, rejected = validate_snapshot_batch(recent)
-        if rejected:
-            logger.warning("Rejected %d corrupt snapshots from prediction data", len(rejected))
-        device_failures = predict_device_failures(recent, str(config.paths.models_dir))
-        if device_failures:
-            print(f"Device failure warnings: {len(device_failures)}")
-            for df in device_failures[:3]:
-                print(f"  ! {df['entity_id']}: {df['failure_probability']:.0%} ({df['risk']})")
-
-        # Contextual anomaly detection on today's snapshot
-        today = datetime.now().strftime("%Y-%m-%d")
-        today_snap = store.load_snapshot(today)
-        if today_snap:
-            feature_config = load_feature_config(store)
-            fv = build_feature_vector(today_snap, feature_config)
-            feature_names = get_feature_names(feature_config)
-            features_list = [fv.get(name, 0) for name in feature_names]
-            ctx_anomalies = detect_contextual_anomalies(features_list, str(config.paths.models_dir))
-            if ctx_anomalies and ctx_anomalies.get("is_anomaly"):
-                print(
-                    f"  ! Contextual anomaly detected "
-                    f"(score: {ctx_anomalies['anomaly_score']}, "
-                    f"severity: {ctx_anomalies['severity']})"
-                )
+        ml_preds, device_failures, ctx_anomalies = _run_ml_predictions(config, store, baselines, weather, tomorrow)
 
     predictions = generate_predictions(
-        tomorrow,
-        baselines,
-        correlations,
-        weather,
-        ml_predictions=ml_preds,
-        device_failures=device_failures,
-        contextual_anomalies=ctx_anomalies,
-        paths=config.paths,
+        tomorrow, baselines, correlations, weather,
+        ml_predictions=ml_preds, device_failures=device_failures,
+        contextual_anomalies=ctx_anomalies, paths=config.paths,
     )
     store.save_predictions(predictions)
     print(f"Predictions for {tomorrow} ({predictions.get('prediction_method', 'statistical')}):")
@@ -241,7 +244,7 @@ def cmd_score():
     """Score yesterday's predictions against actual data."""
     config, store = _init()
 
-    from aria.engine.predictions.scoring import score_all_predictions, accuracy_trend
+    from aria.engine.predictions.scoring import accuracy_trend, score_all_predictions
 
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     predictions = store.load_predictions()
@@ -265,10 +268,10 @@ def cmd_report(dry_run=False):
     """Generate full Ollama insight report."""
     config, store = _init()
 
-    from aria.engine.collectors.snapshot import build_snapshot
-    from aria.engine.analysis.baselines import compute_baselines
     from aria.engine.analysis.anomalies import detect_anomalies
+    from aria.engine.analysis.baselines import compute_baselines
     from aria.engine.analysis.reliability import compute_device_reliability
+    from aria.engine.collectors.snapshot import build_snapshot
     from aria.engine.llm.reports import generate_insight_report
 
     today = datetime.now().strftime("%Y-%m-%d")
@@ -339,8 +342,8 @@ def cmd_brief():
     """Print one-liner for telegram-brief integration."""
     config, store = _init()
 
-    from aria.engine.collectors.snapshot import build_snapshot
     from aria.engine.analysis.anomalies import detect_anomalies
+    from aria.engine.collectors.snapshot import build_snapshot
     from aria.engine.llm.reports import generate_brief_line
 
     today = datetime.now().strftime("%Y-%m-%d")
@@ -381,9 +384,8 @@ def cmd_check_drift():
     if result["needs_retrain"]:
         print("Drift detected — triggering retrain...")
         cmd_retrain()
-    else:
-        if detector.should_skip_scheduled_retrain(accuracy):
-            print("Models stable — scheduled retrain can be skipped.")
+    elif detector.should_skip_scheduled_retrain(accuracy):
+        print("Models stable — scheduled retrain can be skipped.")
 
     return result
 
@@ -446,48 +448,42 @@ def cmd_suggest_automations():
     return result
 
 
-def cmd_train_prophet():
-    """Train seasonal forecasters on daily snapshot time series.
+def _resolve_prophet_backend():
+    """Resolve which prophet backend to use (NeuralProphet or Prophet).
 
-    Prefers NeuralProphet (deep learning + autoregression) when available,
-    falls back to Facebook Prophet for classic decomposition.
+    Returns (use_neuralprophet, train_fn, predict_fn) or None if neither available.
     """
-    config, store = _init()
-
-    # Try NeuralProphet first, fall back to Prophet
-    use_neuralprophet = False
     try:
         from aria.engine.models.neural_prophet_forecaster import (
-            train_neuralprophet_models,
-            predict_with_neuralprophet,
             HAS_NEURAL_PROPHET,
+            predict_with_neuralprophet,
+            train_neuralprophet_models,
         )
 
         if HAS_NEURAL_PROPHET:
-            use_neuralprophet = True
+            return True, train_neuralprophet_models, predict_with_neuralprophet
     except ImportError:
         pass
 
-    if not use_neuralprophet:
-        from aria.engine.models.prophet_forecaster import (
-            train_prophet_models,
-            predict_with_prophet,
-            HAS_PROPHET,
-        )
+    from aria.engine.models.prophet_forecaster import (
+        HAS_PROPHET,
+        predict_with_prophet,
+        train_prophet_models,
+    )
 
-        if not HAS_PROPHET:
-            print("Neither NeuralProphet nor Prophet installed.")
-            print("  Install with: python3 -m pip install neuralprophet")
-            print("  Or fallback:  python3 -m pip install prophet")
-            return None
-
-    # Load daily snapshots as (date_str, snapshot) tuples
-    daily_dir = config.paths.daily_dir
-    if not daily_dir.is_dir():
-        print("No daily snapshots available.")
+    if not HAS_PROPHET:
         return None
 
+    return False, train_prophet_models, predict_with_prophet
+
+
+def _load_validated_daily_snapshots(config, store):
+    """Load and validate daily snapshots. Returns list of (date_str, snapshot) tuples."""
     import os
+
+    daily_dir = config.paths.daily_dir
+    if not daily_dir.is_dir():
+        return None
 
     snapshots = []
     for fname in sorted(os.listdir(daily_dir)):
@@ -498,37 +494,49 @@ def cmd_train_prophet():
         if snap:
             snapshots.append((date_str, snap))
 
-    # Validate snapshots — filter corrupt data before training
     valid_snaps, rejected = validate_snapshot_batch([s for _, s in snapshots])
     if rejected:
         logger.warning("Rejected %d corrupt snapshots from prophet training data", len(rejected))
     valid_dates = {s.get("date") for s in valid_snaps}
-    snapshots = [(d, s) for d, s in snapshots if d in valid_dates]
+    return [(d, s) for d, s in snapshots if d in valid_dates]
+
+
+def cmd_train_prophet():
+    """Train seasonal forecasters on daily snapshot time series.
+
+    Prefers NeuralProphet (deep learning + autoregression) when available,
+    falls back to Facebook Prophet for classic decomposition.
+    """
+    config, store = _init()
+
+    backend = _resolve_prophet_backend()
+    if backend is None:
+        print("Neither NeuralProphet nor Prophet installed.")
+        print("  Install with: python3 -m pip install neuralprophet")
+        print("  Or fallback:  python3 -m pip install prophet")
+        return None
+
+    use_neuralprophet, train_fn, predict_fn = backend
+
+    snapshots = _load_validated_daily_snapshots(config, store)
+    if snapshots is None:
+        print("No daily snapshots available.")
+        return None
 
     if len(snapshots) < 14:
         print(f"Insufficient data for forecasting ({len(snapshots)} days, need 14+)")
         return None
 
     models_dir = str(config.paths.models_dir)
+    label = "NeuralProphet" if use_neuralprophet else "Prophet (fallback)"
+    print(f"Training {label} on {len(snapshots)} daily snapshots...")
+    results = train_fn(snapshots, models_dir)
 
-    if use_neuralprophet:
-        print(f"Training NeuralProphet on {len(snapshots)} daily snapshots...")
-        results = train_neuralprophet_models(snapshots, models_dir)
-
-        forecasts = predict_with_neuralprophet(models_dir)
-        if forecasts:
-            print("NeuralProphet forecasts for tomorrow:")
-            for metric, value in forecasts.items():
-                print(f"  {metric}: {value}")
-    else:
-        print(f"Training Prophet (fallback) on {len(snapshots)} daily snapshots...")
-        results = train_prophet_models(snapshots, models_dir)
-
-        forecasts = predict_with_prophet(models_dir)
-        if forecasts:
-            print("Prophet forecasts for tomorrow:")
-            for metric, value in forecasts.items():
-                print(f"  {metric}: {value}")
+    forecasts = predict_fn(models_dir)
+    if forecasts:
+        print(f"{label} forecasts for tomorrow:")
+        for metric, value in forecasts.items():
+            print(f"  {metric}: {value}")
 
     return results
 
@@ -561,18 +569,12 @@ def cmd_occupancy():
     return result
 
 
-def cmd_power_profiles():
-    """Analyze per-outlet power consumption profiles."""
-    config, store = _init()
-
-    from aria.engine.analysis.power_profiles import ApplianceProfiler
-
-    # Load daily snapshots
+def _load_power_snapshots(config, store):
+    """Load and validate daily + intraday snapshots for power profile analysis."""
     import os
 
     daily_dir = config.paths.daily_dir
     if not daily_dir.is_dir():
-        print("No daily snapshots available.")
         return None
 
     snapshots = []
@@ -597,15 +599,11 @@ def cmd_power_profiles():
     if rejected:
         logger.warning("Rejected %d corrupt snapshots from power profile data", len(rejected))
     valid_set = set(id(s) for s in valid_snaps)
-    snapshots = [(t, s) for t, s in snapshots if id(s) in valid_set]
+    return [(t, s) for t, s in snapshots if id(s) in valid_set]
 
-    if len(snapshots) < 2:
-        print("Insufficient power data.")
-        return None
 
-    profiler = ApplianceProfiler()
-    result = profiler.analyze_snapshot_outlets(snapshots)
-
+def _print_power_results(result):
+    """Print power profile analysis results to stdout."""
     print(f"Power analysis: {result['active_count']} active outlets, {result['profiles_learned']} profiles learned")
     for name, info in result["outlets"].items():
         if info["is_active"]:
@@ -618,6 +616,27 @@ def cmd_power_profiles():
             )
             for alert in health.get("alerts", []):
                 print(f"    ! {alert}")
+
+
+def cmd_power_profiles():
+    """Analyze per-outlet power consumption profiles."""
+    config, store = _init()
+
+    from aria.engine.analysis.power_profiles import ApplianceProfiler
+
+    snapshots = _load_power_snapshots(config, store)
+    if snapshots is None:
+        print("No daily snapshots available.")
+        return None
+
+    if len(snapshots) < 2:
+        print("Insufficient power data.")
+        return None
+
+    profiler = ApplianceProfiler()
+    result = profiler.analyze_snapshot_outlets(snapshots)
+
+    _print_power_results(result)
 
     # Save results
     output = config.paths.insights_dir / "power-profiles.json"
@@ -707,44 +726,34 @@ def main():
     args = sys.argv[1:]
     dry_run = "--dry-run" in args
 
-    if "--snapshot-intraday" in args:
-        cmd_snapshot_intraday()
-    elif "--snapshot" in args:
-        cmd_snapshot()
-    elif "--analyze" in args:
-        cmd_analyze()
-    elif "--predict" in args:
-        cmd_predict()
-    elif "--score" in args:
-        cmd_score()
-    elif "--check-drift" in args:
-        cmd_check_drift()
-    elif "--entity-correlations" in args:
-        cmd_entity_correlations()
-    elif "--suggest-automations" in args:
-        cmd_suggest_automations()
-    elif "--train-prophet" in args:
-        cmd_train_prophet()
-    elif "--occupancy" in args:
-        cmd_occupancy()
-    elif "--power-profiles" in args:
-        cmd_power_profiles()
-    elif "--train-sequences" in args:
-        cmd_train_sequences()
-    elif "--sequence-anomalies" in args:
-        cmd_sequence_anomalies()
-    elif "--retrain" in args:
-        cmd_retrain()
-    elif "--meta-learn" in args:
-        cmd_meta_learn()
-    elif "--report" in args:
-        cmd_report(dry_run=dry_run)
-    elif "--brief" in args:
-        cmd_brief()
-    elif "--full" in args:
-        cmd_full(dry_run=dry_run)
-    else:
-        print(__doc__)
+    # Command dispatch table: flag -> handler
+    _dispatch = {
+        "--snapshot-intraday": lambda: cmd_snapshot_intraday(),
+        "--snapshot": lambda: cmd_snapshot(),
+        "--analyze": lambda: cmd_analyze(),
+        "--predict": lambda: cmd_predict(),
+        "--score": lambda: cmd_score(),
+        "--check-drift": lambda: cmd_check_drift(),
+        "--entity-correlations": lambda: cmd_entity_correlations(),
+        "--suggest-automations": lambda: cmd_suggest_automations(),
+        "--train-prophet": lambda: cmd_train_prophet(),
+        "--occupancy": lambda: cmd_occupancy(),
+        "--power-profiles": lambda: cmd_power_profiles(),
+        "--train-sequences": lambda: cmd_train_sequences(),
+        "--sequence-anomalies": lambda: cmd_sequence_anomalies(),
+        "--retrain": lambda: cmd_retrain(),
+        "--meta-learn": lambda: cmd_meta_learn(),
+        "--report": lambda: cmd_report(dry_run=dry_run),
+        "--brief": lambda: cmd_brief(),
+        "--full": lambda: cmd_full(dry_run=dry_run),
+    }
+
+    for flag, handler in _dispatch.items():
+        if flag in args:
+            handler()
+            return
+
+    print(__doc__)
 
 
 if __name__ == "__main__":

@@ -13,10 +13,11 @@ except ImportError:
 @pytest.mark.skipif(not HAS_SHAP, reason="shap not installed")
 class TestSHAPExplainability:
     def test_explain_prediction_returns_contributions(self):
-        from aria.engine.analysis.explainability import explain_prediction
+        import numpy as np
         from sklearn.ensemble import GradientBoostingRegressor
         from sklearn.preprocessing import StandardScaler
-        import numpy as np
+
+        from aria.engine.analysis.explainability import explain_prediction
 
         rng = np.random.default_rng(42)
         X = rng.standard_normal((100, 10))
@@ -38,10 +39,11 @@ class TestSHAPExplainability:
         assert "feat_0" in top_features
 
     def test_explain_prediction_has_direction_and_raw_value(self):
-        from aria.engine.analysis.explainability import explain_prediction
+        import numpy as np
         from sklearn.ensemble import GradientBoostingRegressor
         from sklearn.preprocessing import StandardScaler
-        import numpy as np
+
+        from aria.engine.analysis.explainability import explain_prediction
 
         rng = np.random.default_rng(42)
         X = rng.standard_normal((100, 5))
@@ -61,10 +63,11 @@ class TestSHAPExplainability:
             assert isinstance(c["raw_value"], float)
 
     def test_explain_prediction_sorted_by_absolute_contribution(self):
-        from aria.engine.analysis.explainability import explain_prediction
+        import numpy as np
         from sklearn.ensemble import GradientBoostingRegressor
         from sklearn.preprocessing import StandardScaler
-        import numpy as np
+
+        from aria.engine.analysis.explainability import explain_prediction
 
         rng = np.random.default_rng(42)
         X = rng.standard_normal((100, 10))

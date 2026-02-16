@@ -6,7 +6,6 @@ Provides the canonical default config, load/save via DataStore, and validation.
 import copy
 from datetime import datetime
 
-
 DEFAULT_FEATURE_CONFIG = {
     "version": 1,
     "last_modified": "",

@@ -1,10 +1,10 @@
 """Tests for organic discovery naming (heuristic + Ollama LLM)."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock
 
-from aria.modules.organic_discovery.naming import heuristic_name, heuristic_description
-
+from aria.modules.organic_discovery.naming import heuristic_description, heuristic_name
 
 # --- Fixtures ---
 

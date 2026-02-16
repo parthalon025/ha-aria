@@ -6,11 +6,10 @@ import os
 import subprocess
 import time
 import urllib.request
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-
 
 # ---------------------------------------------------------------------------
 # Data types
@@ -498,10 +497,7 @@ def _recovery_needed() -> bool:
     """Check if there was a previous failure (any cooldown file exists with recent alert)."""
     if not COOLDOWN_DIR.exists():
         return False
-    for f in COOLDOWN_DIR.iterdir():
-        if f.name.startswith("alert-"):
-            return True
-    return False
+    return any(f.name.startswith("alert-") for f in COOLDOWN_DIR.iterdir())
 
 
 def _clear_recovery():
@@ -518,12 +514,9 @@ def _clear_recovery():
 # ---------------------------------------------------------------------------
 
 
-def run_watchdog(quiet: bool = False, no_alert: bool = False, json_output: bool = False) -> int:
-    """Run all watchdog checks. Returns 0 if all pass, 1 if any fail."""
-    logger = setup_logging()
+def _collect_results() -> list:
+    """Run all watchdog checks and return combined results."""
     all_results = []
-
-    # Run all checks
     all_results.extend(check_service_status())
     all_results.extend(check_hub_health())
 
@@ -534,6 +527,60 @@ def run_watchdog(quiet: bool = False, no_alert: bool = False, json_output: bool 
         all_results.extend(check_cache_freshness())
 
     all_results.extend(check_timer_health())
+    return all_results
+
+
+def _log_results(logger, passed, total, failed):
+    """Log watchdog summary and failures."""
+    if failed:
+        failed_names = ", ".join(r.check_name for r in failed)
+        logger.warning(f"Watchdog complete: {passed}/{total} passed, {len(failed)} failed: {failed_names}")
+        for r in failed:
+            logger.warning(f"{r.check_name}: {r.message}")
+            if r.details:
+                logger.debug(f"  details: {json.dumps(r.details)}")
+    else:
+        logger.info(f"Watchdog complete: {passed}/{total} passed")
+
+
+def _send_alerts(logger, summary, restart_result):
+    """Send Telegram alerts for failures or recovery."""
+    passed, total, failed, critical = summary["passed"], summary["total"], summary["failed"], summary["critical"]
+    if critical:
+        lines = ["*ARIA Watchdog* \\[CRITICAL]", ""]
+        for r in critical:
+            lines.append(f"• {r.message}")
+        if restart_result is not None:
+            lines.append("")
+            lines.append(f"Auto-restart attempted: {'success' if restart_result else 'failed'}")
+        lines.append("")
+        lines.append(f"Checks: {passed}/{total} passed")
+        if failed:
+            lines.append(f"Failed: {', '.join(r.check_name for r in failed)}")
+        send_alert("\n".join(lines), "CRITICAL", "alert-critical", logger)
+
+    elif failed:
+        lines = ["*ARIA Watchdog* \\[WARNING]", ""]
+        for r in failed:
+            lines.append(f"• {r.message}")
+        lines.append("")
+        lines.append(f"Checks: {passed}/{total} passed")
+        send_alert("\n".join(lines), "WARNING", "alert-warning", logger)
+
+    elif _recovery_needed():
+        send_alert(
+            f"*ARIA Watchdog* \\[RECOVERY]\n\nAll {total} checks passing.",
+            "WARNING",
+            "alert-recovery",
+            logger,
+        )
+        _clear_recovery()
+
+
+def run_watchdog(quiet: bool = False, no_alert: bool = False, json_output: bool = False) -> int:
+    """Run all watchdog checks. Returns 0 if all pass, 1 if any fail."""
+    logger = setup_logging()
+    all_results = _collect_results()
 
     # Summarize
     passed = sum(1 for r in all_results if r.level == "OK")
@@ -546,66 +593,16 @@ def run_watchdog(quiet: bool = False, no_alert: bool = False, json_output: bool 
     if any(r.check_name == "service-hub" and r.level == "CRITICAL" for r in all_results):
         restart_result = attempt_restart(logger)
 
-    # Log results
-    if failed:
-        failed_names = ", ".join(r.check_name for r in failed)
-        logger.warning(f"Watchdog complete: {passed}/{total} passed, {len(failed)} failed: {failed_names}")
-        for r in failed:
-            logger.warning(f"{r.check_name}: {r.message}")
-            if r.details:
-                logger.debug(f"  details: {json.dumps(r.details)}")
-    else:
-        logger.info(f"Watchdog complete: {passed}/{total} passed")
+    _log_results(logger, passed, total, failed)
 
-    # Telegram alerts
     if not no_alert:
-        if critical:
-            # Build CRITICAL alert message
-            lines = ["*ARIA Watchdog* \\[CRITICAL]", ""]
-            for r in critical:
-                lines.append(f"• {r.message}")
-            if restart_result is not None:
-                lines.append("")
-                lines.append(f"Auto-restart attempted: {'success' if restart_result else 'failed'}")
-            lines.append("")
-            lines.append(f"Checks: {passed}/{total} passed")
-            if failed:
-                lines.append(f"Failed: {', '.join(r.check_name for r in failed)}")
-
-            send_alert(
-                "\n".join(lines),
-                "CRITICAL",
-                "alert-critical",
-                logger,
-            )
-
-        elif failed:
-            lines = ["*ARIA Watchdog* \\[WARNING]", ""]
-            for r in failed:
-                lines.append(f"• {r.message}")
-            lines.append("")
-            lines.append(f"Checks: {passed}/{total} passed")
-
-            send_alert(
-                "\n".join(lines),
-                "WARNING",
-                "alert-warning",
-                logger,
-            )
-
-        elif _recovery_needed():
-            send_alert(
-                f"*ARIA Watchdog* \\[RECOVERY]\n\nAll {total} checks passing.",
-                "WARNING",  # Use WARNING cooldown for recovery
-                "alert-recovery",
-                logger,
-            )
-            _clear_recovery()
+        summary = {"passed": passed, "total": total, "failed": failed, "critical": critical}
+        _send_alerts(logger, summary, restart_result)
 
     # Output
     if json_output:
         output = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "passed": passed,
             "total": total,
             "results": [asdict(r) for r in all_results],

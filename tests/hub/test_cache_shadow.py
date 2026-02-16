@@ -1,18 +1,16 @@
 """Tests for shadow engine cache tables: predictions and pipeline_state."""
 
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
 
-import sys
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from aria.hub.cache import CacheManager
-from aria.hub.constants import CACHE_PREDICTIONS, CACHE_PIPELINE_STATE
-
+from aria.hub.constants import CACHE_PIPELINE_STATE, CACHE_PREDICTIONS
 
 # ============================================================================
 # Fixtures
@@ -29,7 +27,7 @@ async def cache(tmp_path):
     await cm.close()
 
 
-def _make_prediction_kwargs(
+def _make_prediction_kwargs(  # noqa: PLR0913
     prediction_id="pred-001",
     timestamp=None,
     context=None,
@@ -158,7 +156,7 @@ class TestInsertPrediction:
         kwargs = _make_prediction_kwargs()
         await cache.insert_prediction(**kwargs)
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="UNIQUE|duplicate|already exists"):
             await cache.insert_prediction(**kwargs)
 
     @pytest.mark.asyncio

@@ -1,11 +1,12 @@
 """Tests for the OrganicDiscoveryModule hub integration."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from aria.modules.organic_discovery.module import (
-    OrganicDiscoveryModule,
     DEFAULT_SETTINGS,
+    OrganicDiscoveryModule,
 )
 
 

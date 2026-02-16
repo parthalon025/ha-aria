@@ -6,21 +6,21 @@ naming, scoring) and integrates with the ARIA hub lifecycle.
 
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any
 
-from aria.hub.core import Module, IntelligenceHub
 from aria.capabilities import Capability, CapabilityRegistry
-from aria.modules.organic_discovery.feature_vectors import build_feature_matrix
-from aria.modules.organic_discovery.clustering import cluster_entities
-from aria.modules.organic_discovery.seed_validation import validate_seeds
-from aria.modules.organic_discovery.naming import heuristic_name, heuristic_description
-from aria.modules.organic_discovery.scoring import compute_usefulness, UsefulnessComponents
+from aria.hub.core import IntelligenceHub, Module
 from aria.modules.organic_discovery.behavioral import cluster_behavioral
+from aria.modules.organic_discovery.clustering import cluster_entities
+from aria.modules.organic_discovery.feature_vectors import build_feature_matrix
+from aria.modules.organic_discovery.naming import heuristic_description, heuristic_name
+from aria.modules.organic_discovery.scoring import UsefulnessComponents, compute_usefulness
+from aria.modules.organic_discovery.seed_validation import validate_seeds
 
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_SETTINGS: Dict[str, Any] = {
+DEFAULT_SETTINGS: dict[str, Any] = {
     "autonomy_mode": "suggest_and_wait",
     "naming_backend": "heuristic",
     "promote_threshold": 50,
@@ -37,7 +37,10 @@ class OrganicDiscoveryModule(Module):
         Capability(
             id="organic_discovery",
             name="Organic Capability Discovery",
-            description="Two-layer HDBSCAN clustering to discover capabilities from entity attributes and temporal co-occurrence.",
+            description=(
+                "Two-layer HDBSCAN clustering to discover capabilities"
+                " from entity attributes and temporal co-occurrence."
+            ),
             module="organic_discovery",
             layer="hub",
             config_keys=[],
@@ -60,8 +63,8 @@ class OrganicDiscoveryModule(Module):
 
     def __init__(self, hub: IntelligenceHub):
         super().__init__("organic_discovery", hub)
-        self.settings: Dict[str, Any] = dict(DEFAULT_SETTINGS)
-        self.history: List[Dict[str, Any]] = []
+        self.settings: dict[str, Any] = dict(DEFAULT_SETTINGS)
+        self.history: list[dict[str, Any]] = []
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -80,7 +83,8 @@ class OrganicDiscoveryModule(Module):
             merged.update(loaded)
             self.settings = merged
             self.logger.info(
-                f"Loaded settings: autonomy_mode={self.settings['autonomy_mode']}, naming_backend={self.settings['naming_backend']}"
+                f"Loaded settings: autonomy_mode={self.settings['autonomy_mode']}, "
+                f"naming_backend={self.settings['naming_backend']}"
             )
 
         # Load persisted history
@@ -120,7 +124,7 @@ class OrganicDiscoveryModule(Module):
         except Exception as e:
             self.logger.error(f"Periodic organic discovery failed: {e}")
 
-    async def on_event(self, event_type: str, data: Dict[str, Any]):
+    async def on_event(self, event_type: str, data: dict[str, Any]):
         """Handle hub events — drift_detected flags capabilities for re-discovery."""
         if event_type == "drift_detected":
             cap_name = data.get("capability", "")
@@ -146,7 +150,7 @@ class OrganicDiscoveryModule(Module):
         backend = self.settings["naming_backend"]
 
         if backend == "ollama":
-            from aria.modules.organic_discovery.naming import ollama_name, ollama_description
+            from aria.modules.organic_discovery.naming import ollama_description, ollama_name
 
             name = await ollama_name(cluster_info)
             description = await ollama_description(cluster_info)
@@ -161,18 +165,8 @@ class OrganicDiscoveryModule(Module):
     # Discovery pipeline
     # ------------------------------------------------------------------
 
-    async def run_discovery(self) -> Dict[str, Any]:
+    async def run_discovery(self) -> dict[str, Any]:
         """Execute the full organic discovery pipeline.
-
-        1. Read entities, devices, capabilities, activity from cache
-        2. Build feature matrix
-        3. Cluster with HDBSCAN
-        4. Validate against seed capabilities
-        5. Name clusters
-        6. Score usefulness
-        7. Merge organic + seed capabilities
-        8. Apply autonomy rules
-        9. Write to cache and record history
 
         Returns:
             Run summary dict.
@@ -180,41 +174,72 @@ class OrganicDiscoveryModule(Module):
         self.logger.info("Running organic discovery...")
 
         # 1. Read from cache
+        entities, devices, seed_caps, activity_rates = await self._read_discovery_inputs()
+
+        # 2-3. Build feature matrix and cluster
+        clusters, entity_ids = self._build_and_cluster(entities, devices, activity_rates)
+
+        # 4. Validate against seeds
+        seed_validation = self._validate_against_seeds(seed_caps, clusters)
+
+        # 5-6. Name and score domain clusters
+        demand_signals = self._collect_demand_signals()
+        total_entities = len(entity_ids) if entity_ids else 1
+        organic_caps = await self._score_domain_clusters(
+            clusters, entities, devices, seed_caps, activity_rates, demand_signals, total_entities,
+        )
+
+        # Phase 2: Behavioral clustering
+        await self._score_behavioral_clusters(
+            organic_caps, entities, devices, seed_caps, activity_rates, demand_signals, total_entities,
+        )
+
+        # 7-8. Merge and apply autonomy
+        merged_caps = self._merge_capabilities(seed_caps, organic_caps)
+        self._apply_autonomy(merged_caps)
+
+        # 9. Persist and publish
+        run_record = await self._persist_discovery_results(merged_caps, clusters, organic_caps, seed_validation)
+
+        self.logger.info(
+            f"Organic discovery complete: {len(clusters)} clusters, "
+            f"{len(organic_caps)} organic caps, {len(merged_caps)} total"
+        )
+        return run_record
+
+    async def _read_discovery_inputs(
+        self,
+    ) -> tuple[list, dict, dict[str, Any], dict[str, float]]:
+        """Read entities, devices, seed capabilities, and activity rates from cache."""
         entities_raw = await self._get_cache_data("entities", default={})
-        # Cache stores entities as {entity_id: dict} — convert to list for feature_vectors
-        if isinstance(entities_raw, dict):
-            entities = list(entities_raw.values())
-        else:
-            entities = entities_raw
+        entities = list(entities_raw.values()) if isinstance(entities_raw, dict) else entities_raw
         devices = await self._get_cache_data("devices", default={})
         seed_caps = await self._get_cache_data("capabilities", default={})
         activity_data = await self._get_cache_data("activity_summary", default={})
 
         entity_activity = activity_data.get("entity_activity", {})
-
-        # Build activity rates lookup
-        activity_rates: Dict[str, float] = {}
+        activity_rates: dict[str, float] = {}
         for eid, info in entity_activity.items():
             if isinstance(info, dict):
                 activity_rates[eid] = info.get("daily_avg_changes", 0.0)
             else:
                 activity_rates[eid] = float(info) if info else 0.0
 
-        # 2. Build feature matrix
+        return entities, devices, seed_caps, activity_rates
+
+    def _build_and_cluster(
+        self, entities: list, devices: dict, activity_rates: dict[str, float],
+    ) -> tuple[list, list[str]]:
+        """Build feature matrix and run HDBSCAN clustering."""
         if entities:
-            matrix, entity_ids, feature_names = build_feature_matrix(
-                entities=entities,
-                devices=devices,
-                entity_registry={},
-                activity_rates=activity_rates,
+            matrix, entity_ids, _feature_names = build_feature_matrix(
+                entities=entities, devices=devices, entity_registry={}, activity_rates=activity_rates,
             )
         else:
             import numpy as np
-
             matrix = np.empty((0, 0))
             entity_ids = []
 
-        # 3. Cluster (cluster_entities handles small-input edge cases internally)
         clusters = []
         if matrix.shape[0] > 0:
             try:
@@ -222,141 +247,161 @@ class OrganicDiscoveryModule(Module):
             except Exception as e:
                 self.logger.warning(f"Clustering failed: {e}")
 
-        # 4. Validate against seeds
-        seed_validation = {}
-        if seed_caps and clusters:
-            try:
-                seed_validation = validate_seeds(seed_caps, clusters)
-            except Exception as e:
-                self.logger.warning(f"Seed validation failed: {e}")
+        return clusters, entity_ids
 
-        # Collect demand signals for alignment scoring
-        demand_signals = self._collect_demand_signals()
+    def _validate_against_seeds(self, seed_caps: dict, clusters: list) -> dict:
+        """Validate clusters against seed capabilities."""
+        if not seed_caps or not clusters:
+            return {}
+        try:
+            return validate_seeds(seed_caps, clusters)
+        except Exception as e:
+            self.logger.warning(f"Seed validation failed: {e}")
+            return {}
 
-        # 5-6. Name and score each cluster
-        organic_caps: Dict[str, Dict[str, Any]] = {}
-        total_entities = len(entity_ids) if entity_ids else 1
+    async def _score_domain_clusters(  # noqa: PLR0913 — pipeline context params
+        self,
+        clusters: list,
+        entities: list,
+        devices: dict,
+        seed_caps: dict,
+        activity_rates: dict[str, float],
+        demand_signals: list,
+        total_entities: int,
+    ) -> dict[str, dict[str, Any]]:
+        """Name and score domain-layer clusters into organic capabilities."""
+        organic_caps: dict[str, dict[str, Any]] = {}
+        today = str(date.today())
 
         for cluster in clusters:
-            cluster_id = cluster["cluster_id"]
-            member_ids = cluster["entity_ids"]
-            silhouette = cluster.get("silhouette", 0.0)
-
-            # Build cluster_info for naming
-            cluster_info = self._build_cluster_info(member_ids, entities, devices)
-            cluster_info["entity_ids"] = member_ids
-
-            # Name
-            name, description = await self._name_cluster(cluster_info)
-
-            # Ensure unique names
-            if name in organic_caps or name in seed_caps:
-                name = f"{name}_{cluster_id}"
-
-            # Score
-            avg_activity = 0.0
-            if member_ids:
-                rates = [activity_rates.get(eid, 0.0) for eid in member_ids]
-                avg_activity = sum(rates) / len(rates)
-
-            components = UsefulnessComponents(
-                predictability=self._compute_predictability(name, seed_caps),
-                stability=self._compute_stability(name),
-                entity_coverage=len(member_ids) / total_entities,
-                activity=min(avg_activity / 50.0, 1.0),  # normalize: 50 changes/day = 1.0
-                cohesion=max(silhouette, 0.0),
+            cap_entry = await self._build_capability_entry(
+                cluster, entities, devices, seed_caps, activity_rates,
+                demand_signals, total_entities, organic_caps, today,
             )
-            usefulness = compute_usefulness(components)
+            if cap_entry:
+                name, data = cap_entry
+                organic_caps[name] = data
 
-            # Demand alignment bonus
-            entity_lookup = {e.get("entity_id", ""): e for e in entities}
-            cluster_entity_data = [entity_lookup[eid] for eid in member_ids if eid in entity_lookup]
-            demand_bonus = self._compute_demand_alignment(cluster_entity_data, demand_signals)
-            usefulness = int(min(usefulness + demand_bonus * 100, 100))
+        return organic_caps
 
-            today = str(date.today())
-            organic_caps[name] = {
-                "available": True,
-                "entities": member_ids,
-                "total_count": len(member_ids),
-                "can_predict": False,
-                "source": "organic",
-                "usefulness": usefulness,
-                "usefulness_components": components.to_dict(),
-                "layer": self._classify_layer(cluster_info),
-                "status": "candidate",
-                "first_seen": today,
-                "promoted_at": None,
-                "naming_method": self.settings["naming_backend"],
-                "description": description,
-                "stability_streak": self._count_streak(name),
-            }
-
-        # Phase 2: Behavioral clustering
-        run_start = str(date.today())
+    async def _score_behavioral_clusters(  # noqa: PLR0913 — pipeline context params
+        self,
+        organic_caps: dict[str, dict[str, Any]],
+        entities: list,
+        devices: dict,
+        seed_caps: dict,
+        activity_rates: dict[str, float],
+        demand_signals: list,
+        total_entities: int,
+    ) -> None:
+        """Run behavioral clustering and add results to organic_caps in place."""
         logbook_entries = await self._load_logbook()
-        if logbook_entries:
-            behavioral_clusters = cluster_behavioral(logbook_entries)
-            for cluster in behavioral_clusters:
-                cluster_id = cluster["cluster_id"]
-                member_ids = cluster["entity_ids"]
+        if not logbook_entries:
+            return
 
-                cluster_info = self._build_cluster_info(member_ids, entities, devices)
-                cluster_info["entity_ids"] = member_ids
-                cluster_info["temporal_pattern"] = cluster.get("temporal_pattern", {})
+        behavioral_clusters = cluster_behavioral(logbook_entries)
+        run_start = str(date.today())
 
-                name, description = await self._name_cluster(cluster_info)
+        for cluster in behavioral_clusters:
+            cluster_info_extra = {"temporal_pattern": cluster.get("temporal_pattern", {})}
+            cap_entry = await self._build_capability_entry(
+                cluster, entities, devices, seed_caps, activity_rates,
+                demand_signals, total_entities, organic_caps, run_start,
+                layer_override="behavioral", name_prefix="behavioral_",
+                extra_info=cluster_info_extra,
+                extra_fields={"temporal_pattern": cluster.get("temporal_pattern", {})},
+            )
+            if cap_entry:
+                name, data = cap_entry
+                organic_caps[name] = data
 
-                # Avoid name collision with domain capabilities or seeds
-                if name in organic_caps or name in seed_caps:
-                    name = f"behavioral_{name}_{cluster_id}"
+    async def _build_capability_entry(  # noqa: PLR0913 — cluster scoring needs full context
+        self,
+        cluster: dict,
+        entities: list,
+        devices: dict,
+        seed_caps: dict,
+        activity_rates: dict[str, float],
+        demand_signals: list,
+        total_entities: int,
+        existing_caps: dict,
+        first_seen: str,
+        layer_override: str | None = None,
+        name_prefix: str = "",
+        extra_info: dict | None = None,
+        extra_fields: dict | None = None,
+    ) -> tuple[str, dict[str, Any]] | None:
+        """Build a single capability entry from a cluster.
 
-                # Score
-                avg_activity = 0.0
-                if member_ids:
-                    rates = [activity_rates.get(eid, 0.0) for eid in member_ids]
-                    avg_activity = sum(rates) / len(rates)
+        Returns:
+            (name, cap_data) tuple, or None on failure.
+        """
+        cluster_id = cluster["cluster_id"]
+        member_ids = cluster["entity_ids"]
+        silhouette = cluster.get("silhouette", 0.0)
 
-                silhouette = cluster.get("silhouette", 0.0)
-                components = UsefulnessComponents(
-                    predictability=self._compute_predictability(name, seed_caps),
-                    stability=self._compute_stability(name),
-                    entity_coverage=len(member_ids) / total_entities,
-                    activity=min(avg_activity / 50.0, 1.0),
-                    cohesion=max(silhouette, 0.0),
-                )
-                usefulness = compute_usefulness(components)
+        cluster_info = self._build_cluster_info(member_ids, entities, devices)
+        cluster_info["entity_ids"] = member_ids
+        if extra_info:
+            cluster_info.update(extra_info)
 
-                # Demand alignment bonus
-                entity_lookup_b = {e.get("entity_id", ""): e for e in entities}
-                cluster_entity_data_b = [entity_lookup_b[eid] for eid in member_ids if eid in entity_lookup_b]
-                demand_bonus_b = self._compute_demand_alignment(cluster_entity_data_b, demand_signals)
-                usefulness = int(min(usefulness + demand_bonus_b * 100, 100))
+        name, description = await self._name_cluster(cluster_info)
 
-                organic_caps[name] = {
-                    "available": True,
-                    "entities": member_ids,
-                    "total_count": len(member_ids),
-                    "can_predict": False,
-                    "source": "organic",
-                    "usefulness": usefulness,
-                    "usefulness_components": components.to_dict(),
-                    "layer": "behavioral",
-                    "status": "candidate",
-                    "first_seen": run_start,
-                    "promoted_at": None,
-                    "naming_method": self.settings["naming_backend"],
-                    "description": description,
-                    "stability_streak": self._count_streak(name),
-                    "temporal_pattern": cluster.get("temporal_pattern", {}),
-                }
+        # Ensure unique names
+        if name in existing_caps or name in seed_caps:
+            name = f"{name_prefix}{name}_{cluster_id}" if name_prefix else f"{name}_{cluster_id}"
 
-        # 7. Merge: seeds always preserved
-        merged_caps: Dict[str, Dict[str, Any]] = {}
+        # Score
+        avg_activity = 0.0
+        if member_ids:
+            rates = [activity_rates.get(eid, 0.0) for eid in member_ids]
+            avg_activity = sum(rates) / len(rates)
 
-        # Add seeds first with canonical fields
+        components = UsefulnessComponents(
+            predictability=self._compute_predictability(name, seed_caps),
+            stability=self._compute_stability(name),
+            entity_coverage=len(member_ids) / total_entities,
+            activity=min(avg_activity / 50.0, 1.0),
+            cohesion=max(silhouette, 0.0),
+        )
+        usefulness = compute_usefulness(components)
+
+        # Demand alignment bonus
+        entity_lookup = {e.get("entity_id", ""): e for e in entities}
+        cluster_entity_data = [entity_lookup[eid] for eid in member_ids if eid in entity_lookup]
+        demand_bonus = self._compute_demand_alignment(cluster_entity_data, demand_signals)
+        usefulness = int(min(usefulness + demand_bonus * 100, 100))
+
+        layer = layer_override or self._classify_layer(cluster_info)
+        cap_data: dict[str, Any] = {
+            "available": True,
+            "entities": member_ids,
+            "total_count": len(member_ids),
+            "can_predict": False,
+            "source": "organic",
+            "usefulness": usefulness,
+            "usefulness_components": components.to_dict(),
+            "layer": layer,
+            "status": "candidate",
+            "first_seen": first_seen,
+            "promoted_at": None,
+            "naming_method": self.settings["naming_backend"],
+            "description": description,
+            "stability_streak": self._count_streak(name),
+        }
+        if extra_fields:
+            cap_data.update(extra_fields)
+
+        return name, cap_data
+
+    @staticmethod
+    def _merge_capabilities(
+        seed_caps: dict[str, Any], organic_caps: dict[str, dict[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
+        """Merge seed and organic capabilities, seeds always preserved."""
+        merged: dict[str, dict[str, Any]] = {}
         for seed_name, seed_data in seed_caps.items():
-            merged_caps[seed_name] = {
+            merged[seed_name] = {
                 "available": seed_data.get("available", True),
                 "entities": seed_data.get("entities", []),
                 "total_count": seed_data.get("total_count", len(seed_data.get("entities", []))),
@@ -372,23 +417,19 @@ class OrganicDiscoveryModule(Module):
                 "description": seed_data.get("description", ""),
                 "stability_streak": seed_data.get("stability_streak", 0),
             }
-
-        # Add organic capabilities
         for cap_name, cap_data in organic_caps.items():
-            if cap_name not in merged_caps:
-                merged_caps[cap_name] = cap_data
+            if cap_name not in merged:
+                merged[cap_name] = cap_data
+        return merged
 
-        # 8. Apply autonomy rules
-        self._apply_autonomy(merged_caps)
-
-        # 9. Write to cache
+    async def _persist_discovery_results(
+        self, merged_caps: dict, clusters: list, organic_caps: dict, seed_validation: dict,
+    ) -> dict[str, Any]:
+        """Write merged capabilities to cache, record history, publish event."""
         await self.hub.set_cache(
-            "capabilities",
-            merged_caps,
-            {"count": len(merged_caps), "source": "organic_discovery"},
+            "capabilities", merged_caps, {"count": len(merged_caps), "source": "organic_discovery"},
         )
 
-        # Record history
         run_record = {
             "timestamp": str(date.today()),
             "clusters_found": len(clusters),
@@ -397,19 +438,9 @@ class OrganicDiscoveryModule(Module):
             "total_merged": len(merged_caps),
         }
         self.history.append(run_record)
-
-        # Persist history (keep last 90 entries)
         self.history = self.history[-90:]
         await self.hub.set_cache("discovery_history", self.history)
-
-        # Publish event
         await self.hub.publish("organic_discovery_complete", run_record)
-
-        self.logger.info(
-            f"Organic discovery complete: {len(clusters)} clusters, "
-            f"{len(organic_caps)} organic caps, {len(merged_caps)} total"
-        )
-
         return run_record
 
     # ------------------------------------------------------------------
@@ -485,16 +516,16 @@ class OrganicDiscoveryModule(Module):
 
     def _build_cluster_info(
         self,
-        member_ids: List[str],
-        entities: List[Dict[str, Any]],
-        devices: Dict[str, Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        member_ids: list[str],
+        entities: list[dict[str, Any]],
+        devices: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
         """Build metadata dict for naming from member entity IDs."""
         entity_lookup = {e.get("entity_id", ""): e for e in entities}
 
-        domains: Dict[str, int] = {}
-        areas: Dict[str, int] = {}
-        device_classes: Dict[str, int] = {}
+        domains: dict[str, int] = {}
+        areas: dict[str, int] = {}
+        device_classes: dict[str, int] = {}
 
         for eid in member_ids:
             entity = entity_lookup.get(eid, {})
@@ -522,7 +553,7 @@ class OrganicDiscoveryModule(Module):
             "device_classes": device_classes,
         }
 
-    def _classify_layer(self, cluster_info: Dict[str, Any]) -> str:
+    def _classify_layer(self, cluster_info: dict[str, Any]) -> str:
         """Classify a cluster as 'domain' or 'behavioral' layer.
 
         Single-domain clusters are 'domain'. Multi-domain are 'behavioral'.
@@ -568,7 +599,7 @@ class OrganicDiscoveryModule(Module):
                 break
         return streak
 
-    def _apply_autonomy(self, caps: Dict[str, Dict[str, Any]]) -> None:
+    def _apply_autonomy(self, caps: dict[str, dict[str, Any]]) -> None:
         """Apply autonomy rules to update status of organic capabilities in-place."""
         mode = self.settings["autonomy_mode"]
         promote_threshold = self.settings["promote_threshold"]
@@ -576,7 +607,7 @@ class OrganicDiscoveryModule(Module):
         promote_streak = self.settings["promote_streak_days"]
         archive_streak = self.settings["archive_streak_days"]
 
-        for name, cap in caps.items():
+        for _name, cap in caps.items():
             if cap.get("source") == "seed":
                 continue  # seeds are always promoted
 

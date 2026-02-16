@@ -12,7 +12,6 @@ from aria.engine.config import AppConfig, OllamaConfig
 from aria.engine.llm.client import ollama_chat, strip_think_tags
 from aria.engine.storage.data_store import DataStore
 
-
 AUTOMATION_PROMPT = """You are a Home Assistant automation expert analyzing real behavioral data from a smart home.
 
 ## Entity Correlation Patterns (from learned data)
@@ -48,7 +47,12 @@ Output as a JSON array. Each suggestion must have:
 5. "yaml": Valid HA automation YAML string
 
 Example:
-[{{"description": "Motion in hallway triggers hallway light (observed 20x co-occurrence, P=0.9)", "trigger_entity": "binary_sensor.motion_hallway", "action_entity": "light.hallway", "confidence": "high", "yaml": "alias: Motion-activated hallway light\\ntrigger:\\n  - platform: state\\n    entity_id: binary_sensor.motion_hallway\\n    to: 'on'\\naction:\\n  - service: light.turn_on\\n    target:\\n      entity_id: light.hallway"}}]
+[{{"description": "Motion in hallway triggers hallway light (observed 20x co-occurrence, P=0.9)",
+"trigger_entity": "binary_sensor.motion_hallway", "action_entity": "light.hallway",
+"confidence": "high",
+"yaml": "alias: Motion-activated hallway light\\ntrigger:\\n  - platform: state\\n"
+"    entity_id: binary_sensor.motion_hallway\\n    to: 'on'\\naction:\\n"
+"  - service: light.turn_on\\n    target:\\n      entity_id: light.hallway"}}]
 """
 
 

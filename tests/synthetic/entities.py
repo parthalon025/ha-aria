@@ -82,7 +82,7 @@ class DeviceRoster:
         self._by_id: dict[str, Device] = {d.entity_id: d for d in devices}
 
     @classmethod
-    def typical_home(cls) -> DeviceRoster:
+    def typical_home(cls) -> DeviceRoster:  # noqa: C901
         """Create a roster of ~50+ entities for a typical smart home."""
         devices: list[Device] = []
 
@@ -404,7 +404,7 @@ class EntityStateGenerator:
 
         return states
 
-    def _generate_device_state(
+    def _generate_device_state(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
         self,
         device: Device,
         rng: random.Random,
@@ -519,19 +519,14 @@ class EntityStateGenerator:
 
         # --- Sensor (battery) ---
         if device.device_class == "battery":
-            if "luda" in eid:
-                # EV battery: 40-95%
-                level = rng.randint(40, 95)
-            else:
-                # Lock battery: slow drain 70-100%
-                level = rng.randint(70, 100)
+            level = rng.randint(40, 95) if "luda" in eid else rng.randint(70, 100)
             return device.to_ha_state(str(level))
 
         # --- Sensor (power) ---
         if device.device_class == "power":
             if "luda_charger" in eid:
                 # Charger: on overnight, off during day
-                if 22 <= hour or hour < 6:
+                if hour >= 22 or hour < 6:
                     return device.to_ha_state(str(round(rng.uniform(6000, 7500), 1)))
                 return device.to_ha_state("0.0")
             # total_power handled after loop

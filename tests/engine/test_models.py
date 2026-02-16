@@ -1,29 +1,28 @@
 """Tests for ML models: training, anomaly detection, device failure, blending."""
 
+import importlib.util
 import os
-import unittest
-import tempfile
+import pathlib
 import shutil
+import tempfile
+import unittest
 
+from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.config import HolidayConfig, PathConfig
 from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
 from aria.engine.features.vector_builder import build_training_data
+from aria.engine.models.device_failure import (
+    detect_contextual_anomalies,
+    predict_device_failures,
+    train_device_failure_model,
+)
+from aria.engine.models.isolation_forest import IsolationForestModel
 from aria.engine.models.training import (
-    train_continuous_model,
     blend_predictions,
     count_days_of_data,
     predict_with_ml,
+    train_continuous_model,
 )
-from aria.engine.models.isolation_forest import IsolationForestModel
-from aria.engine.models.device_failure import (
-    train_device_failure_model,
-    predict_device_failures,
-    detect_contextual_anomalies,
-)
-from aria.engine.config import HolidayConfig, PathConfig
-from aria.engine.collectors.snapshot import build_empty_snapshot
-
-import importlib.util
-import pathlib
 
 _spec = importlib.util.spec_from_file_location(
     "engine_conftest",
@@ -196,6 +195,7 @@ class TestHybridAnomalyDetection(unittest.TestCase):
         if not HAS_SKLEARN:
             self.skipTest("sklearn not installed")
         import numpy as np
+
         from aria.engine.models.autoencoder import Autoencoder
 
         tmpdir = tempfile.mkdtemp()
@@ -215,6 +215,7 @@ class TestHybridAnomalyDetection(unittest.TestCase):
         if not HAS_SKLEARN:
             self.skipTest("sklearn not installed")
         import numpy as np
+
         from aria.engine.models.autoencoder import Autoencoder
 
         tmpdir = tempfile.mkdtemp()

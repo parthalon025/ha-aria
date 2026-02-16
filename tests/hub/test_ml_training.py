@@ -7,14 +7,15 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-import pytest  # noqa: E402
 import json  # noqa: E402
-import numpy as np  # noqa: E402
 from datetime import datetime, timedelta  # noqa: E402
 from unittest.mock import AsyncMock, Mock  # noqa: E402
 
-from aria.modules.ml_engine import MLEngine  # noqa: E402
+import numpy as np  # noqa: E402
+import pytest  # noqa: E402
+
 from aria.hub.core import IntelligenceHub  # noqa: E402
+from aria.modules.ml_engine import MLEngine  # noqa: E402
 
 
 @pytest.fixture
@@ -374,7 +375,7 @@ class TestMLEngine:
         assert len(predictions) > 0
 
         # Verify each prediction has required fields
-        for target, pred in predictions.items():
+        for _target, pred in predictions.items():
             assert "value" in pred
             assert "gb_prediction" in pred
             assert "rf_prediction" in pred
@@ -407,7 +408,7 @@ class TestMLEngine:
         result = await ml_engine.generate_predictions()
 
         # Verify N-model weighted blending for each prediction
-        for target, pred in result["predictions"].items():
+        for _target, pred in result["predictions"].items():
             gb = pred["gb_prediction"]
             rf = pred["rf_prediction"]
             lgbm = pred["lgbm_prediction"]
@@ -421,7 +422,7 @@ class TestMLEngine:
             # Tolerance 0.02: both blended and expected are independently rounded
             # to 2dp, which can introduce up to 0.01 rounding disagreement.
             expected = round(weights["gb"] * gb + weights["rf"] * rf + weights["lgbm"] * lgbm, 2)
-            assert abs(blended - expected) < 0.02, f"{target}: blended={blended}, expected={expected}"
+            assert abs(blended - expected) < 0.02, f"{_target}: blended={blended}, expected={expected}"
 
     @pytest.mark.asyncio
     async def test_generate_predictions_confidence(self, ml_engine, mock_hub, mock_capabilities, synthetic_snapshots):
@@ -445,7 +446,7 @@ class TestMLEngine:
         result = await ml_engine.generate_predictions()
 
         # Verify confidence logic (N-model: max deviation / abs(mean))
-        for target, pred in result["predictions"].items():
+        for _target, pred in result["predictions"].items():
             pred_values = [pred["gb_prediction"], pred["rf_prediction"], pred["lgbm_prediction"]]
             confidence = pred["confidence"]
             avg_pred = sum(pred_values) / len(pred_values)
@@ -458,7 +459,7 @@ class TestMLEngine:
                 max_diff = max(abs(p - avg_pred) for p in pred_values)
                 expected_conf = 1.0 if max_diff < 0.1 else 0.5
 
-            assert abs(confidence - expected_conf) < 0.01, f"{target}: conf={confidence}, expected={expected_conf}"
+            assert abs(confidence - expected_conf) < 0.01, f"{_target}: conf={confidence}, expected={expected_conf}"
 
     @pytest.mark.asyncio
     async def test_generate_predictions_anomaly_detection(
@@ -698,10 +699,10 @@ class TestLightGBMIntegration:
         result = await ml_engine_with_data.generate_predictions()
 
         assert "predictions" in result
-        for target, pred in result["predictions"].items():
-            assert "lgbm_prediction" in pred, f"lgbm_prediction missing from {target}"
-            assert "gb_prediction" in pred, f"gb_prediction missing from {target}"
-            assert "rf_prediction" in pred, f"rf_prediction missing from {target}"
+        for _target, pred in result["predictions"].items():
+            assert "lgbm_prediction" in pred, f"lgbm_prediction missing from {_target}"
+            assert "gb_prediction" in pred, f"gb_prediction missing from {_target}"
+            assert "rf_prediction" in pred, f"rf_prediction missing from {_target}"
             assert isinstance(pred["lgbm_prediction"], float)
 
     @pytest.mark.asyncio
@@ -732,7 +733,7 @@ class TestLightGBMIntegration:
 
         result = await ml_engine_with_data.generate_predictions()
 
-        for target, pred in result["predictions"].items():
+        for _target, pred in result["predictions"].items():
             gb = pred["gb_prediction"]
             rf = pred["rf_prediction"]
             lgbm = pred["lgbm_prediction"]
@@ -741,7 +742,7 @@ class TestLightGBMIntegration:
             # Verify blending uses normalized weights (0.35 + 0.25 + 0.40 = 1.0)
             expected = round(0.35 * gb + 0.25 * rf + 0.40 * lgbm, 2)
             assert abs(blended - expected) < 0.02, (
-                f"{target}: blended={blended}, expected={expected} (gb={gb}, rf={rf}, lgbm={lgbm})"
+                f"{_target}: blended={blended}, expected={expected} (gb={gb}, rf={rf}, lgbm={lgbm})"
             )
 
     @pytest.mark.asyncio
@@ -772,7 +773,7 @@ class TestLightGBMIntegration:
 
         result = await ml_engine_with_data.generate_predictions()
 
-        for target, pred in result["predictions"].items():
+        for _target, pred in result["predictions"].items():
             assert "blend_weights" in pred
             weights = pred["blend_weights"]
             assert "gb" in weights
@@ -812,7 +813,7 @@ class TestLightGBMIntegration:
 
         result = await ml_engine_with_data.generate_predictions()
 
-        for target, pred in result["predictions"].items():
+        for _target, pred in result["predictions"].items():
             # lgbm_prediction should not be present
             assert "lgbm_prediction" not in pred
             # gb and rf should still be present
@@ -856,7 +857,7 @@ class TestLightGBMIntegration:
 
         result = await ml_engine_with_data.generate_predictions()
 
-        for target, pred in result["predictions"].items():
+        for _target, pred in result["predictions"].items():
             assert "lgbm_prediction" in pred
             assert "gb_prediction" not in pred
             assert "rf_prediction" not in pred
@@ -1665,7 +1666,12 @@ async def test_extract_features_delegates_to_vector_builder(ml_engine):
         "motion": {"active_count": 1},
         "media": {"total_active": 0},
         "weather": {"temp_f": 55, "humidity": 60},
-        "presence": {"overall_probability": 0.85, "occupied_room_count": 2, "identified_person_count": 1, "camera_signal_count": 0},
+        "presence": {
+            "overall_probability": 0.85,
+            "occupied_room_count": 2,
+            "identified_person_count": 1,
+            "camera_signal_count": 0,
+        },
     }
 
     hub_features = await ml_engine._extract_features(snapshot)

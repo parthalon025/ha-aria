@@ -3,8 +3,8 @@
 import unittest
 
 from aria.engine.analysis.power_profiles import (
-    ApplianceProfiler,
     ApplianceProfile,
+    ApplianceProfiler,
     profile_correlation,
 )
 
@@ -13,14 +13,14 @@ def _make_cycle_series(n_cycles=3, on_watts=100, off_watts=1, cycle_points=5, ga
     """Build a synthetic power time series with N on/off cycles."""
     series = []
     t = 0
-    for i in range(n_cycles):
+    for _i in range(n_cycles):
         # On phase
         for j in range(cycle_points):
             ts = f"2026-02-10T{10 + t // 60:02d}:{t % 60:02d}:00"
             series.append((ts, on_watts + (j * 5)))
             t += 5
         # Off phase
-        for j in range(gap_points):
+        for _j in range(gap_points):
             ts = f"2026-02-10T{10 + t // 60:02d}:{t % 60:02d}:00"
             series.append((ts, off_watts))
             t += 5

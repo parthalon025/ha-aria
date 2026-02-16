@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.synthetic.simulator import HouseholdSimulator
 from tests.synthetic.pipeline import PipelineRunner
+from tests.synthetic.simulator import HouseholdSimulator
 
 
 def generate_checkpoint(

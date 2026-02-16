@@ -1,7 +1,8 @@
 """Tests for /api/capabilities/registry endpoints."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from fastapi.testclient import TestClient
 
 from aria.hub.api import create_api

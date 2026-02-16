@@ -40,7 +40,74 @@ def count_days_of_data(paths=None):
     return len([f for f in os.listdir(daily_dir) if f.endswith(".json")])
 
 
-def generate_predictions(
+def _compute_fallback_baseline(baselines):
+    """Compute overall average baseline when target day-of-week has no data."""
+    metrics_keys = ["power_watts", "lights_on", "devices_home", "unavailable", "useful_events"]
+    baseline = {"sample_count": 0}
+    total_samples = 0
+    for day_bl in baselines.values():
+        if not isinstance(day_bl, dict) or "sample_count" not in day_bl:
+            continue
+        n = day_bl["sample_count"]
+        total_samples += n
+        for mk in metrics_keys:
+            if mk in day_bl and isinstance(day_bl[mk], dict):
+                if mk not in baseline:
+                    baseline[mk] = {"mean": 0, "stddev": 0, "min": 0, "max": 0}
+                baseline[mk]["mean"] += day_bl[mk].get("mean", 0) * n
+                baseline[mk]["stddev"] = max(baseline[mk]["stddev"], day_bl[mk].get("stddev", 0))
+    if total_samples > 0:
+        baseline["sample_count"] = total_samples
+        for mk in metrics_keys:
+            if mk in baseline:
+                baseline[mk]["mean"] = round(baseline[mk]["mean"] / total_samples, 1)
+    return baseline
+
+
+def _predict_single_metric(metric, baseline, weather_forecast, correlations, ml_predictions, days):  # noqa: PLR0913 — prediction context requires all inputs
+    """Generate prediction for a single metric with weather adjustments and ML blending."""
+    bl = baseline.get(metric, {})
+    mean = bl.get("mean", 0)
+    stddev = bl.get("stddev", 0)
+    sample_count = baseline.get("sample_count", 0)
+
+    stat_predicted = mean
+    adjustments = []
+
+    if weather_forecast and correlations:
+        temp = weather_forecast.get("temp_f")
+        if temp is not None:
+            for corr in correlations:
+                if corr["x"] == "weather_temp" and corr["y"] == metric:
+                    temp_deviation = (temp - 72) / 30
+                    adjustment = stat_predicted * temp_deviation * abs(corr["r"]) * 0.2
+                    stat_predicted += adjustment
+                    adjustments.append(f"weather({temp}\u00b0F): {'+' if adjustment > 0 else ''}{adjustment:.0f}")
+
+    ml_val = ml_predictions.get(metric) if ml_predictions else None
+    if ml_val is not None:
+        predicted = blend_predictions(stat_predicted, ml_val, days)
+        adjustments.append(f"ml_blend(weight={0.3 if days < 60 else (0.5 if days < 90 else 0.7)}): {ml_val:.1f}")
+    else:
+        predicted = stat_predicted
+
+    if sample_count >= 7:
+        confidence = "high"
+    elif sample_count >= 3:
+        confidence = "medium"
+    else:
+        confidence = "low"
+
+    return {
+        "predicted": round(predicted, 1),
+        "baseline_mean": mean,
+        "baseline_stddev": stddev,
+        "confidence": confidence,
+        "adjustments": adjustments,
+    }
+
+
+def generate_predictions(  # noqa: PLR0913 — prediction requires all context inputs
     target_date,
     baselines,
     correlations=None,
@@ -66,27 +133,8 @@ def generate_predictions(
     dow = dt.strftime("%A")
     baseline = baselines.get(dow, {})
 
-    # Fall back to overall average when target day-of-week has no baseline
     if not baseline and baselines:
-        metrics_keys = ["power_watts", "lights_on", "devices_home", "unavailable", "useful_events"]
-        baseline = {"sample_count": 0}
-        total_samples = 0
-        for day_bl in baselines.values():
-            if not isinstance(day_bl, dict) or "sample_count" not in day_bl:
-                continue
-            n = day_bl["sample_count"]
-            total_samples += n
-            for mk in metrics_keys:
-                if mk in day_bl and isinstance(day_bl[mk], dict):
-                    if mk not in baseline:
-                        baseline[mk] = {"mean": 0, "stddev": 0, "min": 0, "max": 0}
-                    baseline[mk]["mean"] += day_bl[mk].get("mean", 0) * n
-                    baseline[mk]["stddev"] = max(baseline[mk]["stddev"], day_bl[mk].get("stddev", 0))
-        if total_samples > 0:
-            baseline["sample_count"] = total_samples
-            for mk in metrics_keys:
-                if mk in baseline:
-                    baseline[mk]["mean"] = round(baseline[mk]["mean"] / total_samples, 1)
+        baseline = _compute_fallback_baseline(baselines)
 
     days = count_days_of_data(paths)
 
@@ -99,54 +147,13 @@ def generate_predictions(
     }
 
     metrics = ["power_watts", "lights_on", "devices_home", "unavailable", "useful_events"]
-
     for metric in metrics:
-        bl = baseline.get(metric, {})
-        mean = bl.get("mean", 0)
-        stddev = bl.get("stddev", 0)
-        sample_count = baseline.get("sample_count", 0)
+        predictions[metric] = _predict_single_metric(
+            metric, baseline, weather_forecast, correlations, ml_predictions, days,
+        )
 
-        stat_predicted = mean
-        adjustments = []
-
-        if weather_forecast and correlations:
-            temp = weather_forecast.get("temp_f")
-            if temp is not None:
-                for corr in correlations:
-                    if corr["x"] == "weather_temp" and corr["y"] == metric:
-                        temp_deviation = (temp - 72) / 30
-                        adjustment = stat_predicted * temp_deviation * abs(corr["r"]) * 0.2
-                        stat_predicted += adjustment
-                        adjustments.append(f"weather({temp}°F): {'+' if adjustment > 0 else ''}{adjustment:.0f}")
-
-        # Blend with ML prediction if available
-        ml_val = ml_predictions.get(metric) if ml_predictions else None
-        if ml_val is not None:
-            predicted = blend_predictions(stat_predicted, ml_val, days)
-            adjustments.append(f"ml_blend(weight={0.3 if days < 60 else (0.5 if days < 90 else 0.7)}): {ml_val:.1f}")
-        else:
-            predicted = stat_predicted
-
-        if sample_count >= 7:
-            confidence = "high"
-        elif sample_count >= 3:
-            confidence = "medium"
-        else:
-            confidence = "low"
-
-        predictions[metric] = {
-            "predicted": round(predicted, 1),
-            "baseline_mean": mean,
-            "baseline_stddev": stddev,
-            "confidence": confidence,
-            "adjustments": adjustments,
-        }
-
-    # Attach device failure predictions
     if device_failures:
         predictions["device_failures"] = device_failures
-
-    # Attach contextual anomaly result
     if contextual_anomalies:
         predictions["contextual_anomalies"] = contextual_anomalies
 

@@ -105,8 +105,7 @@ class HouseholdSimulator:
                 "sensor.luda_battery",
             ]
             for i, sensor_id in enumerate(battery_sensors):
-                if days_degraded >= i * 3:  # stagger: one more every 3 days
-                    if sensor_id not in unavailable:
-                        unavailable.append(sensor_id)
+                if days_degraded >= i * 3 and sensor_id not in unavailable:
+                    unavailable.append(sensor_id)
             entities["unavailable_entities"] = unavailable
             snapshot["entities_summary"] = entities

@@ -2,23 +2,22 @@
 
 import json
 import time
+from datetime import UTC
 from unittest.mock import MagicMock, patch
 
-
 from aria.watchdog import (
+    SMOKE_ENDPOINTS,
     WatchdogResult,
-    check_hub_health,
+    _should_alert,
+    attempt_restart,
     check_api_endpoints,
     check_cache_freshness,
-    check_timer_health,
+    check_hub_health,
     check_service_status,
-    attempt_restart,
-    send_alert,
+    check_timer_health,
     run_watchdog,
-    _should_alert,
-    SMOKE_ENDPOINTS,
+    send_alert,
 )
-
 
 # ---------------------------------------------------------------------------
 # WatchdogResult
@@ -229,9 +228,9 @@ class TestCheckCacheFreshness:
     @patch("aria.watchdog._http_get")
     def test_iso_timestamp_format(self, mock_get):
         """Cache keys may use ISO 8601 timestamps instead of epoch."""
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta
 
-        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        recent = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
         mock_get.return_value = (
             200,
             [
@@ -415,7 +414,7 @@ class TestRunWatchdog:
     @patch("aria.watchdog.check_hub_health")
     @patch("aria.watchdog.check_service_status")
     @patch("aria.watchdog.setup_logging")
-    def test_all_passing(self, mock_log, mock_svc, mock_hub, mock_api, mock_cache, mock_timer):
+    def test_all_passing(self, mock_log, mock_svc, mock_hub, mock_api, mock_cache, mock_timer):  # noqa: PLR0913
         mock_log.return_value = MagicMock()
         mock_svc.return_value = [WatchdogResult("service-hub", "OK", "active")]
         mock_hub.return_value = [WatchdogResult("hub-liveness", "OK", "healthy")]
@@ -432,7 +431,7 @@ class TestRunWatchdog:
     @patch("aria.watchdog.check_hub_health")
     @patch("aria.watchdog.check_service_status")
     @patch("aria.watchdog.setup_logging")
-    def test_with_failures(self, mock_log, mock_svc, mock_hub, mock_api, mock_cache, mock_timer):
+    def test_with_failures(self, mock_log, mock_svc, mock_hub, mock_api, mock_cache, mock_timer):  # noqa: PLR0913
         mock_log.return_value = MagicMock()
         mock_svc.return_value = [WatchdogResult("service-hub", "OK", "active")]
         mock_hub.return_value = [
@@ -473,7 +472,7 @@ class TestRunWatchdog:
     @patch("aria.watchdog.check_hub_health")
     @patch("aria.watchdog.check_service_status")
     @patch("aria.watchdog.setup_logging")
-    def test_json_output(self, mock_log, mock_svc, mock_hub, mock_api, mock_cache, mock_timer, capsys):
+    def test_json_output(self, mock_log, mock_svc, mock_hub, mock_api, mock_cache, mock_timer, capsys):  # noqa: PLR0913
         mock_log.return_value = MagicMock()
         mock_svc.return_value = [WatchdogResult("service-hub", "OK", "active")]
         mock_hub.return_value = [WatchdogResult("hub-liveness", "OK", "healthy")]

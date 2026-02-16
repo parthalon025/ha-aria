@@ -1,7 +1,7 @@
 """Tests for the discover-organic CLI command."""
 
 import unittest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestDiscoverOrganicSubparser(unittest.TestCase):
@@ -9,12 +9,11 @@ class TestDiscoverOrganicSubparser(unittest.TestCase):
 
     def test_subparser_registered_and_dispatches(self):
         """discover-organic should be a recognized subcommand that routes to _discover_organic."""
-        with patch("sys.argv", ["aria", "discover-organic"]):
-            with patch("aria.cli._discover_organic") as mock_fn:
-                from aria.cli import main
+        with patch("sys.argv", ["aria", "discover-organic"]), patch("aria.cli._discover_organic") as mock_fn:
+            from aria.cli import main
 
-                main()
-                mock_fn.assert_called_once()
+            main()
+            mock_fn.assert_called_once()
 
     def test_unknown_command_exits(self):
         """An unrecognized command should exit with code 1."""

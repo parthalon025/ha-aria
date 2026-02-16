@@ -78,8 +78,7 @@ class PageHinkleyDetector:
         self._cumulative_sum = self._sum
 
         # Track minimum cumulative sum
-        if self._cumulative_sum < self._min_cumulative_sum:
-            self._min_cumulative_sum = self._cumulative_sum
+        self._min_cumulative_sum = min(self._min_cumulative_sum, self._cumulative_sum)
 
         # Drift detected when gap between cumulative sum and its minimum exceeds threshold
         return (self._cumulative_sum - self._min_cumulative_sum) > self.lambda_
@@ -235,7 +234,7 @@ class DriftDetector:
         adwin_delta: ADWIN confidence parameter (default 0.002).
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — drift detector configuration requires all threshold parameters
         self,
         window_days: int = 7,
         threshold_multiplier: float = 2.0,
@@ -251,49 +250,23 @@ class DriftDetector:
         self.use_adwin = use_adwin
         self.adwin_delta = adwin_delta
 
-    def check(self, accuracy_history: dict) -> dict:
-        """Analyze accuracy history and determine if retraining is needed.
+    def _analyze_metric_errors(self, window, latest):
+        """Extract per-metric error analysis from the scoring window.
 
-        Args:
-            accuracy_history: Dict with "scores" list, each entry having
-                "date", "overall", and "metrics" (with per-metric error/accuracy).
-
-        Returns:
-            Dict with:
-                - needs_retrain: bool
-                - reason: str (human-readable explanation)
-                - rolling_mae: dict of per-metric rolling MAE
-                - current_mae: dict of per-metric latest MAE
-                - threshold: dict of per-metric retrain thresholds
-                - days_analyzed: int
-                - page_hinkley: dict of per-metric PH results (if enabled)
+        Returns (rolling_mae, current_mae, thresholds, drift_detected, ph_results, metric_errors).
         """
-        scores = accuracy_history.get("scores", [])
-        if len(scores) < self.min_samples:
-            return {
-                "needs_retrain": False,
-                "reason": f"insufficient data ({len(scores)} days, need {self.min_samples})",
-                "days_analyzed": len(scores),
-            }
-
-        # Use the most recent window_days entries
-        window = scores[-self.window_days :]
-        latest = scores[-1]
-
-        # Extract per-metric absolute errors from the window
         metrics = ["power_watts", "lights_on", "devices_home", "unavailable", "useful_events"]
         rolling_mae = {}
         current_mae = {}
         thresholds = {}
         drift_detected = []
         ph_results = {}
-        metric_errors = {}  # Collected for ADWIN analysis
+        metric_errors = {}
 
         for metric in metrics:
             errors = []
             for entry in window:
-                metric_data = entry.get("metrics", {}).get(metric, {})
-                error = metric_data.get("error")
+                error = entry.get("metrics", {}).get(metric, {}).get("error")
                 if error is not None:
                     errors.append(abs(error))
 
@@ -304,17 +277,14 @@ class DriftDetector:
             median_error = statistics.median(errors)
             rolling_mae[metric] = round(median_error, 2)
 
-            # Current error is the latest entry's error
             latest_error = latest.get("metrics", {}).get(metric, {}).get("error")
             if latest_error is not None:
                 current_mae[metric] = round(abs(latest_error), 2)
                 threshold = round(median_error * self.threshold_multiplier, 2)
                 thresholds[metric] = threshold
-
                 if abs(latest_error) > threshold and median_error > 0:
                     drift_detected.append(metric)
 
-            # Run Page-Hinkley on the full error series (not just window)
             if self.use_page_hinkley and len(errors) >= self.min_samples:
                 ph = PageHinkleyDetector()
                 ph_result = ph.check_series(errors)
@@ -322,16 +292,66 @@ class DriftDetector:
                 if ph_result["drift_detected"] and metric not in drift_detected:
                     drift_detected.append(metric)
 
-        # Run ADWIN analysis alongside PH (does not affect existing logic)
+        return rolling_mae, current_mae, thresholds, drift_detected, ph_results, metric_errors
+
+    def _run_adwin_analysis(self, metric_errors, drift_detected):
+        """Run ADWIN drift detection on collected metric errors."""
         adwin_results = {}
-        if self.use_adwin and HAS_RIVER:
-            adwin = ADWINDetector(delta=self.adwin_delta)
-            for metric, errors in metric_errors.items():
-                if len(errors) >= self.min_samples:
-                    adwin_result = adwin.check_series(metric, errors)
-                    adwin_results[metric] = adwin_result
-                    if adwin_result["drift_detected"] and metric not in drift_detected:
-                        drift_detected.append(metric)
+        if not (self.use_adwin and HAS_RIVER):
+            return adwin_results
+
+        adwin = ADWINDetector(delta=self.adwin_delta)
+        for metric, errors in metric_errors.items():
+            if len(errors) >= self.min_samples:
+                adwin_result = adwin.check_series(metric, errors)
+                adwin_results[metric] = adwin_result
+                if adwin_result["drift_detected"] and metric not in drift_detected:
+                    drift_detected.append(metric)
+
+        return adwin_results
+
+    def _build_result(  # noqa: PLR0913 — internal builder aggregating all check outputs
+        self, needs_retrain, reason, rolling_mae, current_mae,
+        thresholds, window, ph_results, adwin_results,
+    ):
+        """Build a standardized check result dict."""
+        return {
+            "needs_retrain": needs_retrain,
+            "reason": reason,
+            "rolling_mae": rolling_mae,
+            "current_mae": current_mae,
+            "threshold": thresholds,
+            "days_analyzed": len(window),
+            "page_hinkley": ph_results if self.use_page_hinkley else {},
+            "adwin": adwin_results if self.use_adwin else {},
+        }
+
+    def check(self, accuracy_history: dict) -> dict:
+        """Analyze accuracy history and determine if retraining is needed.
+
+        Args:
+            accuracy_history: Dict with "scores" list, each entry having
+                "date", "overall", and "metrics" (with per-metric error/accuracy).
+
+        Returns:
+            Dict with needs_retrain, reason, rolling_mae, current_mae,
+            threshold, days_analyzed, page_hinkley, adwin.
+        """
+        scores = accuracy_history.get("scores", [])
+        if len(scores) < self.min_samples:
+            return {
+                "needs_retrain": False,
+                "reason": f"insufficient data ({len(scores)} days, need {self.min_samples})",
+                "days_analyzed": len(scores),
+            }
+
+        window = scores[-self.window_days :]
+        latest = scores[-1]
+
+        rolling_mae, current_mae, thresholds, drift_detected, ph_results, metric_errors = (
+            self._analyze_metric_errors(window, latest)
+        )
+        adwin_results = self._run_adwin_analysis(metric_errors, drift_detected)
 
         if drift_detected:
             methods = ["threshold"]
@@ -340,46 +360,30 @@ class DriftDetector:
             if self.use_adwin:
                 methods.append("adwin")
             method = " + ".join(methods)
-            return {
-                "needs_retrain": True,
-                "reason": f"drift detected in {', '.join(drift_detected)} (method: {method})",
-                "drifted_metrics": drift_detected,
-                "rolling_mae": rolling_mae,
-                "current_mae": current_mae,
-                "threshold": thresholds,
-                "days_analyzed": len(window),
-                "page_hinkley": ph_results if self.use_page_hinkley else {},
-                "adwin": adwin_results if self.use_adwin else {},
-            }
+            result = self._build_result(
+                True, f"drift detected in {', '.join(drift_detected)} (method: {method})",
+                rolling_mae, current_mae, thresholds, window, ph_results, adwin_results,
+            )
+            result["drifted_metrics"] = drift_detected
+            return result
 
-        # Also check overall accuracy degradation
+        # Check overall accuracy degradation
         if len(window) >= 3:
             recent_overall = [s["overall"] for s in window[-3:]]
             earlier_overall = [s["overall"] for s in window[:-3]] if len(window) > 3 else recent_overall
             if earlier_overall and statistics.mean(recent_overall) < statistics.mean(earlier_overall) - 10:
-                return {
-                    "needs_retrain": True,
-                    "reason": f"overall accuracy dropped >10% "
+                return self._build_result(
+                    True,
+                    f"overall accuracy dropped >10% "
                     f"({statistics.mean(recent_overall):.0f}% vs "
                     f"{statistics.mean(earlier_overall):.0f}%)",
-                    "rolling_mae": rolling_mae,
-                    "current_mae": current_mae,
-                    "threshold": thresholds,
-                    "days_analyzed": len(window),
-                    "page_hinkley": ph_results if self.use_page_hinkley else {},
-                    "adwin": adwin_results if self.use_adwin else {},
-                }
+                    rolling_mae, current_mae, thresholds, window, ph_results, adwin_results,
+                )
 
-        return {
-            "needs_retrain": False,
-            "reason": "no drift detected, error within normal range",
-            "rolling_mae": rolling_mae,
-            "current_mae": current_mae,
-            "threshold": thresholds,
-            "days_analyzed": len(window),
-            "page_hinkley": ph_results if self.use_page_hinkley else {},
-            "adwin": adwin_results if self.use_adwin else {},
-        }
+        return self._build_result(
+            False, "no drift detected, error within normal range",
+            rolling_mae, current_mae, thresholds, window, ph_results, adwin_results,
+        )
 
     def should_skip_scheduled_retrain(self, accuracy_history: dict) -> bool:
         """Return True if scheduled retrain can be skipped (error is stable/low).

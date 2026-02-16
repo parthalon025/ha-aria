@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from aria.hub.api import create_api
 from aria.hub.core import IntelligenceHub
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================

@@ -36,10 +36,7 @@ def _is_trackable(entity_id: str) -> bool:
     domain = entity_id.split(".")[0] if "." in entity_id else ""
     if domain not in TRACKABLE_DOMAINS:
         return False
-    for pattern in EXCLUDED_PATTERNS:
-        if entity_id.startswith(pattern):
-            return False
-    return True
+    return all(not entity_id.startswith(pattern) for pattern in EXCLUDED_PATTERNS)
 
 
 def _parse_timestamp(ts_str: str) -> datetime | None:
@@ -50,6 +47,42 @@ def _parse_timestamp(ts_str: str) -> datetime | None:
         except (ValueError, TypeError):
             continue
     return None
+
+
+def _parse_trackable_events(logbook_entries):
+    """Filter logbook entries to trackable entities with parsed timestamps."""
+    events = []
+    for entry in logbook_entries:
+        eid = entry.get("entity_id", "")
+        if not _is_trackable(eid):
+            continue
+        ts = _parse_timestamp(entry.get("when", ""))
+        if ts is None:
+            continue
+        events.append({"entity_id": eid, "ts": ts, "hour": ts.hour})
+    return events
+
+
+def _count_co_occurrences(events, window_seconds):
+    """Count co-occurring entity pairs within a sliding time window."""
+    pair_counts = defaultdict(int)
+    pair_hours = defaultdict(list)
+
+    for i, event_a in enumerate(events):
+        for j in range(i + 1, len(events)):
+            event_b = events[j]
+            delta = (event_b["ts"] - event_a["ts"]).total_seconds()
+            if delta > window_seconds:
+                break
+            if event_a["entity_id"] == event_b["entity_id"]:
+                continue
+
+            # Canonical pair ordering (alphabetical) for consistent counting
+            pair = tuple(sorted([event_a["entity_id"], event_b["entity_id"]]))
+            pair_counts[pair] += 1
+            pair_hours[pair].append(event_a["hour"])
+
+    return pair_counts, pair_hours
 
 
 def compute_co_occurrences(logbook_entries: list, window_minutes: int = 15) -> list:
@@ -67,21 +100,11 @@ def compute_co_occurrences(logbook_entries: list, window_minutes: int = 15) -> l
         - conditional_prob_b_given_a: P(B changes | A changed within window)
         - typical_hour: most common hour for co-occurrence
     """
-    # Filter to trackable entities and parse timestamps
-    events = []
-    for entry in logbook_entries:
-        eid = entry.get("entity_id", "")
-        if not _is_trackable(eid):
-            continue
-        ts = _parse_timestamp(entry.get("when", ""))
-        if ts is None:
-            continue
-        events.append({"entity_id": eid, "ts": ts, "hour": ts.hour})
+    events = _parse_trackable_events(logbook_entries)
 
     if len(events) < 10:
         return []
 
-    # Sort by timestamp
     events.sort(key=lambda e: e["ts"])
 
     # Count per-entity events (for conditional probability denominator)
@@ -89,30 +112,19 @@ def compute_co_occurrences(logbook_entries: list, window_minutes: int = 15) -> l
     for e in events:
         entity_counts[e["entity_id"]] += 1
 
-    # Sliding window co-occurrence counting
-    pair_counts = defaultdict(int)
-    pair_hours = defaultdict(list)
-    window_seconds = window_minutes * 60
-
-    for i, event_a in enumerate(events):
-        # Look ahead within the time window
-        for j in range(i + 1, len(events)):
-            event_b = events[j]
-            delta = (event_b["ts"] - event_a["ts"]).total_seconds()
-            if delta > window_seconds:
-                break
-            if event_a["entity_id"] == event_b["entity_id"]:
-                continue
-
-            # Canonical pair ordering (alphabetical) for consistent counting
-            pair = tuple(sorted([event_a["entity_id"], event_b["entity_id"]]))
-            pair_counts[pair] += 1
-            pair_hours[pair].append(event_a["hour"])
+    pair_counts, pair_hours = _count_co_occurrences(events, window_minutes * 60)
 
     if not pair_counts:
         return []
 
     # Build results with conditional probabilities
+    results = _build_co_occurrence_results(pair_counts, entity_counts, pair_hours)
+    results.sort(key=lambda r: -r["count"])
+    return results[:50]  # Top 50 pairs
+
+
+def _build_co_occurrence_results(pair_counts, entity_counts, pair_hours):
+    """Build co-occurrence result dicts with conditional probabilities."""
     results = []
     for (entity_a, entity_b), count in pair_counts.items():
         if count < 3:  # Minimum co-occurrences to be meaningful
@@ -138,9 +150,7 @@ def compute_co_occurrences(logbook_entries: list, window_minutes: int = 15) -> l
                 "strength": _classify_strength(max(prob_a_given_b, prob_b_given_a)),
             }
         )
-
-    results.sort(key=lambda r: -r["count"])
-    return results[:50]  # Top 50 pairs
+    return results
 
 
 def _classify_strength(prob: float) -> str:

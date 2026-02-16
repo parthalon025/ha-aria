@@ -11,13 +11,13 @@ mechanism — Prophet weight increases with data maturity.
 import os
 import pickle
 
-from aria.engine.models.registry import ModelRegistry, BaseModel
+from aria.engine.models.registry import BaseModel, ModelRegistry
 
 HAS_PROPHET = True
 try:
-    from prophet import Prophet
-    import pandas as pd
     import numpy as np
+    import pandas as pd
+    from prophet import Prophet
 except ImportError:
     HAS_PROPHET = False
 

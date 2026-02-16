@@ -1,10 +1,11 @@
 """SQLite cache manager with JSON columns and versioning."""
 
 import json
-import aiosqlite
 import os
 from datetime import datetime, timedelta
-from typing import Any, Optional, Dict, List
+from typing import Any
+
+import aiosqlite
 
 
 class CacheManager:
@@ -17,7 +18,7 @@ class CacheManager:
             db_path: Path to SQLite database file
         """
         self.db_path = db_path
-        self._conn: Optional[aiosqlite.Connection] = None
+        self._conn: aiosqlite.Connection | None = None
 
     async def initialize(self):
         """Initialize database schema."""
@@ -194,7 +195,7 @@ class CacheManager:
             await self._conn.close()
             self._conn = None
 
-    async def get(self, category: str) -> Optional[Dict[str, Any]]:
+    async def get(self, category: str) -> dict[str, Any] | None:
         """Get data from cache by category.
 
         Args:
@@ -220,7 +221,7 @@ class CacheManager:
             "metadata": json.loads(row["metadata"]) if row["metadata"] else None,
         }
 
-    async def set(self, category: str, data: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None) -> int:
+    async def set(self, category: str, data: dict[str, Any], metadata: dict[str, Any] | None = None) -> int:
         """Set data in cache, incrementing version.
 
         Args:
@@ -283,7 +284,7 @@ class CacheManager:
 
         return deleted
 
-    async def list_categories(self) -> List[str]:
+    async def list_categories(self) -> list[str]:
         """List all cache categories.
 
         Returns:
@@ -299,9 +300,9 @@ class CacheManager:
     async def log_event(
         self,
         event_type: str,
-        category: Optional[str] = None,
-        data: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        category: str | None = None,
+        data: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         """Log an event to the events table.
 
@@ -330,8 +331,8 @@ class CacheManager:
         await self._conn.commit()
 
     async def get_events(
-        self, event_type: Optional[str] = None, category: Optional[str] = None, limit: int = 100
-    ) -> List[Dict[str, Any]]:
+        self, event_type: str | None = None, category: str | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
         """Get recent events from the events table.
 
         Args:
@@ -404,12 +405,12 @@ class CacheManager:
     # Shadow engine: predictions
     # ========================================================================
 
-    async def insert_prediction(
+    async def insert_prediction(  # noqa: PLR0913 — cache write needs all prediction fields
         self,
         prediction_id: str,
         timestamp: str,
-        context: Dict[str, Any],
-        predictions: List[Any],
+        context: dict[str, Any],
+        predictions: list[Any],
         confidence: float,
         window_seconds: int,
         is_exploration: bool = False,
@@ -450,7 +451,7 @@ class CacheManager:
         self,
         prediction_id: str,
         outcome: str,
-        actual: Optional[Dict[str, Any]] = None,
+        actual: dict[str, Any] | None = None,
         propagated_count: int = 0,
     ) -> None:
         """Update a prediction with its outcome.
@@ -484,8 +485,8 @@ class CacheManager:
         self,
         limit: int = 50,
         offset: int = 0,
-        outcome_filter: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        outcome_filter: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Get recent predictions, optionally filtered by outcome type.
 
         Args:
@@ -519,8 +520,8 @@ class CacheManager:
 
     async def get_pending_predictions(
         self,
-        before_timestamp: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        before_timestamp: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Get predictions with NULL outcome whose window has expired.
 
         Args:
@@ -549,7 +550,7 @@ class CacheManager:
 
         return [self._prediction_from_row(row) for row in rows]
 
-    async def get_accuracy_stats(self, days: int = 7) -> Dict[str, Any]:
+    async def get_accuracy_stats(self, days: int = 7) -> dict[str, Any]:
         """Calculate accuracy metrics over a time window.
 
         Args:
@@ -577,7 +578,7 @@ class CacheManager:
         )
         rows = await cursor.fetchall()
 
-        per_outcome: Dict[str, int] = {}
+        per_outcome: dict[str, int] = {}
         total_resolved = 0
         correct_count = 0
         for row in rows:
@@ -624,7 +625,7 @@ class CacheManager:
     # Shadow engine: pipeline state
     # ========================================================================
 
-    async def get_pipeline_state(self) -> Dict[str, Any]:
+    async def get_pipeline_state(self) -> dict[str, Any]:
         """Get current pipeline state, creating default row if not exists.
 
         Returns:
@@ -714,7 +715,7 @@ class CacheManager:
     # Phase 2: Config store
     # ========================================================================
 
-    async def get_config(self, key: str) -> Optional[Dict[str, Any]]:
+    async def get_config(self, key: str) -> dict[str, Any] | None:
         """Get a single config parameter by key.
 
         Args:
@@ -732,7 +733,7 @@ class CacheManager:
             return None
         return self._config_from_row(row)
 
-    async def get_all_config(self) -> List[Dict[str, Any]]:
+    async def get_all_config(self) -> list[dict[str, Any]]:
         """Get all config parameters.
 
         Returns:
@@ -745,7 +746,7 @@ class CacheManager:
         rows = await cursor.fetchall()
         return [self._config_from_row(row) for row in rows]
 
-    async def set_config(self, key: str, value: str, changed_by: str = "user") -> Dict[str, Any]:
+    async def set_config(self, key: str, value: str, changed_by: str = "user") -> dict[str, Any]:
         """Update a config parameter value with validation and history.
 
         Args:
@@ -788,7 +789,7 @@ class CacheManager:
         await self._conn.commit()
         return await self.get_config(key)
 
-    async def upsert_config_default(
+    async def upsert_config_default(  # noqa: PLR0913 — config schema has many fields
         self,
         key: str,
         default_value: str,
@@ -796,10 +797,10 @@ class CacheManager:
         label: str = "",
         description: str = "",
         category: str = "",
-        min_value: Optional[float] = None,
-        max_value: Optional[float] = None,
-        options: Optional[str] = None,
-        step: Optional[float] = None,
+        min_value: float | None = None,
+        max_value: float | None = None,
+        options: str | None = None,
+        step: float | None = None,
     ) -> bool:
         """Insert a config default if the key doesn't already exist.
 
@@ -847,7 +848,7 @@ class CacheManager:
         await self._conn.commit()
         return cursor.rowcount > 0
 
-    async def reset_config(self, key: str, changed_by: str = "user") -> Dict[str, Any]:
+    async def reset_config(self, key: str, changed_by: str = "user") -> dict[str, Any]:
         """Reset a config parameter to its default value.
 
         Args:
@@ -891,7 +892,7 @@ class CacheManager:
     # Phase 2: Entity curation
     # ========================================================================
 
-    async def get_all_curation(self) -> List[Dict[str, Any]]:
+    async def get_all_curation(self) -> list[dict[str, Any]]:
         """Get all entity curation records.
 
         Returns:
@@ -904,7 +905,7 @@ class CacheManager:
         rows = await cursor.fetchall()
         return [self._curation_from_row(row) for row in rows]
 
-    async def get_curation(self, entity_id: str) -> Optional[Dict[str, Any]]:
+    async def get_curation(self, entity_id: str) -> dict[str, Any] | None:
         """Get curation record for a single entity.
 
         Args:
@@ -922,7 +923,7 @@ class CacheManager:
             return None
         return self._curation_from_row(row)
 
-    async def get_curation_summary(self) -> Dict[str, Any]:
+    async def get_curation_summary(self) -> dict[str, Any]:
         """Get aggregated curation counts by tier and status.
 
         Returns:
@@ -936,8 +937,8 @@ class CacheManager:
         )
         rows = await cursor.fetchall()
 
-        per_tier: Dict[int, int] = {}
-        per_status: Dict[str, int] = {}
+        per_tier: dict[int, int] = {}
+        per_status: dict[str, int] = {}
         total = 0
         for row in rows:
             tier = row["tier"]
@@ -953,7 +954,7 @@ class CacheManager:
             "per_status": per_status,
         }
 
-    async def upsert_curation(
+    async def upsert_curation(  # noqa: PLR0913 — curation record has many fields
         self,
         entity_id: str,
         status: str,
@@ -961,7 +962,7 @@ class CacheManager:
         reason: str = "",
         auto_classification: str = "",
         human_override: bool = False,
-        metrics: Optional[Dict[str, Any]] = None,
+        metrics: dict[str, Any] | None = None,
         group_id: str = "",
         decided_by: str = "system",
     ) -> None:
@@ -1015,7 +1016,7 @@ class CacheManager:
 
     async def bulk_update_curation(
         self,
-        entity_ids: List[str],
+        entity_ids: list[str],
         status: str,
         decided_by: str = "user",
     ) -> int:
@@ -1066,7 +1067,7 @@ class CacheManager:
     # Phase 2: Config history
     # ========================================================================
 
-    async def get_config_history(self, key: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_config_history(self, key: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         """Get config change history.
 
         Args:
@@ -1108,7 +1109,7 @@ class CacheManager:
     # Thompson Sampling state persistence
     # ========================================================================
 
-    async def save_thompson_state(self, state: Dict[str, Any]) -> None:
+    async def save_thompson_state(self, state: dict[str, Any]) -> None:
         """Save Thompson Sampling bucket state to the database.
 
         Args:
@@ -1128,7 +1129,7 @@ class CacheManager:
         )
         await self._conn.commit()
 
-    async def load_thompson_state(self) -> Optional[Dict[str, Any]]:
+    async def load_thompson_state(self) -> dict[str, Any] | None:
         """Load Thompson Sampling bucket state from the database.
 
         Returns:
@@ -1147,7 +1148,7 @@ class CacheManager:
     # Internal helpers
     # ========================================================================
 
-    def _config_from_row(self, row: aiosqlite.Row) -> Dict[str, Any]:
+    def _config_from_row(self, row: aiosqlite.Row) -> dict[str, Any]:
         """Convert a config table row to a dict."""
         return {
             "key": row["key"],
@@ -1164,7 +1165,7 @@ class CacheManager:
             "updated_at": row["updated_at"],
         }
 
-    def _curation_from_row(self, row: aiosqlite.Row) -> Dict[str, Any]:
+    def _curation_from_row(self, row: aiosqlite.Row) -> dict[str, Any]:
         """Convert an entity_curation table row to a dict."""
         return {
             "entity_id": row["entity_id"],
@@ -1195,7 +1196,7 @@ class CacheManager:
         return value
 
     @staticmethod
-    def _validate_config_value(value: str, config: Dict[str, Any]) -> None:
+    def _validate_config_value(value: str, config: dict[str, Any]) -> None:
         """Validate a config value against constraints.
 
         Raises ValueError if validation fails.
@@ -1205,7 +1206,7 @@ class CacheManager:
             try:
                 num = float(value)
             except (ValueError, TypeError):
-                raise ValueError(f"Expected number, got: {value}")
+                raise ValueError(f"Expected number, got: {value}") from None
 
             min_val = config.get("min_value")
             max_val = config.get("max_value")
@@ -1221,7 +1222,7 @@ class CacheManager:
                 if value not in valid:
                     raise ValueError(f"Value '{value}' not in options: {valid}")
 
-    def _prediction_from_row(self, row: aiosqlite.Row) -> Dict[str, Any]:
+    def _prediction_from_row(self, row: aiosqlite.Row) -> dict[str, Any]:
         """Convert a predictions table row to a dict."""
         return {
             "id": row["id"],

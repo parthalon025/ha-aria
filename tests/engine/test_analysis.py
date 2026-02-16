@@ -2,14 +2,14 @@
 
 import unittest
 
-from aria.engine.config import HolidayConfig
-from aria.engine.collectors.snapshot import build_empty_snapshot
-from aria.engine.analysis.baselines import compute_baselines
-from aria.engine.analysis.correlations import pearson_r, cross_correlate
-from aria.engine.analysis.reliability import compute_device_reliability
-from aria.engine.analysis.anomalies import detect_anomalies
-
 from conftest import make_snapshot
+
+from aria.engine.analysis.anomalies import detect_anomalies
+from aria.engine.analysis.baselines import compute_baselines
+from aria.engine.analysis.correlations import cross_correlate, pearson_r
+from aria.engine.analysis.reliability import compute_device_reliability
+from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.config import HolidayConfig
 
 
 class TestBaselines(unittest.TestCase):
@@ -90,7 +90,7 @@ class TestDeviceReliability(unittest.TestCase):
             snapshots.append(snap)
 
         scores = compute_device_reliability(snapshots)
-        for eid, data in scores.items():
+        for _eid, data in scores.items():
             self.assertEqual(data["score"], 100)
 
 

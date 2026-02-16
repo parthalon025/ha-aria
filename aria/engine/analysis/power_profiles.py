@@ -13,7 +13,6 @@ from datetime import datetime
 
 import numpy as np
 
-
 # Default thresholds for cycle detection
 DEFAULT_ON_THRESHOLD = 5.0  # Watts — outlet is "active" above this
 DEFAULT_OFF_THRESHOLD = 2.0  # Watts — outlet is "idle" below this
@@ -165,33 +164,9 @@ class ApplianceProfiler:
         indicators = {}
         alerts = []
 
-        # Duration stability
-        durations = [c["duration_minutes"] for c in recent]
-        if profile.typical_duration_minutes and profile.typical_duration_minutes > 0:
-            dur_ratio = np.mean(durations) / profile.typical_duration_minutes
-            indicators["duration_ratio"] = round(float(dur_ratio), 2)
-            if dur_ratio > 1.3:
-                alerts.append(f"cycles {int((dur_ratio - 1) * 100)}% longer than typical")
-            elif dur_ratio < 0.7:
-                alerts.append(f"cycles {int((1 - dur_ratio) * 100)}% shorter than typical")
-
-        # Peak power stability
-        peaks = [c["peak_watts"] for c in recent]
-        if profile.peak_watts > 0:
-            peak_ratio = np.mean(peaks) / profile.peak_watts
-            indicators["peak_power_ratio"] = round(float(peak_ratio), 2)
-            if peak_ratio > 1.2:
-                alerts.append(f"peak power {int((peak_ratio - 1) * 100)}% above baseline")
-            elif peak_ratio < 0.8:
-                alerts.append(f"peak power {int((1 - peak_ratio) * 100)}% below baseline")
-
-        # Energy consistency
-        energies = [c.get("energy_wh", 0) for c in recent]
-        if len(energies) >= 3 and np.mean(energies) > 0:
-            cv = float(np.std(energies) / np.mean(energies))
-            indicators["energy_cv"] = round(cv, 3)
-            if cv > 0.3:
-                alerts.append(f"energy consumption highly variable (CV={cv:.2f})")
+        self._check_duration_stability(recent, profile, indicators, alerts)
+        self._check_peak_power_stability(recent, profile, indicators, alerts)
+        self._check_energy_consistency(recent, indicators, alerts)
 
         # Overall health score (0-100)
         score = 100
@@ -211,6 +186,40 @@ class ApplianceProfiler:
             "alerts": alerts,
             "cycles_analyzed": len(recent),
         }
+
+    @staticmethod
+    def _check_duration_stability(recent, profile, indicators, alerts):
+        """Check duration stability against profile baseline."""
+        durations = [c["duration_minutes"] for c in recent]
+        if profile.typical_duration_minutes and profile.typical_duration_minutes > 0:
+            dur_ratio = np.mean(durations) / profile.typical_duration_minutes
+            indicators["duration_ratio"] = round(float(dur_ratio), 2)
+            if dur_ratio > 1.3:
+                alerts.append(f"cycles {int((dur_ratio - 1) * 100)}% longer than typical")
+            elif dur_ratio < 0.7:
+                alerts.append(f"cycles {int((1 - dur_ratio) * 100)}% shorter than typical")
+
+    @staticmethod
+    def _check_peak_power_stability(recent, profile, indicators, alerts):
+        """Check peak power stability against profile baseline."""
+        peaks = [c["peak_watts"] for c in recent]
+        if profile.peak_watts > 0:
+            peak_ratio = np.mean(peaks) / profile.peak_watts
+            indicators["peak_power_ratio"] = round(float(peak_ratio), 2)
+            if peak_ratio > 1.2:
+                alerts.append(f"peak power {int((peak_ratio - 1) * 100)}% above baseline")
+            elif peak_ratio < 0.8:
+                alerts.append(f"peak power {int((1 - peak_ratio) * 100)}% below baseline")
+
+    @staticmethod
+    def _check_energy_consistency(recent, indicators, alerts):
+        """Check energy consumption variability."""
+        energies = [c.get("energy_wh", 0) for c in recent]
+        if len(energies) >= 3 and np.mean(energies) > 0:
+            cv = float(np.std(energies) / np.mean(energies))
+            indicators["energy_cv"] = round(cv, 3)
+            if cv > 0.3:
+                alerts.append(f"energy consumption highly variable (CV={cv:.2f})")
 
     def analyze_snapshot_outlets(self, snapshots):
         """Analyze per-outlet power data from multiple snapshots.

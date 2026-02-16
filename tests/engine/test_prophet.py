@@ -149,8 +149,8 @@ class TestProphetConvenienceFunctions(unittest.TestCase):
 
     def test_predict_with_prophet(self):
         from aria.engine.models.prophet_forecaster import (
-            train_prophet_models,
             predict_with_prophet,
+            train_prophet_models,
         )
 
         snapshots = _make_daily_snapshots(n_days=30)
@@ -171,10 +171,9 @@ class TestProphetRegistered(unittest.TestCase):
     """Verify Prophet is registered in the ModelRegistry."""
 
     def test_prophet_in_registry(self):
-        from aria.engine.models.registry import ModelRegistry
-
         # Import to trigger registration
         import aria.engine.models.prophet_forecaster  # noqa: F401
+        from aria.engine.models.registry import ModelRegistry
 
         self.assertIn("prophet", ModelRegistry.available())
 

@@ -1,13 +1,13 @@
 """Tests for Pattern Recognition module."""
 
 import json
-import pytest
 from pathlib import Path
-from typing import Any, Dict, Optional
-from unittest.mock import patch, MagicMock
+from typing import Any
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from aria.modules.patterns import PatternRecognition
-
 
 # ============================================================================
 # Mock Hub
@@ -18,19 +18,19 @@ class MockHub:
     """Lightweight hub mock — avoids SQLite, matching test_intelligence.py pattern."""
 
     def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         self.modules = {}
 
-    async def set_cache(self, category: str, data: Any, metadata: Optional[Dict] = None):
+    async def set_cache(self, category: str, data: Any, metadata: dict | None = None):
         self._cache[category] = {"data": data, "metadata": metadata}
 
-    async def get_cache(self, category: str) -> Optional[Dict[str, Any]]:
+    async def get_cache(self, category: str) -> dict[str, Any] | None:
         return self._cache.get(category)
 
     def register_module(self, module):
         self.modules[module.module_id] = module
 
-    async def publish(self, event_type: str, data: Dict[str, Any]):
+    async def publish(self, event_type: str, data: dict[str, Any]):
         pass
 
 

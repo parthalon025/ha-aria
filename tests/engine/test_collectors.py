@@ -2,25 +2,25 @@
 
 import unittest
 
-from aria.engine.config import HolidayConfig
-from aria.engine.collectors.snapshot import build_empty_snapshot
-from aria.engine.collectors.ha_api import parse_weather
-from aria.engine.collectors.logbook import summarize_logbook
+from conftest import EXTENDED_STATES, SAMPLE_STATES
+
 from aria.engine.collectors.extractors import (
-    PowerCollector,
-    OccupancyCollector,
-    ClimateCollector,
-    LightsCollector,
-    EVCollector,
-    DoorsWindowsCollector,
     BatteriesCollector,
-    NetworkCollector,
+    ClimateCollector,
+    DoorsWindowsCollector,
+    EVCollector,
+    LightsCollector,
     MediaCollector,
+    NetworkCollector,
+    OccupancyCollector,
+    PowerCollector,
     SunCollector,
     VacuumCollector,
 )
-
-from conftest import SAMPLE_STATES, EXTENDED_STATES
+from aria.engine.collectors.ha_api import parse_weather
+from aria.engine.collectors.logbook import summarize_logbook
+from aria.engine.collectors.snapshot import build_empty_snapshot
+from aria.engine.config import HolidayConfig
 
 
 class TestDailySnapshot(unittest.TestCase):
@@ -166,12 +166,13 @@ class TestNewExtraction(unittest.TestCase):
 
 class TestSnapshotAssembly(unittest.TestCase):
     def test_build_snapshot_assembles_all_sections(self):
+        import shutil
+        import tempfile
         from unittest.mock import patch
+
         from aria.engine.collectors.snapshot import build_snapshot
         from aria.engine.config import AppConfig
         from aria.engine.storage.data_store import DataStore
-        import tempfile
-        import shutil
 
         tmpdir = tempfile.mkdtemp()
         try:

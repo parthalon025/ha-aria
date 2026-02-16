@@ -4,9 +4,9 @@ import json
 import unittest
 
 from aria.engine.llm.automation_suggestions import (
-    parse_automation_suggestions,
-    _validate_yaml_structure,
     _format_co_occurrences,
+    _validate_yaml_structure,
+    parse_automation_suggestions,
 )
 
 

@@ -72,7 +72,9 @@ Rules:
 - If accuracy is already >85%, focus on the weakest metric only
 
 Output as a JSON array of suggestion objects. Example:
-[{{"action": "enable_feature", "target": "is_weekend_x_temp", "reason": "weekend power predictions off by 15%", "expected_impact": "power_watts MAE -5%", "confidence": "medium"}}]
+[{{"action": "enable_feature", "target": "is_weekend_x_temp",
+"reason": "weekend power predictions off by 15%",
+"expected_impact": "power_watts MAE -5%", "confidence": "medium"}}]
 """
 
 
@@ -147,18 +149,23 @@ def apply_suggestion_to_config(suggestion, config):
 # --- Validation ---
 
 
+def _can_validate(snapshots):
+    """Check if validation prerequisites are met."""
+    try:
+        from sklearn.ensemble import GradientBoostingRegressor  # noqa: F401
+    except ImportError:
+        return False
+    return len(snapshots) >= 14
+
+
 def validate_suggestion(suggestion, snapshots, config):
     """Validate a suggestion by retraining with modified config and comparing accuracy.
 
     Returns (improvement_pct, modified_config) or (None, None) on failure.
     """
-    try:
-        from sklearn.ensemble import GradientBoostingRegressor  # noqa: F401
-    except ImportError:
-        return None, None
-
-    if len(snapshots) < 14:
-        return None, None
+    fail = (None, None)
+    if not _can_validate(snapshots):
+        return fail
 
     # Deferred imports — these modules may still be migrating
     from aria.engine.features.vector_builder import build_training_data
@@ -166,19 +173,15 @@ def validate_suggestion(suggestion, snapshots, config):
 
     modified_config = copy.deepcopy(config)
     if not apply_suggestion_to_config(suggestion, modified_config):
-        return None, None
+        return fail
 
     # Build training data with both configs
     orig_names, orig_X, orig_targets = build_training_data(snapshots, config)
     mod_names, mod_X, mod_targets = build_training_data(snapshots, modified_config)
 
-    if len(orig_X) < 14 or len(mod_X) < 14:
-        return None, None
-
-    # Train and evaluate on the primary metric (power_watts)
     metric = "power_watts"
-    if metric not in orig_targets or metric not in mod_targets:
-        return None, None
+    if len(orig_X) < 14 or len(mod_X) < 14 or metric not in orig_targets or metric not in mod_targets:
+        return fail
 
     tmpdir_orig = tempfile.mkdtemp()
     tmpdir_mod = tempfile.mkdtemp()
@@ -186,16 +189,10 @@ def validate_suggestion(suggestion, snapshots, config):
         orig_result = train_continuous_model(metric, orig_names, orig_X, orig_targets[metric], tmpdir_orig)
         mod_result = train_continuous_model(metric, mod_names, mod_X, mod_targets[metric], tmpdir_mod)
 
-        if "error" in orig_result or "error" in mod_result:
-            return None, None
+        if "error" in orig_result or "error" in mod_result or orig_result["mae"] == 0:
+            return fail
 
-        # Compare MAE (lower is better)
-        orig_mae = orig_result["mae"]
-        mod_mae = mod_result["mae"]
-        if orig_mae == 0:
-            return None, None
-
-        improvement_pct = ((orig_mae - mod_mae) / orig_mae) * 100
+        improvement_pct = ((orig_result["mae"] - mod_result["mae"]) / orig_result["mae"]) * 100
         return round(improvement_pct, 2), modified_config
     finally:
         shutil.rmtree(tmpdir_orig, ignore_errors=True)
@@ -261,37 +258,11 @@ def check_revert_needed(accuracy_history: dict, applied_history: dict) -> dict:
 # --- Main Pipeline ---
 
 
-def run_meta_learning(config: AppConfig = None, store: DataStore = None):
-    """Run weekly meta-learning analysis and auto-apply guardrailed suggestions."""
-    if config is None:
-        config = AppConfig.from_env()
-    if store is None:
-        store = DataStore(config.paths)
-
-    try:
-        from sklearn.ensemble import GradientBoostingRegressor  # noqa: F401
-
-        has_sklearn = True
-    except ImportError:
-        has_sklearn = False
-
-    if not has_sklearn:
-        print("sklearn not installed, skipping meta-learning")
-        return {"error": "sklearn not installed"}
-
-    # Deferred import — models module may still be migrating
-    from aria.engine.models.training import count_days_of_data, train_all_models
-
-    days = count_days_of_data(config.paths)
-    if days < 14:
-        print(f"Insufficient data for meta-learning ({days} days, need 14+)")
-        return {"error": f"insufficient data ({days} days)"}
-
-    # Gather context
+def _gather_meta_context(config, store):
+    """Gather all context needed for meta-learning LLM prompt."""
     accuracy_history = store.load_accuracy_history()
     recent_scores = accuracy_history.get("scores", [])[-7:]
 
-    # Feature importance from training log
     feature_importance = {}
     training_log_path = config.paths.models_dir / "training_log.json"
     if training_log_path.is_file():
@@ -299,7 +270,6 @@ def run_meta_learning(config: AppConfig = None, store: DataStore = None):
             training_log = json.load(f)
         for model_name, model_data in training_log.get("models", {}).items():
             if isinstance(model_data, dict) and "feature_importance" in model_data:
-                # Top 10 features by importance
                 fi = model_data["feature_importance"]
                 top = sorted(fi.items(), key=lambda x: -x[1])[:10]
                 feature_importance[model_name] = dict(top)
@@ -313,18 +283,151 @@ def run_meta_learning(config: AppConfig = None, store: DataStore = None):
         correlations = correlations.get("correlations", [])
 
     applied_history = store.load_applied_suggestions()
-
-    # Available fields from a sample snapshot
     available_fields = list(DEFAULT_FEATURE_CONFIG.get("interaction_features", {}).keys())
 
-    # Build prompt
-    prompt = META_LEARNING_PROMPT.format(
+    return (
+        accuracy_history, recent_scores, feature_importance,
+        feature_config, correlations, applied_history, available_fields,
+    )
+
+
+def _handle_revert(store, config, revert_check, recent_scores, week_str):
+    """Handle config revert when degradation detected."""
+    print(f"  SAFETY: {revert_check['reason']}")
+    print("  Reverting to default config and skipping new suggestions.")
+    default_config = DEFAULT_FEATURE_CONFIG.copy()
+    default_config["last_modified"] = datetime.now().isoformat()
+    store.save_feature_config(default_config)
+
+    weekly_report = {
+        "week": week_str,
+        "generated_at": datetime.now().isoformat(),
+        "suggestions": [],
+        "applied_count": 0,
+        "reverted": True,
+        "revert_reason": revert_check["reason"],
+        "accuracy_context": recent_scores,
+    }
+    _save_weekly_report(config, week_str, weekly_report)
+    print("Meta-learning complete: reverted to default config")
+    return weekly_report
+
+
+def _apply_suggestions(suggestions, snapshots, feature_config, store):
+    """Validate and apply suggestions, returning results and applied count."""
+    results = []
+    applied_count = 0
+    for suggestion in suggestions:
+        if applied_count >= MAX_CHANGES_PER_RUN:
+            results.append({"suggestion": suggestion, "applied": False, "reason": "per-run change budget reached"})
+            continue
+
+        improvement, modified_config = validate_suggestion(suggestion, snapshots, feature_config)
+        if improvement is None:
+            results.append({"suggestion": suggestion, "applied": False, "reason": "validation failed"})
+            continue
+
+        if improvement >= ACCEPT_IMPROVEMENT_PCT:
+            modified_config["last_modified"] = datetime.now().isoformat()
+            store.save_feature_config(modified_config)
+            feature_config = modified_config
+            applied_count += 1
+            results.append({"suggestion": suggestion, "applied": True, "improvement": improvement})
+            print(f"  Applied: {suggestion.get('action')} {suggestion.get('target')} (+{improvement:.1f}%)")
+        else:
+            results.append({
+                "suggestion": suggestion,
+                "applied": False,
+                "reason": f"improvement {improvement:.1f}% < {ACCEPT_IMPROVEMENT_PCT}% threshold",
+                "accuracy_delta": improvement,
+            })
+            print(f"  Rejected: {suggestion.get('target')} ({improvement:+.1f}%, need >={ACCEPT_IMPROVEMENT_PCT}%)")
+
+    return results, applied_count
+
+
+def _save_weekly_report(config, week_str, report):
+    """Save weekly meta-learning report to disk."""
+    weekly_dir = config.paths.meta_dir / "weekly"
+    weekly_dir.mkdir(parents=True, exist_ok=True)
+    with open(weekly_dir / f"{week_str}.json", "w") as f:
+        json.dump(report, f, indent=2)
+
+
+def _build_meta_prompt(  # noqa: PLR0913 — prompt requires all context fields
+    recent_scores, feature_importance, feature_config,
+    available_fields, correlations, applied_history,
+):
+    """Build the LLM prompt for meta-learning analysis."""
+    return META_LEARNING_PROMPT.format(
         accuracy_data=json.dumps(recent_scores, indent=2) if recent_scores else "No accuracy data yet",
         feature_importance=json.dumps(feature_importance, indent=2) if feature_importance else "No models trained yet",
         feature_config=json.dumps(feature_config, indent=2),
         available_fields=json.dumps(available_fields),
         correlations=json.dumps(correlations[:10], indent=2) if correlations else "No correlations yet",
         previous_suggestions=json.dumps(applied_history.get("applied", [])[-5:], indent=2),
+    )
+
+
+def _finalize_meta_learning(  # noqa: PLR0913 — aggregates all meta-learning outputs
+    results, applied_count, applied_history, store,
+    config, week_str, recent_scores, suggestions,
+):
+    """Save report, update history, and retrain if needed."""
+    weekly_report = {
+        "week": week_str,
+        "generated_at": datetime.now().isoformat(),
+        "suggestions": results,
+        "applied_count": applied_count,
+        "accuracy_context": recent_scores,
+    }
+    _save_weekly_report(config, week_str, weekly_report)
+
+    for r in results:
+        if r.get("applied"):
+            applied_history["applied"].append({
+                "date": datetime.now().isoformat(),
+                "suggestion": r["suggestion"],
+                "improvement": r["improvement"],
+            })
+    applied_history["total_applied"] = len(applied_history["applied"])
+    store.save_applied_suggestions(applied_history)
+
+    if applied_count > 0:
+        from aria.engine.models.training import train_all_models
+        print(f"Retraining models with {applied_count} config changes...")
+        train_all_models(config=config, store=store, days=90)
+
+    print(f"Meta-learning complete: {applied_count}/{len(suggestions)} suggestions applied")
+    return weekly_report
+
+
+def run_meta_learning(config: AppConfig = None, store: DataStore = None):
+    """Run weekly meta-learning analysis and auto-apply guardrailed suggestions."""
+    if config is None:
+        config = AppConfig.from_env()
+    if store is None:
+        store = DataStore(config.paths)
+
+    try:
+        from sklearn.ensemble import GradientBoostingRegressor  # noqa: F401
+    except ImportError:
+        print("sklearn not installed, skipping meta-learning")
+        return {"error": "sklearn not installed"}
+
+    from aria.engine.models.training import count_days_of_data
+
+    days = count_days_of_data(config.paths)
+    if days < 14:
+        print(f"Insufficient data for meta-learning ({days} days, need 14+)")
+        return {"error": f"insufficient data ({days} days)"}
+
+    (accuracy_history, recent_scores, feature_importance, feature_config,
+     correlations, applied_history, available_fields) = _gather_meta_context(config, store)
+
+    prompt = _build_meta_prompt(
+        recent_scores, feature_importance, feature_config,
+        available_fields, correlations, applied_history,
     )
 
     print("Querying LLM for meta-learning analysis...")
@@ -339,104 +442,17 @@ def run_meta_learning(config: AppConfig = None, store: DataStore = None):
 
     week_str = datetime.now().strftime("%Y-W%W")
 
-    # Safety guard: check if previous changes need reverting
     revert_check = check_revert_needed(accuracy_history, applied_history)
     if revert_check.get("revert_needed"):
-        print(f"  SAFETY: {revert_check['reason']}")
-        print("  Reverting to default config and skipping new suggestions.")
-        default_config = DEFAULT_FEATURE_CONFIG.copy()
-        default_config["last_modified"] = datetime.now().isoformat()
-        store.save_feature_config(default_config)
+        return _handle_revert(store, config, revert_check, recent_scores, week_str)
 
-        weekly_report = {
-            "week": week_str,
-            "generated_at": datetime.now().isoformat(),
-            "suggestions": [],
-            "applied_count": 0,
-            "reverted": True,
-            "revert_reason": revert_check["reason"],
-            "accuracy_context": recent_scores,
-        }
-        weekly_dir = config.paths.meta_dir / "weekly"
-        weekly_dir.mkdir(parents=True, exist_ok=True)
-        with open(weekly_dir / f"{week_str}.json", "w") as f:
-            json.dump(weekly_report, f, indent=2)
-
-        print("Meta-learning complete: reverted to default config")
-        return weekly_report
-
-    # Validate and apply
     snapshots = store.load_all_intraday_snapshots(90)
     if len(snapshots) < 14:
         snapshots = store.load_recent_snapshots(90)
 
-    results = []
-    applied_count = 0
-    for suggestion in suggestions:
-        if applied_count >= MAX_CHANGES_PER_RUN:
-            results.append({"suggestion": suggestion, "applied": False, "reason": "per-run change budget reached"})
-            continue
+    results, applied_count = _apply_suggestions(suggestions, snapshots, feature_config, store)
 
-        improvement, modified_config = validate_suggestion(suggestion, snapshots, feature_config)
-        if improvement is None:
-            results.append({"suggestion": suggestion, "applied": False, "reason": "validation failed"})
-            continue
-
-        if improvement >= ACCEPT_IMPROVEMENT_PCT:
-            # Update last_modified before saving
-            modified_config["last_modified"] = datetime.now().isoformat()
-            store.save_feature_config(modified_config)
-            feature_config = modified_config  # Use updated config for next suggestion
-            applied_count += 1
-            results.append(
-                {
-                    "suggestion": suggestion,
-                    "applied": True,
-                    "improvement": improvement,
-                }
-            )
-            print(f"  Applied: {suggestion.get('action')} {suggestion.get('target')} (+{improvement:.1f}%)")
-        else:
-            results.append(
-                {
-                    "suggestion": suggestion,
-                    "applied": False,
-                    "reason": f"improvement {improvement:.1f}% < {ACCEPT_IMPROVEMENT_PCT}% threshold",
-                    "accuracy_delta": improvement,
-                }
-            )
-            print(f"  Rejected: {suggestion.get('target')} ({improvement:+.1f}%, need >={ACCEPT_IMPROVEMENT_PCT}%)")
-
-    # Save weekly report
-    weekly_report = {
-        "week": week_str,
-        "generated_at": datetime.now().isoformat(),
-        "suggestions": results,
-        "applied_count": applied_count,
-        "accuracy_context": recent_scores,
-    }
-    weekly_dir = config.paths.meta_dir / "weekly"
-    weekly_dir.mkdir(parents=True, exist_ok=True)
-    with open(weekly_dir / f"{week_str}.json", "w") as f:
-        json.dump(weekly_report, f, indent=2)
-
-    # Update applied history
-    for r in results:
-        if r.get("applied"):
-            applied_history["applied"].append(
-                {
-                    "date": datetime.now().isoformat(),
-                    "suggestion": r["suggestion"],
-                    "improvement": r["improvement"],
-                }
-            )
-    applied_history["total_applied"] = len(applied_history["applied"])
-    store.save_applied_suggestions(applied_history)
-
-    # Retrain with updated config if changes were applied
-    if applied_count > 0:
-        print(f"Retraining models with {applied_count} config changes...")
-        train_all_models(config=config, store=store, days=90)
-
-    print(f"Meta-learning complete: {applied_count}/{len(suggestions)} suggestions applied")
-    return weekly_report
+    return _finalize_meta_learning(
+        results, applied_count, applied_history, store,
+        config, week_str, recent_scores, suggestions,
+    )

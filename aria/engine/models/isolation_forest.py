@@ -4,14 +4,14 @@ import logging
 import os
 import pickle
 
-from aria.engine.models.registry import ModelRegistry, BaseModel
+from aria.engine.models.registry import BaseModel, ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 HAS_SKLEARN = True
 try:
-    from sklearn.ensemble import IsolationForest
     import numpy as np
+    from sklearn.ensemble import IsolationForest
 except ImportError:
     HAS_SKLEARN = False
 

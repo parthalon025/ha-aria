@@ -7,17 +7,17 @@ import statistics
 import urllib.request
 from datetime import datetime
 
-from aria.engine.config import AppConfig, HolidayConfig
-from aria.engine.storage.data_store import DataStore
-from aria.engine.collectors.registry import CollectorRegistry
 import aria.engine.collectors.extractors  # noqa: F401 — trigger decorator registration
 from aria.engine.collectors.ha_api import (
+    fetch_calendar_events,
     fetch_ha_states,
     fetch_weather,
     parse_weather,
-    fetch_calendar_events,
 )
 from aria.engine.collectors.logbook import summarize_logbook
+from aria.engine.collectors.registry import CollectorRegistry
+from aria.engine.config import AppConfig, HolidayConfig
+from aria.engine.storage.data_store import DataStore
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,33 @@ def build_empty_snapshot(date_str: str, holidays_config: HolidayConfig) -> dict:
     }
 
 
+def _enrich_intraday(snapshot, states):
+    """Add intraday-specific enrichments after running collectors."""
+    snapshot["occupancy"]["people_home_count"] = len(snapshot["occupancy"]["people_home"])
+
+    # Enhanced lights: avg brightness, rooms lit
+    snapshot["lights"]["avg_brightness"] = (
+        round(snapshot["lights"]["total_brightness"] / snapshot["lights"]["on"], 1)
+        if snapshot["lights"]["on"] > 0
+        else 0
+    )
+
+    # Rooms lit from individual lights
+    rooms_lit = []
+    for s in states:
+        if s["entity_id"].startswith("light.") and s.get("state") == "on":
+            name = s.get("attributes", {}).get("friendly_name", s["entity_id"])
+            rooms_lit.append(name)
+    snapshot["lights"]["rooms_lit"] = rooms_lit
+
+    # Motion active count
+    snapshot["motion"]["active_count"] = sum(1 for v in snapshot["motion"]["sensors"].values() if v == "on")
+
+    # Add is_charging for EV
+    for _ev_name, ev_data in snapshot["ev"].items():
+        ev_data["is_charging"] = ev_data.get("charger_power_kw", 0) > 0
+
+
 def build_intraday_snapshot(hour: int | None, date_str: str | None, config: AppConfig, store: DataStore) -> dict:
     """Build an intra-day snapshot capturing current state with time features."""
     now = datetime.now()
@@ -100,37 +127,11 @@ def build_intraday_snapshot(hour: int | None, date_str: str | None, config: AppC
         for name, collector_cls in CollectorRegistry.all().items():
             if name == "presence":
                 continue  # Presence uses hub cache, not HA states — handled separately below
-            if name == "entities_summary":
-                collector = collector_cls(safety_config=config.safety)
-            else:
-                collector = collector_cls()
+            collector = collector_cls(safety_config=config.safety) if name == "entities_summary" else collector_cls()
             collector.extract(snapshot, states)
 
         # Intraday-specific enrichments
-        snapshot["occupancy"]["people_home_count"] = len(snapshot["occupancy"]["people_home"])
-
-        # Enhanced lights: avg brightness, rooms lit
-        if snapshot["lights"]["on"] > 0:
-            snapshot["lights"]["avg_brightness"] = round(
-                snapshot["lights"]["total_brightness"] / snapshot["lights"]["on"], 1
-            )
-        else:
-            snapshot["lights"]["avg_brightness"] = 0
-
-        # Rooms lit from individual lights
-        rooms_lit = []
-        for s in states:
-            if s["entity_id"].startswith("light.") and s.get("state") == "on":
-                name = s.get("attributes", {}).get("friendly_name", s["entity_id"])
-                rooms_lit.append(name)
-        snapshot["lights"]["rooms_lit"] = rooms_lit
-
-        # Motion active count
-        snapshot["motion"]["active_count"] = sum(1 for v in snapshot["motion"]["sensors"].values() if v == "on")
-
-        # Add is_charging for EV
-        for ev_name, ev_data in snapshot["ev"].items():
-            ev_data["is_charging"] = ev_data.get("charger_power_kw", 0) > 0
+        _enrich_intraday(snapshot, states)
 
     # Presence data (from hub cache, not HA states)
     presence_cache = _fetch_presence_cache()
@@ -254,10 +255,7 @@ def build_snapshot(date_str: str | None, config: AppConfig, store: DataStore) ->
         for name, collector_cls in CollectorRegistry.all().items():
             if name == "presence":
                 continue  # Presence uses hub cache, not HA states — handled separately below
-            if name == "entities_summary":
-                collector = collector_cls(safety_config=config.safety)
-            else:
-                collector = collector_cls()
+            collector = collector_cls(safety_config=config.safety) if name == "entities_summary" else collector_cls()
             collector.extract(snapshot, states)
 
     # Presence data (from hub cache, not HA states)

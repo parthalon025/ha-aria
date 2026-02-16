@@ -4,13 +4,13 @@ import os
 import pickle
 
 from aria.engine.config import ModelConfig
-from aria.engine.models.registry import ModelRegistry, BaseModel
+from aria.engine.models.registry import BaseModel, ModelRegistry
 
 HAS_SKLEARN = True
 try:
+    import numpy as np
     from sklearn.ensemble import GradientBoostingRegressor
     from sklearn.metrics import mean_absolute_error, r2_score
-    import numpy as np
 except ImportError:
     HAS_SKLEARN = False
 
@@ -19,7 +19,7 @@ except ImportError:
 class GradientBoostingModel(BaseModel):
     """GradientBoosting regressor for continuous Home Assistant metrics."""
 
-    def train(self, metric_name, feature_names, X, y, model_dir, config=None):
+    def train(self, metric_name, feature_names, X, y, model_dir, config=None):  # noqa: PLR0913 — model training requires these distinct parameters
         """Train a GradientBoosting model for a continuous metric.
 
         Returns training metrics dict.
@@ -56,7 +56,7 @@ class GradientBoostingModel(BaseModel):
         r2 = r2_score(y_val, y_pred) if len(y_val) > 1 else 0.0
 
         # Feature importance
-        importances = dict(zip(feature_names, [round(v, 4) for v in model.feature_importances_]))
+        importances = dict(zip(feature_names, [round(v, 4) for v in model.feature_importances_], strict=True))
 
         # Save model
         os.makedirs(model_dir, exist_ok=True)

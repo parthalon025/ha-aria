@@ -112,10 +112,7 @@ def extract_temporal_pattern(
         hour_counts[ts.hour] += 1
 
     avg = hour_counts.mean()
-    if avg > 0:
-        peak_hours = [h for h in range(24) if hour_counts[h] > 1.5 * avg]
-    else:
-        peak_hours = []
+    peak_hours = [h for h in range(24) if hour_counts[h] > 1.5 * avg] if avg > 0 else []
 
     # Weekday bias: Mon=0..Fri=4 are weekdays
     weekday_count = sum(1 for ts in timestamps if ts.weekday() < 5)
@@ -169,10 +166,7 @@ def cluster_behavioral(
 
     # 4. Compute silhouette scores
     n_clusters = len(unique_labels)
-    if n_clusters >= 2:
-        sample_scores = silhouette_samples(scaled, labels)
-    else:
-        sample_scores = np.zeros(len(labels))
+    sample_scores = silhouette_samples(scaled, labels) if n_clusters >= 2 else np.zeros(len(labels))
 
     # 5. Build cluster results with temporal patterns
     entity_arr = np.array(entity_ids)
@@ -181,10 +175,7 @@ def cluster_behavioral(
         mask = labels == label
         member_ids = entity_arr[mask].tolist()
 
-        if n_clusters >= 2:
-            avg_silhouette = float(np.mean(sample_scores[mask]))
-        else:
-            avg_silhouette = 0.0
+        avg_silhouette = float(np.mean(sample_scores[mask])) if n_clusters >= 2 else 0.0
 
         temporal_pattern = extract_temporal_pattern(member_ids, logbook_entries)
 

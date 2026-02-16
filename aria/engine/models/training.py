@@ -19,6 +19,43 @@ except ImportError:
     HAS_SKLEARN = False
 
 
+def _persist_anomaly_status(anomaly_result, models_dir):
+    """Save anomaly detector status files for intelligence module / dashboard."""
+    try:
+        iso_status = {
+            "samples": anomaly_result.get("samples", 0),
+            "contamination": anomaly_result.get("contamination", 0.05),
+            "autoencoder_enabled": anomaly_result.get("autoencoder_enabled", False),
+        }
+        iso_status_path = os.path.join(models_dir, "isolation_forest_status.json")
+        with open(iso_status_path, "w") as f:
+            json.dump(iso_status, f, indent=2)
+        if anomaly_result.get("autoencoder_enabled"):
+            ae_status = {
+                "enabled": True,
+                "samples": anomaly_result.get("ae_samples", anomaly_result.get("samples", 0)),
+                "hidden_layers": anomaly_result.get("hidden_layers", []),
+            }
+            ae_status_path = os.path.join(models_dir, "autoencoder_status.json")
+            with open(ae_status_path, "w") as f:
+                json.dump(ae_status, f, indent=2)
+    except Exception:
+        pass  # Non-critical — dashboard status only
+
+
+def _load_and_validate_snapshots(store, days):
+    """Load intra-day snapshots with daily fallback, validate, and return."""
+    snapshots = store.load_all_intraday_snapshots(days)
+    if len(snapshots) < 14:
+        snapshots = store.load_recent_snapshots(days)
+
+    snapshots, rejected = validate_snapshot_batch(snapshots)
+    if rejected:
+        logger.warning("Rejected %d corrupt snapshots from training data", len(rejected))
+
+    return snapshots
+
+
 def train_all_models(days=90, config=None, store=None):
     """Train all sklearn models from intra-day snapshots.
 
@@ -37,20 +74,11 @@ def train_all_models(days=90, config=None, store=None):
 
     # Lazy imports — these modules may not be migrated yet
     from aria.engine.features.vector_builder import build_training_data
+    from aria.engine.models.device_failure import train_device_failure_model
     from aria.engine.models.gradient_boosting import GradientBoostingModel
     from aria.engine.models.isolation_forest import IsolationForestModel
-    from aria.engine.models.device_failure import train_device_failure_model
 
-    # Load intra-day snapshots (or fall back to daily)
-    snapshots = store.load_all_intraday_snapshots(days)
-    if len(snapshots) < 14:
-        # Fall back to daily snapshots
-        snapshots = store.load_recent_snapshots(days)
-
-    # Validate snapshots — filter corrupt data before training
-    snapshots, rejected = validate_snapshot_batch(snapshots)
-    if rejected:
-        logger.warning("Rejected %d corrupt snapshots from training data", len(rejected))
+    snapshots = _load_and_validate_snapshots(store, days)
 
     if len(snapshots) < 14:
         print(f"Insufficient training data ({len(snapshots)} snapshots, need 14+)")
@@ -74,29 +102,7 @@ def train_all_models(days=90, config=None, store=None):
     iso_model = IsolationForestModel()
     anomaly_result = iso_model.train(feature_names, X, models_dir)
     results["models"]["anomaly_detector"] = anomaly_result
-
-    # Persist anomaly detector status for intelligence module / dashboard
-    os.path.dirname(models_dir)  # intelligence_dir is parent of models/
-    try:
-        iso_status = {
-            "samples": anomaly_result.get("samples", 0),
-            "contamination": anomaly_result.get("contamination", 0.05),
-            "autoencoder_enabled": anomaly_result.get("autoencoder_enabled", False),
-        }
-        iso_status_path = os.path.join(models_dir, "isolation_forest_status.json")
-        with open(iso_status_path, "w") as f:
-            json.dump(iso_status, f, indent=2)
-        if anomaly_result.get("autoencoder_enabled"):
-            ae_status = {
-                "enabled": True,
-                "samples": anomaly_result.get("ae_samples", anomaly_result.get("samples", 0)),
-                "hidden_layers": anomaly_result.get("hidden_layers", []),
-            }
-            ae_status_path = os.path.join(models_dir, "autoencoder_status.json")
-            with open(ae_status_path, "w") as f:
-                json.dump(ae_status, f, indent=2)
-    except Exception:
-        pass  # Non-critical — dashboard status only
+    _persist_anomaly_status(anomaly_result, models_dir)
 
     # Train device failure model (uses daily snapshots for longer history)
     daily_snaps = store.load_recent_snapshots(days)
@@ -118,7 +124,7 @@ def train_all_models(days=90, config=None, store=None):
     return results
 
 
-def predict_with_ml(snapshot, config=None, prev_snapshot=None, rolling_stats=None, models_dir=None, store=None):
+def predict_with_ml(snapshot, config=None, prev_snapshot=None, rolling_stats=None, models_dir=None, store=None):  # noqa: PLR0913 — ML prediction pipeline requires all context parameters
     """Generate ML predictions for a snapshot using trained models.
 
     Args:
@@ -137,10 +143,7 @@ def predict_with_ml(snapshot, config=None, prev_snapshot=None, rolling_stats=Non
     from aria.engine.features.vector_builder import build_feature_vector, get_feature_names
 
     if config is None:
-        if store is not None:
-            config = store.load_feature_config()
-        else:
-            config = DataStore(PathConfig()).load_feature_config()
+        config = store.load_feature_config() if store is not None else DataStore(PathConfig()).load_feature_config()
     if config is None:
         return {}
 
@@ -165,7 +168,7 @@ def predict_with_ml(snapshot, config=None, prev_snapshot=None, rolling_stats=Non
     return predictions
 
 
-def train_continuous_model(metric_name, feature_names, X, y, model_dir, config=None):
+def train_continuous_model(metric_name, feature_names, X, y, model_dir, config=None):  # noqa: PLR0913 — model training requires these distinct parameters
     """Train a single GradientBoosting model for one metric.
 
     Convenience wrapper around GradientBoostingModel.train() for use by

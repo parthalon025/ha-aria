@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+
 import numpy as np
 
 from aria.modules.organic_discovery.behavioral import (
@@ -24,7 +25,7 @@ def _make_logbook(patterns: list[tuple], days: int = 14) -> list[dict]:
     Returns:
         Sorted list of logbook entry dicts.
     """
-    base = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+    base = dt.datetime(2026, 1, 1, tzinfo=dt.UTC)
     entries: list[dict] = []
     for day in range(days):
         for entity_ids, hour, minute_offset in patterns:
@@ -151,7 +152,7 @@ class TestExtractTemporalPattern:
 
     def test_weekday_bias_all_weekdays(self):
         """Events only on weekdays should give weekday_bias close to 1.0."""
-        base = dt.datetime(2026, 1, 5, 10, 0, tzinfo=dt.timezone.utc)  # Monday
+        base = dt.datetime(2026, 1, 5, 10, 0, tzinfo=dt.UTC)  # Monday
         entries = []
         for week in range(4):
             for weekday in range(5):  # Mon-Fri only
@@ -168,7 +169,7 @@ class TestExtractTemporalPattern:
 
     def test_weekday_bias_all_weekends(self):
         """Events only on weekends should give weekday_bias of 0.0."""
-        base = dt.datetime(2026, 1, 3, 10, 0, tzinfo=dt.timezone.utc)  # Saturday
+        base = dt.datetime(2026, 1, 3, 10, 0, tzinfo=dt.UTC)  # Saturday
         entries = []
         for week in range(4):
             for day in (0, 1):  # Sat, Sun
@@ -186,7 +187,7 @@ class TestExtractTemporalPattern:
     def test_peak_hours_threshold(self):
         """Hours with activity <= 1.5x average should NOT be peak hours."""
         # Spread events evenly across hours 0-23 — no peaks
-        base = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+        base = dt.datetime(2026, 1, 1, tzinfo=dt.UTC)
         entries = []
         for day in range(14):
             for hour in range(24):

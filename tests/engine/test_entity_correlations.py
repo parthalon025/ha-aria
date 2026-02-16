@@ -3,10 +3,10 @@
 import unittest
 
 from aria.engine.analysis.entity_correlations import (
+    _is_trackable,
     compute_co_occurrences,
     compute_hourly_patterns,
     summarize_entity_correlations,
-    _is_trackable,
 )
 
 

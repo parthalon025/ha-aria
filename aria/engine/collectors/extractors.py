@@ -4,7 +4,9 @@ Each collector class extracts data from raw HA entity states into the snapshot d
 Registration happens via @CollectorRegistry.register() decorator at import time.
 """
 
-from aria.engine.collectors.registry import CollectorRegistry, BaseCollector
+import contextlib
+
+from aria.engine.collectors.registry import BaseCollector, CollectorRegistry
 from aria.engine.config import SafetyConfig
 
 
@@ -39,10 +41,8 @@ class PowerCollector(BaseCollector):
                 except (ValueError, TypeError):
                     pass
             elif eid == "sensor.usp_pdu_pro_ac_power_consumption":
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     total = float(s["state"])
-                except (ValueError, TypeError):
-                    pass
         snapshot["power"]["total_watts"] = total
         snapshot["power"]["outlets"] = outlets
 
@@ -294,8 +294,7 @@ class MediaCollector(BaseCollector):
     def extract(self, snapshot, states):
         active = []
         for s in states:
-            if s["entity_id"].startswith("media_player."):
-                if s.get("state") == "playing":
+            if s["entity_id"].startswith("media_player.") and s.get("state") == "playing":
                     name = s.get("attributes", {}).get("friendly_name", s["entity_id"])
                     active.append(name)
         snapshot["media"] = {"active_players": active, "total_active": len(active)}
@@ -319,12 +318,10 @@ class SunCollector(BaseCollector):
                     sun_data["sunset"] = setting[11:16]
                 sun_data["solar_elevation"] = attrs.get("elevation", 0) or 0
                 # Compute daylight hours
-                try:
+                with contextlib.suppress(Exception):
                     sr = _time_to_minutes(sun_data["sunrise"])
                     ss = _time_to_minutes(sun_data["sunset"])
                     sun_data["daylight_hours"] = round(max(0, ss - sr) / 60.0, 2)
-                except Exception:
-                    pass
                 break
         snapshot["sun"] = sun_data
 
@@ -379,7 +376,7 @@ class PresenceCollector(BaseCollector):
 
         # Count camera signals across all rooms
         camera_signals = 0
-        for r, d in rooms.items():
+        for _r, d in rooms.items():
             for s in d.get("signals", []):
                 if isinstance(s, dict) and s.get("type", "").startswith("camera_"):
                     camera_signals += 1

@@ -4,10 +4,10 @@ import unittest
 from datetime import datetime
 
 from aria.engine.analysis.occupancy import (
+    DEFAULT_PRIOR,
     BayesianOccupancy,
     learn_occupancy_priors,
     occupancy_to_features,
-    DEFAULT_PRIOR,
 )
 
 

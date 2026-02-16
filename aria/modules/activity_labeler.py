@@ -4,10 +4,9 @@ import json
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import List
 
-from aria.hub.core import Module, IntelligenceHub
 from aria.capabilities import Capability
+from aria.hub.core import IntelligenceHub, Module
 
 logger = logging.getLogger(__name__)
 
@@ -239,23 +238,22 @@ class ActivityLabeler(Module):
                 "options": {"temperature": 0.3},
             }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{OLLAMA_URL}/api/generate",
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=60),
-                ) as resp:
-                    if resp.status == 200:
-                        result = await resp.json()
-                        response_text = result.get("response", "{}")
-                        parsed = json.loads(response_text)
-                        return {
-                            "activity": parsed.get("activity", "unknown"),
-                            "confidence": float(parsed.get("confidence", 0.5)),
-                        }
-                    else:
-                        self.logger.warning(f"Ollama queue returned status {resp.status}")
-                        return {"activity": "unknown", "confidence": 0.0}
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{OLLAMA_URL}/api/generate",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    response_text = result.get("response", "{}")
+                    parsed = json.loads(response_text)
+                    return {
+                        "activity": parsed.get("activity", "unknown"),
+                        "confidence": float(parsed.get("confidence", 0.5)),
+                    }
+                else:
+                    self.logger.warning(f"Ollama queue returned status {resp.status}")
+                    return {"activity": "unknown", "confidence": 0.0}
 
         except Exception as e:
             self.logger.warning(f"Ollama query failed: {e}")
@@ -275,7 +273,7 @@ class ActivityLabeler(Module):
 
         await self._train_classifier_from_labels(labels)
 
-    async def _train_classifier_from_labels(self, labels: List[dict]):
+    async def _train_classifier_from_labels(self, labels: list[dict]):
         """Train a GradientBoostingClassifier from label data.
 
         Args:
@@ -430,9 +428,8 @@ class ActivityLabeler(Module):
 
         # Extract intelligence features and supplement power_watts fallback
         intel_data = intelligence_entry.get("data", {}) if intelligence_entry else {}
-        if intel_data:
-            if "power_watts" in intel_data and not context["power_watts"]:
-                context["power_watts"] = intel_data.get("power_watts", 0)
+        if intel_data and "power_watts" in intel_data and not context["power_watts"]:
+            context["power_watts"] = intel_data.get("power_watts", 0)
         intel_features = self._extract_intelligence_features(intel_data)
         context.update(intel_features)
 

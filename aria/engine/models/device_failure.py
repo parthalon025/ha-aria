@@ -5,8 +5,8 @@ import pickle
 
 HAS_SKLEARN = True
 try:
-    from sklearn.ensemble import RandomForestClassifier
     import numpy as np
+    from sklearn.ensemble import RandomForestClassifier
 except ImportError:
     HAS_SKLEARN = False
 
@@ -20,6 +20,37 @@ DOMAIN_MAP = {
     "lock": 5,
     "climate": 6,
 }
+
+
+def _build_device_features(device_id, snapshots, snapshot_idx=None):
+    """Build feature vector for a single device at a given snapshot index.
+
+    If snapshot_idx is None, uses the full snapshot list (for prediction).
+    """
+    if snapshot_idx is not None:
+        history = snapshots[: snapshot_idx + 1]
+        batt_snap = snapshots[snapshot_idx]
+    else:
+        history = snapshots
+        batt_snap = snapshots[-1] if snapshots else {}
+
+    outage_7d = sum(1 for s in history[-7:] if device_id in s.get("entities", {}).get("unavailable_list", []))
+    outage_30d = sum(1 for s in history[-30:] if device_id in s.get("entities", {}).get("unavailable_list", []))
+
+    days_since = 999
+    for j, s in enumerate(reversed(history)):
+        if device_id in s.get("entities", {}).get("unavailable_list", []):
+            days_since = j
+            break
+
+    battery = -1
+    batt_data = batt_snap.get("batteries", {}).get(device_id, {})
+    if batt_data:
+        battery = batt_data.get("level", -1) or -1
+
+    domain = device_id.split(".")[0]
+
+    return [outage_7d, outage_30d, min(days_since, 365), battery, DOMAIN_MAP.get(domain, 7)]
 
 
 def train_device_failure_model(snapshots, model_dir):
@@ -46,33 +77,7 @@ def train_device_failure_model(snapshots, model_dir):
 
     for device_id in all_devices:
         for i in range(len(snapshots) - 7):
-            # Features: outage history up to this point
-            history = snapshots[: i + 1]
-            outage_7d = sum(1 for s in history[-7:] if device_id in s.get("entities", {}).get("unavailable_list", []))
-            outage_30d = sum(1 for s in history[-30:] if device_id in s.get("entities", {}).get("unavailable_list", []))
-
-            # Days since last outage
-            days_since = 999
-            for j, s in enumerate(reversed(history)):
-                if device_id in s.get("entities", {}).get("unavailable_list", []):
-                    days_since = j
-                    break
-
-            # Battery
-            battery = -1
-            batt_data = snapshots[i].get("batteries", {}).get(device_id, {})
-            if batt_data:
-                battery = batt_data.get("level", -1) or -1
-
-            domain = device_id.split(".")[0]
-
-            features = [
-                outage_7d,
-                outage_30d,
-                min(days_since, 365),
-                battery,
-                DOMAIN_MAP.get(domain, 7),
-            ]
+            features = _build_device_features(device_id, snapshots, snapshot_idx=i)
             X.append(features)
 
             # Label: did this device go unavailable in the next 7 days?
@@ -126,23 +131,8 @@ def predict_device_failures(snapshots, model_dir):
 
     predictions = []
     for device_id in all_devices:
-        outage_7d = sum(1 for s in snapshots[-7:] if device_id in s.get("entities", {}).get("unavailable_list", []))
-        outage_30d = sum(1 for s in snapshots[-30:] if device_id in s.get("entities", {}).get("unavailable_list", []))
-        days_since = 999
-        for j, s in enumerate(reversed(snapshots)):
-            if device_id in s.get("entities", {}).get("unavailable_list", []):
-                days_since = j
-                break
-        battery = -1
-        if snapshots:
-            batt_data = snapshots[-1].get("batteries", {}).get(device_id, {})
-            if batt_data:
-                battery = batt_data.get("level", -1) or -1
-        domain = device_id.split(".")[0]
-
-        features = np.array(
-            [[outage_7d, outage_30d, min(days_since, 365), battery, DOMAIN_MAP.get(domain, 7)]], dtype=float
-        )
+        feature_list = _build_device_features(device_id, snapshots)
+        features = np.array([feature_list], dtype=float)
         prob = model.predict_proba(features)[0]
         fail_prob = prob[1] if len(prob) > 1 else 0
 
@@ -152,8 +142,8 @@ def predict_device_failures(snapshots, model_dir):
                     "entity_id": device_id,
                     "failure_probability": round(float(fail_prob), 3),
                     "risk": "high" if fail_prob > 0.7 else ("medium" if fail_prob > 0.5 else "low"),
-                    "outages_last_7d": outage_7d,
-                    "battery": battery if battery >= 0 else None,
+                    "outages_last_7d": feature_list[0],
+                    "battery": feature_list[3] if feature_list[3] >= 0 else None,
                 }
             )
 

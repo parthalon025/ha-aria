@@ -6,12 +6,13 @@ remain in their respective test files — they shadow these fixtures
 via pytest's scoping rules.
 """
 
-import pytest
 from unittest.mock import MagicMock
 
-from aria.hub.core import IntelligenceHub
-from aria.hub.api import create_api
+import pytest
 from fastapi.testclient import TestClient
+
+from aria.hub.api import create_api
+from aria.hub.core import IntelligenceHub
 
 
 @pytest.fixture

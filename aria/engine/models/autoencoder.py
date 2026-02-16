@@ -5,9 +5,9 @@ import pickle
 
 HAS_SKLEARN = True
 try:
+    import numpy as np
     from sklearn.neural_network import MLPRegressor
     from sklearn.preprocessing import StandardScaler
-    import numpy as np
 except ImportError:
     HAS_SKLEARN = False
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from tests.synthetic.people import Person, Schedule
 from tests.synthetic.entities import DeviceRoster
+from tests.synthetic.people import Person, Schedule
 from tests.synthetic.weather import WeatherProfile
 
 

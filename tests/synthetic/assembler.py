@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 from datetime import datetime, timedelta
 
-from aria.engine.collectors.registry import CollectorRegistry
 import aria.engine.collectors.extractors  # noqa: F401 — triggers registration
+from aria.engine.collectors.registry import CollectorRegistry
 from aria.engine.collectors.snapshot import build_empty_snapshot
 from aria.engine.config import HolidayConfig, SafetyConfig
 from aria.engine.features.time_features import build_time_features
@@ -53,10 +54,7 @@ class SnapshotAssembler:
         snapshot = build_empty_snapshot(date_str, holidays_config)
 
         for name, collector_cls in CollectorRegistry.all().items():
-            if name == "entities_summary":
-                collector = collector_cls(safety_config=safety_config)
-            else:
-                collector = collector_cls()
+            collector = collector_cls(safety_config=safety_config) if name == "entities_summary" else collector_cls()
             collector.extract(snapshot, states)
 
         # PowerCollector looks for usp_pdu_pro entities which don't exist in
@@ -64,10 +62,8 @@ class SnapshotAssembler:
         if snapshot["power"]["total_watts"] == 0:
             for s in states:
                 if s["entity_id"] == "sensor.total_power":
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         snapshot["power"]["total_watts"] = float(s["state"])
-                    except (ValueError, TypeError):
-                        pass
                     break
 
         # Enrich motion with active_count (done in intraday snapshot code, not by collector)
@@ -101,7 +97,7 @@ class SnapshotAssembler:
         # Peak during waking hours (7am-11pm), low at night
         if 7 <= hour <= 23:
             hour_factor = 1.0
-        elif 5 <= hour < 7 or 23 < hour:
+        elif 5 <= hour < 7 or hour > 23:
             hour_factor = 0.3
         else:
             hour_factor = 0.1

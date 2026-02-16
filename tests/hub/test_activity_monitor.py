@@ -4,25 +4,24 @@ Tests event filtering, occupancy tracking, buffer windowing, snapshot
 triggering, daily counter resets, snapshot logging, and WebSocket liveness.
 """
 
+import contextlib
 import json
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
 from aria.modules.activity_monitor import (
-    ActivityMonitor,
     DAILY_SNAPSHOT_CAP,
     SNAPSHOT_COOLDOWN_S,
+    ActivityMonitor,
 )
-
 
 # ============================================================================
 # Mock Hub
@@ -34,7 +33,7 @@ class MockCacheManager:
 
     def __init__(self):
         self._included: set = set()
-        self._all_curation: List[Dict[str, Any]] = []
+        self._all_curation: list[dict[str, Any]] = []
         self._should_raise: bool = False
 
     async def get_included_entity_ids(self) -> set:
@@ -42,7 +41,7 @@ class MockCacheManager:
             raise RuntimeError("Simulated cache failure")
         return set(self._included)
 
-    async def get_all_curation(self) -> List[Dict[str, Any]]:
+    async def get_all_curation(self) -> list[dict[str, Any]]:
         if self._should_raise:
             raise RuntimeError("Simulated cache failure")
         return list(self._all_curation)
@@ -52,15 +51,15 @@ class MockHub:
     """Lightweight hub mock that provides set_cache/get_cache without SQLite."""
 
     def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         self._running = True
-        self._scheduled_tasks: List[Dict[str, Any]] = []
+        self._scheduled_tasks: list[dict[str, Any]] = []
         self.cache = MockCacheManager()
 
-    async def set_cache(self, category: str, data: Any, metadata: Optional[Dict] = None):
+    async def set_cache(self, category: str, data: Any, metadata: dict | None = None):
         self._cache[category] = {"data": data, "metadata": metadata}
 
-    async def get_cache(self, category: str) -> Optional[Dict[str, Any]]:
+    async def get_cache(self, category: str) -> dict[str, Any] | None:
         return self._cache.get(category)
 
     def is_running(self) -> bool:
@@ -72,7 +71,7 @@ class MockHub:
     def register_module(self, mod):
         pass
 
-    async def publish(self, event_type: str, data: Dict[str, Any]):
+    async def publish(self, event_type: str, data: dict[str, Any]):
         pass
 
 
@@ -773,10 +772,8 @@ class TestEntityCuration:
         hub.cache._should_raise = True
 
         # Loading should fail silently (logged warning)
-        try:
+        with contextlib.suppress(RuntimeError):
             await monitor._load_curation_rules()
-        except RuntimeError:
-            pass  # Expected — initialize() wraps this in try/except
 
         # Curation should NOT be loaded
         assert monitor._curation_loaded is False

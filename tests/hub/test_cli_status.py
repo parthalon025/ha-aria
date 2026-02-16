@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from aria.hub.core import IntelligenceHub
 
-
 # ============================================================================
 # IntelligenceHub module status tracking
 # ============================================================================
@@ -118,9 +117,11 @@ class TestStatusCommand:
         """status --json works when hub is not running."""
         from aria.cli import _status
 
-        with patch("os.path.expanduser", return_value=str(tmp_path)):
-            with patch("urllib.request.urlopen", side_effect=ConnectionRefusedError):
-                _status(json_output=True)
+        with (
+            patch("os.path.expanduser", return_value=str(tmp_path)),
+            patch("urllib.request.urlopen", side_effect=ConnectionRefusedError),
+        ):
+            _status(json_output=True)
 
         output = capsys.readouterr().out
         data = json.loads(output)
@@ -132,9 +133,11 @@ class TestStatusCommand:
         """status pretty-prints when hub is not running."""
         from aria.cli import _status
 
-        with patch("os.path.expanduser", return_value=str(tmp_path)):
-            with patch("urllib.request.urlopen", side_effect=ConnectionRefusedError):
-                _status(json_output=False)
+        with (
+            patch("os.path.expanduser", return_value=str(tmp_path)),
+            patch("urllib.request.urlopen", side_effect=ConnectionRefusedError),
+        ):
+            _status(json_output=False)
 
         output = capsys.readouterr().out
         assert "ARIA Status" in output
@@ -148,9 +151,11 @@ class TestStatusCommand:
         daily_dir.mkdir()
         (daily_dir / "2026-02-13.jsonl").write_text("{}\n")
 
-        with patch("os.path.expanduser", return_value=str(tmp_path)):
-            with patch("urllib.request.urlopen", side_effect=ConnectionRefusedError):
-                _status(json_output=True)
+        with (
+            patch("os.path.expanduser", return_value=str(tmp_path)),
+            patch("urllib.request.urlopen", side_effect=ConnectionRefusedError),
+        ):
+            _status(json_output=True)
 
         output = capsys.readouterr().out
         data = json.loads(output)
@@ -165,9 +170,11 @@ class TestStatusCommand:
         models_dir.mkdir()
         (models_dir / "gradient_boosting.joblib").write_bytes(b"\x00")
 
-        with patch("os.path.expanduser", return_value=str(tmp_path)):
-            with patch("urllib.request.urlopen", side_effect=ConnectionRefusedError):
-                _status(json_output=True)
+        with (
+            patch("os.path.expanduser", return_value=str(tmp_path)),
+            patch("urllib.request.urlopen", side_effect=ConnectionRefusedError),
+        ):
+            _status(json_output=True)
 
         output = capsys.readouterr().out
         data = json.loads(output)
@@ -192,9 +199,11 @@ class TestStatusCommand:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("os.path.expanduser", return_value=str(tmp_path)):
-            with patch("urllib.request.urlopen", return_value=mock_resp):
-                _status(json_output=True)
+        with (
+            patch("os.path.expanduser", return_value=str(tmp_path)),
+            patch("urllib.request.urlopen", return_value=mock_resp),
+        ):
+            _status(json_output=True)
 
         output = capsys.readouterr().out
         data = json.loads(output)

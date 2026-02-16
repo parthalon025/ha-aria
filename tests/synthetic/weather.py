@@ -6,7 +6,6 @@ import math
 import random
 from dataclasses import dataclass
 
-
 SOUTHEAST_US = {
     1: {"high": 48, "low": 30, "humidity": 65, "wind": 8, "sunrise": 7.1, "sunset": 17.3},
     2: {"high": 53, "low": 33, "humidity": 62, "wind": 9, "sunrise": 6.8, "sunset": 17.8},

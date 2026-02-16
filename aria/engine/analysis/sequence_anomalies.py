@@ -115,10 +115,7 @@ class MarkovChainDetector:
                 prob = 1.0 / max(self.total_transitions, len(self.entity_counts) + 1)
             else:
                 count = self.transition_counts.get(eid_a, {}).get(eid_b, 0)
-                if count == 0:
-                    prob = 1.0 / (total + len(self.entity_counts))
-                else:
-                    prob = count / total
+                prob = 1.0 / (total + len(self.entity_counts)) if count == 0 else count / total
 
             log_probs.append(math.log(prob))
 

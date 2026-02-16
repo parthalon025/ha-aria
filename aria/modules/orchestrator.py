@@ -4,16 +4,16 @@ Converts detected behavioral patterns into Home Assistant automations,
 manages approval flow, and creates virtual sensors for pattern detection events.
 """
 
+import hashlib
 import json
 import logging
-import aiohttp
-import hashlib
-from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
+from typing import Any
 
-from aria.hub.core import Module, IntelligenceHub
+import aiohttp
+
 from aria.capabilities import Capability
-
+from aria.hub.core import IntelligenceHub, Module
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class OrchestratorModule(Module):
         self.ha_url = ha_url.rstrip("/")
         self.ha_token = ha_token
         self.min_confidence = min_confidence
-        self._session: Optional[aiohttp.ClientSession] = None
+        self._session: aiohttp.ClientSession | None = None
 
     async def initialize(self):
         """Initialize HTTP session and generate initial suggestions."""
@@ -86,7 +86,7 @@ class OrchestratorModule(Module):
             await self._session.close()
             self._session = None
 
-    async def on_event(self, event_type: str, data: Dict[str, Any]):
+    async def on_event(self, event_type: str, data: dict[str, Any]):
         """Handle hub events - generate suggestions when patterns updated.
 
         Args:
@@ -100,7 +100,7 @@ class OrchestratorModule(Module):
             except Exception as e:
                 self.logger.error(f"Failed to regenerate suggestions: {e}")
 
-    async def generate_suggestions(self) -> List[Dict[str, Any]]:
+    async def generate_suggestions(self) -> list[dict[str, Any]]:
         """Generate automation suggestions from detected patterns.
 
         Reads patterns from hub cache, filters by confidence threshold,
@@ -175,7 +175,7 @@ class OrchestratorModule(Module):
         self.logger.info(f"Generated {len(final_suggestions)} automation suggestions")
         return final_suggestions
 
-    async def _pattern_to_suggestion(self, pattern: Dict[str, Any]) -> Dict[str, Any]:
+    async def _pattern_to_suggestion(self, pattern: dict[str, Any]) -> dict[str, Any]:
         """Convert a pattern into an automation suggestion.
 
         Args:
@@ -244,7 +244,7 @@ class OrchestratorModule(Module):
 
         return suggestion
 
-    def _signals_to_actions(self, area: str, signals: List[str]) -> List[Dict[str, Any]]:
+    def _signals_to_actions(self, area: str, signals: list[str]) -> list[dict[str, Any]]:
         """Convert associated signals into Home Assistant actions.
 
         Args:
@@ -293,7 +293,7 @@ class OrchestratorModule(Module):
 
         return actions
 
-    def _check_safety_guardrails(self, actions: List[Dict[str, Any]]) -> bool:
+    def _check_safety_guardrails(self, actions: list[dict[str, Any]]) -> bool:
         """Check if actions contain restricted domains.
 
         Args:
@@ -311,7 +311,7 @@ class OrchestratorModule(Module):
 
         return False
 
-    async def approve_suggestion(self, suggestion_id: str) -> Dict[str, Any]:
+    async def approve_suggestion(self, suggestion_id: str) -> dict[str, Any]:
         """Approve an automation suggestion and create it in Home Assistant.
 
         Args:
@@ -384,7 +384,7 @@ class OrchestratorModule(Module):
             self.logger.error(f"Failed to approve suggestion {suggestion_id}: {e}")
             return {"success": False, "error": str(e)}
 
-    async def reject_suggestion(self, suggestion_id: str) -> Dict[str, Any]:
+    async def reject_suggestion(self, suggestion_id: str) -> dict[str, Any]:
         """Reject an automation suggestion.
 
         Args:
@@ -426,7 +426,7 @@ class OrchestratorModule(Module):
 
         return {"success": True, "suggestion_id": suggestion_id}
 
-    async def _create_automation(self, automation_id: str, automation_yaml: Dict[str, Any]) -> Dict[str, Any]:
+    async def _create_automation(self, automation_id: str, automation_yaml: dict[str, Any]) -> dict[str, Any]:
         """Create automation in Home Assistant via REST API.
 
         NOTE: The /api/config/automation/config/{id} endpoint requires admin
@@ -486,7 +486,7 @@ class OrchestratorModule(Module):
             self.logger.error(f"Unexpected error creating automation {automation_id}: {e}")
             return {"success": False, "error": f"Unexpected error: {str(e)}"}
 
-    async def _store_pending_automation(self, automation_id: str, automation_yaml: Dict[str, Any]):
+    async def _store_pending_automation(self, automation_id: str, automation_yaml: dict[str, Any]):
         """Store automation YAML in cache for manual creation.
 
         Args:
@@ -566,7 +566,7 @@ class OrchestratorModule(Module):
         except Exception as e:
             self.logger.error(f"Failed to update pattern sensor: {e}")
 
-    async def get_suggestions(self, status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_suggestions(self, status_filter: str | None = None) -> list[dict[str, Any]]:
         """Get automation suggestions from cache.
 
         Args:
@@ -586,7 +586,7 @@ class OrchestratorModule(Module):
 
         return suggestions
 
-    async def get_created_automations(self) -> Dict[str, Any]:
+    async def get_created_automations(self) -> dict[str, Any]:
         """Get tracking data for created automations.
 
         Returns:

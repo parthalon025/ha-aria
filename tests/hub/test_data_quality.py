@@ -5,9 +5,9 @@ config threshold usage, human override preservation, and graceful empty-data han
 """
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -16,10 +16,9 @@ import pytest_asyncio
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from aria.modules.data_quality import (
-    DataQualityModule,
     CONFIG_NOISE_EVENT_THRESHOLD,
+    DataQualityModule,
 )
-
 
 # ============================================================================
 # Mock Hub
@@ -30,7 +29,7 @@ class MockHub:
     """Lightweight hub mock for data quality tests."""
 
     def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         self._running = True
 
         self.cache = Mock()
@@ -42,12 +41,12 @@ class MockHub:
         self.modules = {}
 
         # Default config values
-        self._config_overrides: Dict[str, Any] = {}
+        self._config_overrides: dict[str, Any] = {}
 
     async def _config_value(self, key: str, fallback: Any = None) -> Any:
         return self._config_overrides.get(key, fallback)
 
-    async def get_cache(self, category: str) -> Optional[Dict[str, Any]]:
+    async def get_cache(self, category: str) -> dict[str, Any] | None:
         return self._cache.get(category)
 
     async def schedule_task(self, **kwargs):
@@ -56,10 +55,10 @@ class MockHub:
     def register_module(self, mod):
         self.modules[mod.module_id] = mod
 
-    def set_entities(self, entities: Dict[str, Dict[str, Any]]):
+    def set_entities(self, entities: dict[str, dict[str, Any]]):
         self._cache["entities"] = {"data": entities}
 
-    def set_activity(self, windows: List[Dict[str, Any]]):
+    def set_activity(self, windows: list[dict[str, Any]]):
         self._cache["activity_log"] = {"data": {"windows": windows}}
 
 
@@ -68,22 +67,22 @@ class MockHub:
 # ============================================================================
 
 
-def make_entity(
+def make_entity(  # noqa: PLR0913
     entity_id: str,
     domain: str = "",
     friendly_name: str = "",
     device_id: str = "",
     area_id: str = "",
     device_class: str = "",
-    last_changed: Optional[str] = None,
-) -> Dict[str, Any]:
+    last_changed: str | None = None,
+) -> dict[str, Any]:
     """Build an entity data dict matching the discovery cache format."""
     if not domain and "." in entity_id:
         domain = entity_id.split(".")[0]
     if not friendly_name:
         friendly_name = entity_id.replace(".", " ").title()
     if last_changed is None:
-        last_changed = datetime.now(timezone.utc).isoformat()
+        last_changed = datetime.now(UTC).isoformat()
     return {
         "entity_id": entity_id,
         "domain": domain,
@@ -96,12 +95,12 @@ def make_entity(
 
 
 def make_window(
-    by_entity: Optional[Dict[str, int]] = None,
-    events: Optional[List[Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
+    by_entity: dict[str, int] | None = None,
+    events: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Build an activity window dict."""
     return {
-        "window_start": datetime.now(timezone.utc).isoformat(),
+        "window_start": datetime.now(UTC).isoformat(),
         "event_count": sum((by_entity or {}).values()),
         "by_domain": {},
         "by_entity": by_entity or {},

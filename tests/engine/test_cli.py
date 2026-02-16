@@ -2,9 +2,9 @@
 
 import json
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from aria.engine.cli import cmd_train_sequences, cmd_sequence_anomalies
+from aria.engine.cli import cmd_sequence_anomalies, cmd_train_sequences
 
 
 def _make_logbook_entries(n=200):

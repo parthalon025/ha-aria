@@ -4,25 +4,23 @@ Tests signal management, Frigate event handling, HA state change processing,
 room resolution, presence state flushing, and Bayesian fusion integration.
 """
 
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 
-import sys
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from aria.hub.constants import CACHE_PRESENCE
 from aria.engine.analysis.occupancy import SENSOR_CONFIG
+from aria.hub.constants import CACHE_PRESENCE
 from aria.modules.presence import (
-    PresenceModule,
     DEFAULT_CAMERA_ROOMS,
     SIGNAL_STALE_S,
+    PresenceModule,
 )
-
 
 # ============================================================================
 # Mock Hub
@@ -33,12 +31,12 @@ class MockCacheManager:
     """Mock cache manager for presence tests."""
 
     def __init__(self):
-        self._cache: Dict[str, Any] = {}
+        self._cache: dict[str, Any] = {}
 
     def get_cache(self, category: str):
         return self._cache.get(category)
 
-    async def set_cache(self, category: str, data: Any, metadata: Optional[Dict] = None):
+    async def set_cache(self, category: str, data: Any, metadata: dict | None = None):
         self._cache[category] = data
 
 
@@ -46,13 +44,13 @@ class MockHub:
     """Lightweight hub mock for presence module tests."""
 
     def __init__(self):
-        self._cache_data: Dict[str, Any] = {}
+        self._cache_data: dict[str, Any] = {}
         self._running = True
-        self._scheduled_tasks: List[Dict[str, Any]] = []
-        self._published: List = []
+        self._scheduled_tasks: list[dict[str, Any]] = []
+        self._published: list = []
         self.cache = MockCacheManager()
 
-    async def set_cache(self, category: str, data: Any, metadata: Optional[Dict] = None):
+    async def set_cache(self, category: str, data: Any, metadata: dict | None = None):
         self._cache_data[category] = data
         self.cache._cache[category] = data
 

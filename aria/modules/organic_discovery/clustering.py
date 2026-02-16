@@ -59,10 +59,7 @@ def cluster_entities(
     # 4. Compute per-sample silhouette scores (needs >= 2 clusters)
     n_clusters = len(unique_labels)
     has_silhouette = n_clusters >= 2
-    if has_silhouette:
-        sample_scores = silhouette_samples(scaled, labels)
-    else:
-        sample_scores = np.zeros(len(labels))
+    sample_scores = silhouette_samples(scaled, labels) if has_silhouette else np.zeros(len(labels))
 
     # 5. Build cluster dicts
     entity_arr = np.array(entity_ids)
@@ -70,11 +67,8 @@ def cluster_entities(
     for label in unique_labels:
         mask = labels == label
         member_ids = entity_arr[mask].tolist()
-        if has_silhouette:
-            avg_silhouette = float(np.mean(sample_scores[mask]))
-        else:
-            # Single cluster — silhouette is undefined, report 0.0
-            avg_silhouette = 0.0
+        # Single cluster — silhouette is undefined, report 0.0
+        avg_silhouette = float(np.mean(sample_scores[mask])) if has_silhouette else 0.0
 
         clusters.append(
             {

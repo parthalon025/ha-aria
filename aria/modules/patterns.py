@@ -4,25 +4,24 @@ Uses hierarchical clustering with DTW distance for temporal pattern detection,
 association rules for signal correlation, and LLM for semantic interpretation.
 """
 
+import asyncio
 import json
 import logging
-from pathlib import Path
-from typing import Dict, Any, List
-from datetime import datetime
 from collections import defaultdict
-import asyncio
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 import numpy as np
-from scipy.cluster.hierarchy import linkage, fcluster
-from scipy.spatial.distance import squareform
+import ollama
+import pandas as pd
 from mlxtend.frequent_patterns import apriori, association_rules
 from mlxtend.preprocessing import TransactionEncoder
-import pandas as pd
-import ollama
+from scipy.cluster.hierarchy import fcluster, linkage
+from scipy.spatial.distance import squareform
 
-from aria.hub.core import Module, IntelligenceHub
 from aria.capabilities import Capability
-
+from aria.hub.core import IntelligenceHub, Module
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +78,7 @@ class PatternRecognition(Module):
         except Exception as e:
             self.logger.error(f"Initial pattern detection failed: {e}")
 
-    async def detect_patterns(self) -> List[Dict[str, Any]]:
+    async def detect_patterns(self) -> list[dict[str, Any]]:
         """Detect behavioral patterns in historical data.
 
         Returns:
@@ -142,7 +141,7 @@ class PatternRecognition(Module):
         self.logger.info(f"Pattern detection complete: {len(all_patterns)} patterns stored")
         return all_patterns
 
-    async def _extract_sequences(self) -> Dict[str, List[Dict[str, Any]]]:
+    async def _extract_sequences(self) -> dict[str, list[dict[str, Any]]]:
         """Extract temporal sequences from logbook data grouped by area.
 
         Uses both daily logbook files and intraday snapshots to build sequences.
@@ -206,8 +205,8 @@ class PatternRecognition(Module):
         return dict(sequences_by_area)
 
     def _parse_snapshot_to_sequences(
-        self, snapshot: Dict[str, Any], date_str: str, hour: int
-    ) -> Dict[str, Dict[str, Any]]:
+        self, snapshot: dict[str, Any], date_str: str, hour: int
+    ) -> dict[str, dict[str, Any]]:
         """Parse intraday snapshot into sequences per area.
 
         Args:
@@ -261,8 +260,8 @@ class PatternRecognition(Module):
         return sequences
 
     def _parse_events_to_sequences(
-        self, events: List[Dict[str, Any]], date: datetime.date
-    ) -> Dict[str, Dict[str, Any]]:
+        self, events: list[dict[str, Any]], date: datetime.date
+    ) -> dict[str, dict[str, Any]]:
         """Parse logbook events into daily sequences per area.
 
         Args:
@@ -369,7 +368,7 @@ class PatternRecognition(Module):
 
         return "general"
 
-    async def _cluster_sequences(self, sequences: List[Dict[str, Any]]) -> Dict[int, List[int]]:
+    async def _cluster_sequences(self, sequences: list[dict[str, Any]]) -> dict[int, list[int]]:
         """Cluster sequences using hierarchical clustering with DTW distance.
 
         Args:
@@ -414,7 +413,7 @@ class PatternRecognition(Module):
             self.logger.error(f"Clustering failed: {e}")
             return {}
 
-    def _dtw_distance(self, s1: List[int], s2: List[int]) -> float:
+    def _dtw_distance(self, s1: list[int], s2: list[int]) -> float:
         """Compute Dynamic Time Warping distance between two time series.
 
         Args:
@@ -438,7 +437,7 @@ class PatternRecognition(Module):
 
         return dtw[n, m]
 
-    async def _find_associations(self, sequences: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    async def _find_associations(self, sequences: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Find association rules using Apriori algorithm.
 
         Args:
@@ -490,10 +489,10 @@ class PatternRecognition(Module):
     async def _generate_patterns(
         self,
         area: str,
-        sequences: List[Dict[str, Any]],
-        clusters: Dict[int, List[int]],
-        associations: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        sequences: list[dict[str, Any]],
+        clusters: dict[int, list[int]],
+        associations: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Generate pattern metadata from clustering and associations.
 
         Args:
@@ -553,7 +552,7 @@ class PatternRecognition(Module):
 
         return patterns
 
-    async def _interpret_pattern_llm(self, pattern: Dict[str, Any]) -> str:
+    async def _interpret_pattern_llm(self, pattern: dict[str, Any]) -> str:
         """Use LLM to generate semantic description of pattern.
 
         Args:
@@ -613,7 +612,7 @@ Label:"""
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
         return text.strip()
 
-    async def on_event(self, event_type: str, data: Dict[str, Any]):
+    async def on_event(self, event_type: str, data: dict[str, Any]):
         """Handle hub events.
 
         Args:

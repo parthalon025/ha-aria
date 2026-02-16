@@ -5,10 +5,9 @@ UI metadata. On startup, seed_config_defaults() inserts any missing keys using
 INSERT OR IGNORE, preserving user overrides.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
-
-CONFIG_DEFAULTS: List[Dict[str, Any]] = [
+CONFIG_DEFAULTS: list[dict[str, Any]] = [
     # ── Activity Monitor ──────────────────────────────────────────────
     {
         "key": "activity.daily_snapshot_cap",
@@ -156,7 +155,11 @@ CONFIG_DEFAULTS: List[Dict[str, Any]] = [
     # ── Data Quality ──────────────────────────────────────────────────
     {
         "key": "curation.auto_exclude_domains",
-        "default_value": "update,tts,stt,scene,button,number,select,input_boolean,input_number,input_select,input_text,input_datetime,counter,script,zone,sun,weather,conversation,event,automation,camera,image,remote",
+        "default_value": (
+            "update,tts,stt,scene,button,number,select,input_boolean,input_number,"
+            "input_select,input_text,input_datetime,counter,script,zone,sun,weather,"
+            "conversation,event,automation,camera,image,remote"
+        ),
         "value_type": "string",
         "label": "Auto-Exclude Domains",
         "description": "Comma-separated domains automatically excluded from curation.",
@@ -496,7 +499,10 @@ CONFIG_DEFAULTS: List[Dict[str, Any]] = [
         "default_value": "",
         "value_type": "string",
         "label": "Camera-to-Room Mapping",
-        "description": "Comma-separated camera:room pairs (e.g. driveway:driveway,carters_room:carters_room). Leave empty for defaults.",
+        "description": (
+            "Comma-separated camera:room pairs"
+            " (e.g. driveway:driveway,carters_room:carters_room). Leave empty for defaults."
+        ),
         "category": "Presence Tracking",
     },
     # ── Correction Propagation ─────────────────────────────────────────

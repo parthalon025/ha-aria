@@ -8,7 +8,7 @@ lifecycle, and event handling.
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -16,7 +16,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from aria.modules.orchestrator import OrchestratorModule
-
 
 # ============================================================================
 # Mock Hub
@@ -27,24 +26,24 @@ class MockHub:
     """Lightweight hub mock for orchestrator tests."""
 
     def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         self._running = True
-        self._scheduled_tasks: List[Dict[str, Any]] = []
-        self._published_events: List[Dict[str, Any]] = []
+        self._scheduled_tasks: list[dict[str, Any]] = []
+        self._published_events: list[dict[str, Any]] = []
         self.logger = MagicMock()
         self.modules = {}
 
-    async def set_cache(self, category: str, data: Any, metadata: Optional[Dict] = None):
+    async def set_cache(self, category: str, data: Any, metadata: dict | None = None):
         self._cache[category] = {
             "data": data,
             "metadata": metadata,
             "last_updated": datetime.now().isoformat(),
         }
 
-    async def get_cache(self, category: str) -> Optional[Dict[str, Any]]:
+    async def get_cache(self, category: str) -> dict[str, Any] | None:
         return self._cache.get(category)
 
-    async def get_cache_fresh(self, category: str, max_age=None, caller="") -> Optional[Dict[str, Any]]:
+    async def get_cache_fresh(self, category: str, max_age=None, caller="") -> dict[str, Any] | None:
         return self._cache.get(category)
 
     def is_running(self) -> bool:
@@ -56,7 +55,7 @@ class MockHub:
     def register_module(self, mod):
         self.modules[mod.module_id] = mod
 
-    async def publish(self, event_type: str, data: Dict[str, Any]):
+    async def publish(self, event_type: str, data: dict[str, Any]):
         self._published_events.append({"event_type": event_type, "data": data})
 
 
@@ -81,7 +80,7 @@ def module(hub):
     )
 
 
-def make_pattern(
+def make_pattern(  # noqa: PLR0913
     pattern_id="bedroom_cluster_1",
     name="Evening Bedroom",
     area="bedroom",

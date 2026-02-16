@@ -10,8 +10,7 @@ import pytest_asyncio
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from aria.hub.cache import CacheManager
-from aria.hub.constants import CACHE_CONFIG, CACHE_ENTITY_CURATION, CACHE_CONFIG_HISTORY
-
+from aria.hub.constants import CACHE_CONFIG, CACHE_CONFIG_HISTORY, CACHE_ENTITY_CURATION
 
 # ============================================================================
 # Fixtures
@@ -28,7 +27,7 @@ async def cache(tmp_path):
     await cm.close()
 
 
-async def _seed_config(
+async def _seed_config(  # noqa: PLR0913
     cache,
     key="shadow.min_confidence",
     value="0.3",

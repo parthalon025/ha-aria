@@ -8,16 +8,15 @@ import json
 import logging
 import os
 import re
-from pathlib import Path
-from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 import aiohttp
 
-from aria.hub.core import Module, IntelligenceHub
-from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
 from aria.capabilities import Capability
-
+from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
+from aria.hub.core import IntelligenceHub, Module
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +109,7 @@ class IntelligenceModule(Module):
         super().__init__("intelligence", hub)
         self.intel_dir = Path(intelligence_dir)
         self.log_path = Path.home() / ".local" / "log" / "aria.log"
-        self._last_digest_date: Optional[str] = None
+        self._last_digest_date: str | None = None
         self._telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
         self._telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID")
 
@@ -170,10 +169,10 @@ class IntelligenceModule(Module):
         )
         self.logger.info("Scheduled intelligence refresh every 15 minutes")
 
-    async def on_event(self, event_type: str, data: Dict[str, Any]):
+    async def on_event(self, event_type: str, data: dict[str, Any]):
         pass
 
-    async def _check_for_drift(self, data: Dict[str, Any]):
+    async def _check_for_drift(self, data: dict[str, Any]):
         """Check intelligence data for behavioral drift and publish events.
 
         Reads drift_status and accuracy from the assembled intelligence data.
@@ -215,7 +214,7 @@ class IntelligenceModule(Module):
     # Data assembly
     # ------------------------------------------------------------------
 
-    async def _read_activity_data(self) -> Dict[str, Any]:
+    async def _read_activity_data(self) -> dict[str, Any]:
         """Read activity_log and activity_summary from hub cache."""
         activity_log = await self.hub.get_cache(CACHE_ACTIVITY_LOG)
         activity_summary = await self.hub.get_cache(CACHE_ACTIVITY_SUMMARY)
@@ -224,25 +223,21 @@ class IntelligenceModule(Module):
             "activity_summary": activity_summary["data"] if activity_summary else None,
         }
 
-    def _read_intelligence_data(self) -> Dict[str, Any]:
-        """Assemble the full intelligence payload from disk files."""
+    def _build_data_maturity(self) -> tuple[dict[str, Any], list]:
+        """Build data maturity section and return daily files for trend extraction."""
         daily_dir = self.intel_dir / "daily"
         intraday_dir = self.intel_dir / "intraday"
-        insights_dir = self.intel_dir / "insights"
 
-        # Count daily snapshots
         daily_files = sorted(daily_dir.glob("*.json")) if daily_dir.exists() else []
         first_date = daily_files[0].stem if daily_files else None
         days_of_data = len(daily_files)
 
-        # Count intraday snapshots across all date dirs
         intraday_count = 0
         if intraday_dir.exists():
             for date_dir in intraday_dir.iterdir():
                 if date_dir.is_dir():
                     intraday_count += len(list(date_dir.glob("*.json")))
 
-        # Determine learning phase
         ml_active = (self.intel_dir / "models" / "training_log.json").exists()
         meta_active = (self.intel_dir / "meta-learning" / "applied.json").exists()
         phase, next_milestone = self._determine_phase(days_of_data, ml_active, meta_active)
@@ -270,17 +265,25 @@ class IntelligenceModule(Module):
             ),
         }
 
+        maturity = {
+            "first_date": first_date,
+            "days_of_data": days_of_data,
+            "intraday_count": intraday_count,
+            "ml_active": ml_active,
+            "meta_learning_active": meta_active,
+            "phase": phase,
+            "next_milestone": next_milestone,
+            "description": phase_descriptions.get(phase, ""),
+        }
+        return maturity, daily_files
+
+    def _read_intelligence_data(self) -> dict[str, Any]:
+        """Assemble the full intelligence payload from disk files."""
+        insights_dir = self.intel_dir / "insights"
+        maturity, daily_files = self._build_data_maturity()
+
         return {
-            "data_maturity": {
-                "first_date": first_date,
-                "days_of_data": days_of_data,
-                "intraday_count": intraday_count,
-                "ml_active": ml_active,
-                "meta_learning_active": meta_active,
-                "phase": phase,
-                "next_milestone": next_milestone,
-                "description": phase_descriptions.get(phase, ""),
-            },
+            "data_maturity": maturity,
             "predictions": self._read_json(self.intel_dir / "predictions.json"),
             "baselines": self._read_json(self.intel_dir / "baselines.json"),
             "trend_data": self._extract_trend_data(daily_files),
@@ -296,7 +299,6 @@ class IntelligenceModule(Module):
             "sequence_anomalies": self._read_json(self.intel_dir / "sequence_anomalies.json"),
             "power_profiles": self._read_json(self.intel_dir / "insights" / "power-profiles.json"),
             "automation_suggestions": self._read_latest_automation_suggestion(),
-            # ML research feature data (populated by engine batch runs)
             "drift_status": self._read_json(self.intel_dir / "drift_status.json"),
             "feature_selection": self._read_json(self.intel_dir / "feature_selection.json"),
             "reference_model": self._read_json(self.intel_dir / "reference_model.json"),
@@ -315,7 +317,7 @@ class IntelligenceModule(Module):
             return ("baselines", "ML models activate after 14 days of data")
         return ("collecting", f"{7 - days} more days needed for reliable baselines")
 
-    def _extract_trend_data(self, daily_files: List[Path]) -> List[Dict[str, Any]]:
+    def _extract_trend_data(self, daily_files: list[Path]) -> list[dict[str, Any]]:
         """Extract key metrics from each daily snapshot (compact)."""
         trends = []
         for f in daily_files[-30:]:  # last 30 days max
@@ -332,7 +334,7 @@ class IntelligenceModule(Module):
                 continue
         return trends
 
-    def _extract_intraday_trend(self) -> List[Dict[str, Any]]:
+    def _extract_intraday_trend(self) -> list[dict[str, Any]]:
         """Extract today's intraday snapshots as compact trend entries."""
         today = datetime.now().strftime("%Y-%m-%d")
         intraday_dir = self.intel_dir / "intraday" / today
@@ -355,7 +357,7 @@ class IntelligenceModule(Module):
                 continue
         return entries
 
-    def _read_latest_insight(self, insights_dir: Path) -> Optional[Dict[str, Any]]:
+    def _read_latest_insight(self, insights_dir: Path) -> dict[str, Any] | None:
         """Read the most recent insight report."""
         if not insights_dir.exists():
             return None
@@ -371,7 +373,7 @@ class IntelligenceModule(Module):
             self.logger.debug(f"Failed to read insight {files[-1].name}: {e}")
             return None
 
-    def _read_ml_models(self) -> Dict[str, Any]:
+    def _read_ml_models(self) -> dict[str, Any]:
         """Read ML model training info."""
         log_path = self.intel_dir / "models" / "training_log.json"
         if not log_path.exists():
@@ -389,7 +391,7 @@ class IntelligenceModule(Module):
             self.logger.warning("Failed to read ML model training log: %s", e)
             return {"count": 0, "last_trained": None, "scores": {}}
 
-    def _read_meta_learning(self) -> Dict[str, Any]:
+    def _read_meta_learning(self) -> dict[str, Any]:
         """Read meta-learning applied suggestions."""
         applied_path = self.intel_dir / "meta-learning" / "applied.json"
         if not applied_path.exists():
@@ -411,71 +413,57 @@ class IntelligenceModule(Module):
             self.logger.warning("Failed to read meta-learning applied suggestions: %s", e)
             return {"applied_count": 0, "last_applied": None, "suggestions": []}
 
-    def _build_run_log(self) -> List[Dict[str, Any]]:
+    def _scan_dir_for_runs(self, directory: Path, run_type: str, limit: int = 0) -> list[dict[str, Any]]:
+        """Scan a directory for JSON files and build run log entries."""
+        if not directory.exists():
+            return []
+        files = sorted(directory.glob("*.json"), reverse=True)
+        if limit:
+            files = files[:limit]
+        return [
+            {
+                "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                "type": run_type,
+                "status": "ok",
+            }
+            for f in files
+        ]
+
+    def _parse_error_log(self) -> list[dict[str, Any]]:
+        """Parse recent error lines from aria log file."""
+        if not self.log_path.exists():
+            return []
+        errors = []
+        try:
+            lines = self.log_path.read_text().splitlines()[-50:]
+            for line in lines:
+                if "ERROR" in line or "FAILED" in line:
+                    ts_match = re.match(r"(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})", line)
+                    errors.append(
+                        {
+                            "timestamp": ts_match.group(1) if ts_match else None,
+                            "type": "error",
+                            "status": "error",
+                            "message": line.strip()[:200],
+                        }
+                    )
+        except Exception as e:
+            self.logger.warning("Failed to parse aria log file %s: %s", self.log_path, e)
+        return errors
+
+    def _build_run_log(self) -> list[dict[str, Any]]:
         """Build run history from file mtimes and log file."""
-        runs = []
-
-        # Scan daily snapshots
-        daily_dir = self.intel_dir / "daily"
-        if daily_dir.exists():
-            for f in sorted(daily_dir.glob("*.json"), reverse=True)[:5]:
-                runs.append(
-                    {
-                        "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-                        "type": "daily",
-                        "status": "ok",
-                    }
-                )
-
-        # Scan today's intraday
         today = datetime.now().strftime("%Y-%m-%d")
-        intraday_dir = self.intel_dir / "intraday" / today
-        if intraday_dir.exists():
-            for f in sorted(intraday_dir.glob("*.json"), reverse=True):
-                runs.append(
-                    {
-                        "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-                        "type": "intraday",
-                        "status": "ok",
-                    }
-                )
+        runs = []
+        runs.extend(self._scan_dir_for_runs(self.intel_dir / "daily", "daily", limit=5))
+        runs.extend(self._scan_dir_for_runs(self.intel_dir / "intraday" / today, "intraday"))
+        runs.extend(self._scan_dir_for_runs(self.intel_dir / "insights", "full_pipeline", limit=3))
+        runs.extend(self._parse_error_log())
 
-        # Scan insight reports
-        insights_dir = self.intel_dir / "insights"
-        if insights_dir.exists():
-            for f in sorted(insights_dir.glob("*.json"), reverse=True)[:3]:
-                runs.append(
-                    {
-                        "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-                        "type": "full_pipeline",
-                        "status": "ok",
-                    }
-                )
-
-        # Parse log for errors (last 50 lines)
-        if self.log_path.exists():
-            try:
-                lines = self.log_path.read_text().splitlines()[-50:]
-                for line in lines:
-                    if "ERROR" in line or "FAILED" in line:
-                        # Try to extract timestamp from log line
-                        ts_match = re.match(r"(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})", line)
-                        runs.append(
-                            {
-                                "timestamp": ts_match.group(1) if ts_match else None,
-                                "type": "error",
-                                "status": "error",
-                                "message": line.strip()[:200],
-                            }
-                        )
-            except Exception as e:
-                self.logger.warning("Failed to parse aria log file %s: %s", self.log_path, e)
-
-        # Sort by timestamp descending, take most recent 15
         runs.sort(key=lambda r: r.get("timestamp") or "", reverse=True)
         return runs[:15]
 
-    def _read_config(self) -> Dict[str, Any]:
+    def _read_config(self) -> dict[str, Any]:
         """Read feature config or return defaults."""
         config_path = self.intel_dir / "feature_config.json"
         feature_config = self._read_json(config_path)
@@ -501,7 +489,7 @@ class IntelligenceModule(Module):
     # Helpers
     # ------------------------------------------------------------------
 
-    def _read_latest_automation_suggestion(self) -> Optional[Dict[str, Any]]:
+    def _read_latest_automation_suggestion(self) -> dict[str, Any] | None:
         """Read the most recent automation suggestion file."""
         suggestions_dir = self.intel_dir / "insights" / "automation-suggestions"
         if not suggestions_dir.exists():
@@ -543,7 +531,7 @@ class IntelligenceModule(Module):
     # Daily digest to Telegram
     # ------------------------------------------------------------------
 
-    async def _maybe_send_digest(self, data: Dict[str, Any]):
+    async def _maybe_send_digest(self, data: dict[str, Any]):
         """Send a daily digest if there's a new insight we haven't sent yet."""
         if not self._telegram_token or not self._telegram_chat_id:
             return
@@ -565,69 +553,67 @@ class IntelligenceModule(Module):
         except Exception as e:
             self.logger.warning(f"Failed to send daily digest: {e}")
 
-    def _format_digest(self, data: Dict[str, Any]) -> str:
+    @staticmethod
+    def _format_intraday_metrics(intraday: list[dict[str, Any]]) -> str | None:
+        """Format latest intraday metrics for digest."""
+        if not intraday:
+            return None
+        latest = intraday[-1]
+        parts = []
+        if "power_watts" in latest:
+            parts.append(f"Power: {latest['power_watts']}W")
+        if "lights_on" in latest:
+            parts.append(f"Lights: {latest['lights_on']}")
+        if "devices_home" in latest:
+            parts.append(f"Devices: {latest['devices_home']}")
+        return f"Now: {' | '.join(parts)}" if parts else None
+
+    @staticmethod
+    def _format_trend_deltas(trend: list[dict[str, Any]]) -> str | None:
+        """Format today-vs-yesterday trend deltas for digest."""
+        if len(trend) < 2:
+            return None
+        today_t, yesterday_t = trend[-1], trend[-2]
+        deltas = []
+        for key in ["power_watts", "lights_on", "devices_home", "unavailable"]:
+            t_val, y_val = today_t.get(key), yesterday_t.get(key)
+            if t_val is not None and y_val is not None:
+                diff = t_val - y_val
+                sign = "+" if diff > 0 else ""
+                deltas.append(f"{key}: {sign}{diff:.0f}")
+        return f"vs yesterday: {', '.join(deltas)}" if deltas else None
+
+    def _format_digest(self, data: dict[str, Any]) -> str:
         """Format intelligence data into a Telegram-friendly digest."""
         maturity = data.get("data_maturity", {})
-        trend = data.get("trend_data", [])
-        intraday = data.get("intraday_trend", [])
         predictions = data.get("predictions", {})
         insight = data.get("daily_insight", {})
 
         lines = ["*ARIA Daily Digest*", ""]
+        lines.append(f"Phase: *{maturity.get('phase', 'unknown')}* ({maturity.get('days_of_data', 0)} days of data)")
 
-        # Phase & maturity
-        phase = maturity.get("phase", "unknown")
-        days = maturity.get("days_of_data", 0)
-        lines.append(f"Phase: *{phase}* ({days} days of data)")
+        intraday_line = self._format_intraday_metrics(data.get("intraday_trend", []))
+        if intraday_line:
+            lines.append(intraday_line)
 
-        # Today's latest metrics (from last intraday snapshot)
-        if intraday:
-            latest = intraday[-1]
-            parts = []
-            if "power_watts" in latest:
-                parts.append(f"Power: {latest['power_watts']}W")
-            if "lights_on" in latest:
-                parts.append(f"Lights: {latest['lights_on']}")
-            if "devices_home" in latest:
-                parts.append(f"Devices: {latest['devices_home']}")
-            if parts:
-                lines.append(f"Now: {' | '.join(parts)}")
-
-        # Trend comparison (today vs yesterday)
-        if len(trend) >= 2:
-            today_t = trend[-1]
-            yesterday_t = trend[-2]
-            deltas = []
-            for key in ["power_watts", "lights_on", "devices_home", "unavailable"]:
-                t_val = today_t.get(key)
-                y_val = yesterday_t.get(key)
-                if t_val is not None and y_val is not None:
-                    diff = t_val - y_val
-                    sign = "+" if diff > 0 else ""
-                    deltas.append(f"{key}: {sign}{diff:.0f}")
-            if deltas:
-                lines.append(f"vs yesterday: {', '.join(deltas)}")
+        trend_line = self._format_trend_deltas(data.get("trend_data", []))
+        if trend_line:
+            lines.append(trend_line)
 
         # Predictions summary
         if isinstance(predictions, dict) and predictions.get("power_watts"):
-            preds = predictions
             pred_parts = []
             for key in ["power_watts", "lights_on", "devices_home"]:
-                pred = preds.get(key, {})
+                pred = predictions.get(key, {})
                 if isinstance(pred, dict) and "predicted" in pred:
-                    conf = pred.get("confidence", "?")
-                    pred_parts.append(f"{key}: {pred['predicted']} ({conf})")
+                    pred_parts.append(f"{key}: {pred['predicted']} ({pred.get('confidence', '?')})")
             if pred_parts:
-                lines.append("")
-                lines.append("*Predictions:* " + " | ".join(pred_parts))
+                lines.extend(["", "*Predictions:* " + " | ".join(pred_parts)])
 
-        # Insight excerpt (first 300 chars of report)
         report = (insight.get("report") or "")[:300]
         if report:
-            # Strip markdown headers for Telegram
             report = re.sub(r"###?\s*", "", report).strip()
-            lines.append("")
-            lines.append(f"_Insight:_ {report}")
+            lines.extend(["", f"_Insight:_ {report}"])
             if len(insight.get("report", "")) > 300:
                 lines.append("...")
 
@@ -642,10 +628,12 @@ class IntelligenceModule(Module):
             "parse_mode": "Markdown",
         }
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    result = await resp.json()
-                    if not result.get("ok"):
-                        raise RuntimeError(f"Telegram API error: {result}")
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp,
+            ):
+                result = await resp.json()
+                if not result.get("ok"):
+                    raise RuntimeError(f"Telegram API error: {result}")
         except aiohttp.ClientError as e:
             raise RuntimeError(f"Telegram request failed: {e}") from e

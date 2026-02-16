@@ -23,7 +23,7 @@ import shutil
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from aria.engine.config import PathConfig
 from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
@@ -45,7 +45,7 @@ class ReferenceModel:
         self._ref_dir = paths.models_dir / "reference"
         self._history_path = self._ref_dir / "accuracy_history.json"
 
-    def train(self, snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def train(self, snapshots: list[dict[str, Any]]) -> dict[str, Any]:
         """Train the reference model using default (unmodified) feature config.
 
         Args:
@@ -96,7 +96,7 @@ class ReferenceModel:
         self._append_history(results)
         return results
 
-    def compare(self, tuned_mae: Dict[str, float]) -> Dict[str, Any]:
+    def compare(self, tuned_mae: dict[str, float]) -> dict[str, Any]:
         """Compare tuned model MAE against reference model MAE.
 
         Args:
@@ -148,7 +148,7 @@ class ReferenceModel:
 
         return {"diagnosis": diagnosis, "reference_mae": {m: d.get("mae") for m, d in ref_metrics.items()}}
 
-    def _append_history(self, result: Dict[str, Any]):
+    def _append_history(self, result: dict[str, Any]):
         """Append a training result to the accuracy history file."""
         history = self._load_history()
         history.append(result)
@@ -158,7 +158,7 @@ class ReferenceModel:
         with open(self._history_path, "w") as f:
             json.dump(history, f, indent=2)
 
-    def _load_history(self) -> List[Dict[str, Any]]:
+    def _load_history(self) -> list[dict[str, Any]]:
         """Load accuracy history from disk."""
         if not self._history_path.is_file():
             return []
@@ -166,10 +166,10 @@ class ReferenceModel:
             with open(self._history_path) as f:
                 data = json.load(f)
             return data if isinstance(data, list) else []
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return []
 
-    def _get_metric_trend(self, metric: str) -> List[float]:
+    def _get_metric_trend(self, metric: str) -> list[float]:
         """Extract MAE trend for a specific metric from history."""
         history = self._load_history()
         values = []

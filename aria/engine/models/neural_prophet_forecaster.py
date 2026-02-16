@@ -16,10 +16,9 @@ logger = logging.getLogger(__name__)
 
 HAS_NEURAL_PROPHET = True
 try:
-    from neuralprophet import NeuralProphet, set_log_level
-
-    import pandas as pd
     import numpy as np
+    import pandas as pd
+    from neuralprophet import NeuralProphet, set_log_level
 
     set_log_level("ERROR")
 except ImportError:
@@ -32,7 +31,7 @@ NEURALPROPHET_METRICS = ["power_watts", "lights_on", "devices_home", "unavailabl
 class NeuralProphetForecaster:
     """NeuralProphet model for seasonal time series forecasting with autoregression."""
 
-    def train(
+    def train(  # noqa: PLR0913 — NeuralProphet training requires metric, data, dir, and hyperparameters
         self,
         metric_name,
         daily_snapshots,
@@ -86,13 +85,7 @@ class NeuralProphetForecaster:
 
         # In-sample diagnostics
         forecast = model.predict(df)
-        y_col = "y"
-        yhat_col = "yhat1"
-        valid = forecast[[y_col, yhat_col]].dropna()
-        residuals = valid[y_col].values - valid[yhat_col].values
-        y_vals = valid[y_col].values
-        mae = float(np.mean(np.abs(residuals)))
-        mape = float(np.mean(np.abs(residuals / np.where(y_vals != 0, y_vals, 1)))) * 100
+        mae, mape = self._compute_diagnostics(forecast)
 
         # Save model + training data (needed for make_future_dataframe at predict time)
         os.makedirs(model_dir, exist_ok=True)
@@ -100,24 +93,8 @@ class NeuralProphetForecaster:
         with open(model_path, "wb") as f:
             pickle.dump({"model": model, "df": df}, f)
 
-        # Extract seasonal components for insight
-        components = {}
-        if "weekly" in forecast.columns:
-            weekly = forecast["weekly"].dropna().tolist()
-            if weekly:
-                components["weekly_range"] = round(float(max(weekly) - min(weekly)), 2)
-        if "trend" in forecast.columns:
-            trend = forecast["trend"].dropna()
-            if len(trend) >= 2:
-                components["trend_start"] = round(float(trend.iloc[0]), 2)
-                components["trend_end"] = round(float(trend.iloc[-1]), 2)
-
-        # Training loss from metrics_df
-        final_loss = None
-        if metrics_df is not None and len(metrics_df) > 0:
-            loss_cols = [c for c in metrics_df.columns if "Loss" in c or "loss" in c]
-            if loss_cols:
-                final_loss = round(float(metrics_df[loss_cols[0]].iloc[-1]), 4)
+        components = self._extract_components(forecast)
+        final_loss = self._extract_final_loss(metrics_df)
 
         result = {
             "metric": metric_name,
@@ -133,6 +110,40 @@ class NeuralProphetForecaster:
             result["final_loss"] = final_loss
 
         return result
+
+    @staticmethod
+    def _compute_diagnostics(forecast):
+        """Compute MAE and MAPE from in-sample forecast."""
+        valid = forecast[["y", "yhat1"]].dropna()
+        residuals = valid["y"].values - valid["yhat1"].values
+        y_vals = valid["y"].values
+        mae = float(np.mean(np.abs(residuals)))
+        mape = float(np.mean(np.abs(residuals / np.where(y_vals != 0, y_vals, 1)))) * 100
+        return mae, mape
+
+    @staticmethod
+    def _extract_components(forecast):
+        """Extract seasonal components from forecast for insight."""
+        components = {}
+        if "weekly" in forecast.columns:
+            weekly = forecast["weekly"].dropna().tolist()
+            if weekly:
+                components["weekly_range"] = round(float(max(weekly) - min(weekly)), 2)
+        if "trend" in forecast.columns:
+            trend = forecast["trend"].dropna()
+            if len(trend) >= 2:
+                components["trend_start"] = round(float(trend.iloc[0]), 2)
+                components["trend_end"] = round(float(trend.iloc[-1]), 2)
+        return components
+
+    @staticmethod
+    def _extract_final_loss(metrics_df):
+        """Extract final training loss from metrics dataframe."""
+        if metrics_df is not None and len(metrics_df) > 0:
+            loss_cols = [c for c in metrics_df.columns if "Loss" in c or "loss" in c]
+            if loss_cols:
+                return round(float(metrics_df[loss_cols[0]].iloc[-1]), 4)
+        return None
 
     def predict(self, metric_name, model_dir, horizon_days=1):
         """Forecast the next N days using a trained NeuralProphet model.

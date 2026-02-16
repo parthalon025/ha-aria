@@ -6,7 +6,7 @@ from aria.engine.config import OllamaConfig
 from aria.engine.llm.client import ollama_chat, strip_think_tags
 
 
-def generate_insight_report(
+def generate_insight_report(  # noqa: PLR0913 — report generation requires all context inputs
     snapshot, anomalies, predictions, reliability, correlations, accuracy_history, config: OllamaConfig = None
 ):
     """Generate natural language insight report via Ollama."""

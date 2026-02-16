@@ -5,20 +5,18 @@ trend extraction, digest formatting, and Telegram sending.
 """
 
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
 from aria.modules.intelligence import IntelligenceModule
-
 
 # ============================================================================
 # Mock Hub
@@ -29,14 +27,14 @@ class MockHub:
     """Lightweight hub mock that provides set_cache/get_cache without SQLite."""
 
     def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         self._running = True
-        self._scheduled_tasks: List[Dict[str, Any]] = []
+        self._scheduled_tasks: list[dict[str, Any]] = []
 
-    async def set_cache(self, category: str, data: Any, metadata: Optional[Dict] = None):
+    async def set_cache(self, category: str, data: Any, metadata: dict | None = None):
         self._cache[category] = {"data": data, "metadata": metadata}
 
-    async def get_cache(self, category: str) -> Optional[Dict[str, Any]]:
+    async def get_cache(self, category: str) -> dict[str, Any] | None:
         return self._cache.get(category)
 
     def is_running(self) -> bool:
@@ -48,7 +46,7 @@ class MockHub:
     def register_module(self, mod):
         pass
 
-    async def publish(self, event_type: str, data: Dict[str, Any]):
+    async def publish(self, event_type: str, data: dict[str, Any]):
         pass
 
 
@@ -477,9 +475,11 @@ class TestTelegramSending:
         module._telegram_token = "fake-token"
         module._telegram_chat_id = "12345"
 
-        with patch("aria.modules.intelligence.aiohttp.ClientSession", return_value=mock_session):
-            with pytest.raises(RuntimeError, match="Telegram API error"):
-                await module._send_telegram("Test message")
+        with (
+            patch("aria.modules.intelligence.aiohttp.ClientSession", return_value=mock_session),
+            pytest.raises(RuntimeError, match="Telegram API error"),
+        ):
+            await module._send_telegram("Test message")
 
 
 # ============================================================================

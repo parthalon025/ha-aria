@@ -13,18 +13,18 @@ Architecture:
 
 import json
 import logging
-import pickle
 import math
+import pickle
 import warnings
-from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
-import numpy as np
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor, IsolationForest
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_absolute_error, r2_score
 import lightgbm as lgb
+import numpy as np
+from sklearn.ensemble import GradientBoostingRegressor, IsolationForest, RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.preprocessing import StandardScaler
 
 # Suppress sklearn warning about feature names when using numpy arrays.
 # Our feature pipeline guarantees alignment between training and prediction —
@@ -36,12 +36,11 @@ warnings.filterwarnings(
     module="sklearn",
 )
 
+from aria.capabilities import Capability, DemandSignal  # noqa: E402
 from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG as _ENGINE_FEATURE_CONFIG  # noqa: E402
 from aria.engine.features.vector_builder import build_feature_vector as _engine_build_feature_vector  # noqa: E402
 from aria.engine.validation import validate_snapshot_batch  # noqa: E402
-from aria.hub.core import Module, IntelligenceHub  # noqa: E402
-from aria.capabilities import Capability, DemandSignal  # noqa: E402
-
+from aria.hub.core import IntelligenceHub, Module  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +48,29 @@ logger = logging.getLogger(__name__)
 DECAY_HALF_LIFE_DAYS = 7
 WEEKDAY_ALIGNMENT_BONUS = 1.5
 ROLLING_WINDOWS_HOURS = [1, 3, 6]
+
+
+def _compute_trend(relevant: list[dict[str, Any]]) -> float:
+    """Compute activity trend from first vs second half of relevant windows.
+
+    Returns:
+        1.0 (increasing), -1.0 (decreasing), or 0.0 (stable).
+    """
+    if len(relevant) < 2:
+        return 0.0
+    mid = len(relevant) // 2
+    first_count = sum(w.get("event_count", 0) for w in relevant[:mid])
+    second_count = sum(w.get("event_count", 0) for w in relevant[mid:])
+    if first_count == 0 and second_count == 0:
+        return 0.0
+    if first_count == 0:
+        return 1.0
+    ratio = second_count / first_count
+    if ratio > 1.2:
+        return 1.0
+    if ratio < 0.8:
+        return -1.0
+    return 0.0
 
 
 def should_full_retrain(current_trees: int, max_trees: int = 500) -> bool:
@@ -125,19 +147,19 @@ class MLEngine(Module):
         # Model configuration — which model types to train and their blend weights.
         # Keys: "gb" (GradientBoosting), "rf" (RandomForest), "lgbm" (LightGBM)
         # Weights are normalized at prediction time so they always sum to 1.0.
-        self.enabled_models: Dict[str, bool] = {
+        self.enabled_models: dict[str, bool] = {
             "gb": True,
             "rf": True,
             "lgbm": True,
         }
-        self.model_weights: Dict[str, float] = {
+        self.model_weights: dict[str, float] = {
             "gb": 0.35,
             "rf": 0.25,
             "lgbm": 0.40,
         }
 
         # Loaded models cache
-        self.models: Dict[str, Dict[str, Any]] = {}
+        self.models: dict[str, dict[str, Any]] = {}
 
     async def initialize(self):
         """Initialize module - load existing models."""
@@ -173,15 +195,49 @@ class MLEngine(Module):
             except Exception as e:
                 self.logger.error(f"Failed to load model {model_file}: {e}")
 
-    async def train_models(self, days_history: int = 60):
-        """Train models using historical data.
+    def _collect_training_result(self, target: str, capability_name: str) -> dict[str, Any] | None:
+        """Collect training metrics for a single target if available."""
+        if target not in self.models or "accuracy_scores" not in self.models[target]:
+            return None
+        scores = self.models[target]["accuracy_scores"]
+        r2_values = [v for k, v in scores.items() if k.endswith("_r2")]
+        mae_values = [v for k, v in scores.items() if k.endswith("_mae")]
+        avg_r2 = sum(r2_values) / len(r2_values) if r2_values else 0.0
+        avg_mae = sum(mae_values) / len(mae_values) if mae_values else 0.0
+        importance = self.models[target].get("feature_importance", {})
+        top5 = sorted(importance.items(), key=lambda x: x[1], reverse=True)[:5]
+        return {
+            "r2": round(avg_r2, 3),
+            "mae": round(avg_mae, 3),
+            "top_features": [name for name, _ in top5],
+        }
 
-        Args:
-            days_history: Number of days of historical data to use for training
-        """
+    async def _train_capability_targets(
+        self, capabilities: dict, training_data: list
+    ) -> dict[str, dict[str, dict[str, Any]]]:
+        """Train models for all capability targets and collect results."""
+        training_results: dict[str, dict[str, dict[str, Any]]] = {}
+        for capability_name, capability_data in capabilities.items():
+            if not capability_data.get("available"):
+                continue
+            prediction_targets = self.capability_predictions.get(capability_name)
+            if not prediction_targets:
+                continue
+            self.logger.info(f"Training models for capability: {capability_name}")
+            for target in prediction_targets:
+                try:
+                    await self._train_model_for_target(target, training_data, capability_name)
+                    result = self._collect_training_result(target, capability_name)
+                    if result:
+                        training_results.setdefault(capability_name, {})[target] = result
+                except Exception as e:
+                    self.logger.error(f"Failed to train model for {target}: {e}")
+        return training_results
+
+    async def train_models(self, days_history: int = 60):
+        """Train models using historical data."""
         self.logger.info(f"Training models with {days_history} days of history...")
 
-        # Get capabilities to determine what to train (warn if stale)
         capabilities_entry = await self.hub.get_cache_fresh(
             "capabilities", timedelta(hours=48), caller="ml_engine.train"
         )
@@ -190,71 +246,24 @@ class MLEngine(Module):
             return
 
         capabilities = capabilities_entry.get("data", {})
-
-        # Load training data
         training_data = await self._load_training_data(days_history)
         if not training_data:
             self.logger.error("No training data available")
             return
 
         self.logger.info(f"Loaded {len(training_data)} snapshots for training")
+        training_results = await self._train_capability_targets(capabilities, training_data)
 
-        # Track training results per capability for feedback loop
-        training_results: Dict[str, Dict[str, Dict[str, Any]]] = {}
-
-        # Train models for each available capability
-        for capability_name, capability_data in capabilities.items():
-            if not capability_data.get("available"):
-                continue
-
-            # Check if we have predictions defined for this capability
-            prediction_targets = self.capability_predictions.get(capability_name)
-            if not prediction_targets:
-                self.logger.debug(f"No prediction targets defined for {capability_name}")
-                continue
-
-            self.logger.info(f"Training models for capability: {capability_name}")
-
-            for target in prediction_targets:
-                try:
-                    await self._train_model_for_target(target, training_data, capability_name)
-                    # Collect results for feedback
-                    if target in self.models and "accuracy_scores" in self.models[target]:
-                        scores = self.models[target]["accuracy_scores"]
-                        # Average R² across all model types
-                        r2_values = [v for k, v in scores.items() if k.endswith("_r2")]
-                        mae_values = [v for k, v in scores.items() if k.endswith("_mae")]
-                        avg_r2 = sum(r2_values) / len(r2_values) if r2_values else 0.0
-                        avg_mae = sum(mae_values) / len(mae_values) if mae_values else 0.0
-                        # Get top 5 features from RF importance
-                        importance = self.models[target].get("feature_importance", {})
-                        top5 = sorted(importance.items(), key=lambda x: x[1], reverse=True)[:5]
-                        if capability_name not in training_results:
-                            training_results[capability_name] = {}
-                        training_results[capability_name][target] = {
-                            "r2": round(avg_r2, 3),
-                            "mae": round(avg_mae, 3),
-                            "top_features": [name for name, _ in top5],
-                        }
-                except Exception as e:
-                    self.logger.error(f"Failed to train model for {target}: {e}")
-
-        # Train global anomaly detector on all features
         await self._train_anomaly_detector(training_data)
-
         self.logger.info("Model training complete")
 
-        # Collect training summary from all trained models
         trained_targets = []
         accuracy_summary = {}
         for target, model_data in self.models.items():
-            if target == "anomaly_detector":
-                continue
-            if "accuracy_scores" in model_data:
+            if target != "anomaly_detector" and "accuracy_scores" in model_data:
                 trained_targets.append(target)
                 accuracy_summary[target] = model_data["accuracy_scores"]
 
-        # Store training metadata in cache
         await self.hub.set_cache(
             "ml_training_metadata",
             {
@@ -268,17 +277,15 @@ class MLEngine(Module):
             },
         )
 
-        # Write accuracy feedback to capabilities cache (closed-loop)
         if training_results:
             await self._write_feedback_to_capabilities(training_results)
 
-        # Store feature configuration for reuse across restarts
         config = await self._get_feature_config()
         config["last_modified"] = datetime.now().isoformat()
         config["modified_by"] = "ml_engine"
         await self.hub.set_cache("feature_config", config)
 
-    async def _write_feedback_to_capabilities(self, training_results: Dict[str, Dict[str, Dict[str, Any]]]):
+    async def _write_feedback_to_capabilities(self, training_results: dict[str, dict[str, dict[str, Any]]]):
         """Write ML accuracy feedback back to the capabilities cache.
 
         Closes the loop between ML training and capability usefulness scoring
@@ -347,7 +354,7 @@ class MLEngine(Module):
             await self.hub.set_cache("capabilities", caps, {"source": "ml_feedback"})
             self.logger.info(f"ML feedback written to {updated_count} capabilities in cache")
 
-    async def _load_training_data(self, days: int) -> List[Dict[str, Any]]:
+    async def _load_training_data(self, days: int) -> list[dict[str, Any]]:
         """Load historical snapshots for training.
 
         Args:
@@ -368,7 +375,7 @@ class MLEngine(Module):
                     with open(snapshot_file) as f:
                         snapshot = json.load(f)
                         raw_snapshots.append(snapshot)
-                except (json.JSONDecodeError, IOError) as e:
+                except (OSError, json.JSONDecodeError) as e:
                     self.logger.warning(f"Failed to load snapshot {snapshot_file}: {e}")
 
         valid, rejected = validate_snapshot_batch(raw_snapshots)
@@ -380,141 +387,105 @@ class MLEngine(Module):
 
         return valid
 
-    async def _train_model_for_target(self, target: str, training_data: List[Dict[str, Any]], capability_name: str):
-        """Train a model for a specific prediction target.
+    @staticmethod
+    def _fit_all_models(X_train, y_train, w_train):
+        """Fit GB, RF, LightGBM, and IsolationForest models on training data."""
+        gb_model = GradientBoostingRegressor(
+            n_estimators=100, learning_rate=0.1, max_depth=4,
+            min_samples_leaf=max(3, len(X_train) // 20), subsample=0.8, random_state=42,
+        )
+        gb_model.fit(X_train, y_train, sample_weight=w_train)
 
-        Args:
-            target: Target metric to predict (e.g., "power_watts")
-            training_data: List of historical snapshots
-            capability_name: Capability this target belongs to
-        """
+        rf_model = RandomForestRegressor(n_estimators=100, max_depth=5, random_state=42)
+        rf_model.fit(X_train, y_train, sample_weight=w_train)
+
+        lgbm_model = lgb.LGBMRegressor(
+            n_estimators=100, learning_rate=0.1, max_depth=4, num_leaves=15,
+            min_child_samples=max(3, len(X_train) // 20), subsample=0.8,
+            random_state=42, verbosity=-1, importance_type="gain",
+        )
+        lgbm_model.fit(X_train, y_train, sample_weight=w_train)
+
+        iso_model = IsolationForest(n_estimators=100, contamination=0.05, random_state=42)
+        iso_model.fit(X_train)
+
+        return gb_model, rf_model, lgbm_model, iso_model
+
+    @staticmethod
+    def _compute_validation_metrics(gb_model, rf_model, lgbm_model, X_val, y_val) -> dict[str, float]:
+        """Compute MAE and R2 for each model on validation data."""
+        gb_pred = gb_model.predict(X_val)
+        rf_pred = rf_model.predict(X_val)
+        lgbm_pred = lgbm_model.predict(X_val)
+        has_multi = len(y_val) > 1
+        return {
+            "gb_mae": round(mean_absolute_error(y_val, gb_pred), 3),
+            "gb_r2": round(r2_score(y_val, gb_pred), 3) if has_multi else 0.0,
+            "rf_mae": round(mean_absolute_error(y_val, rf_pred), 3),
+            "rf_r2": round(r2_score(y_val, rf_pred), 3) if has_multi else 0.0,
+            "lgbm_mae": round(mean_absolute_error(y_val, lgbm_pred), 3),
+            "lgbm_r2": round(r2_score(y_val, lgbm_pred), 3) if has_multi else 0.0,
+        }
+
+    async def _train_model_for_target(self, target: str, training_data: list[dict[str, Any]], capability_name: str):
+        """Train a model for a specific prediction target."""
         self.logger.info(f"Training model for target: {target}")
 
-        # Extract features, target values, and decay-based sample weights
         X, y, sample_weights = await self._build_training_dataset(training_data, target)
 
         if len(X) < 14:
             self.logger.warning(f"Insufficient training data for {target}: {len(X)} samples (need 14+)")
             return
 
-        # Sort snapshots chronologically for proper train/validation split
-        # (already chronological from _load_training_data, but ensure it)
-
-        # 80/20 chronological split (no shuffle - time series data)
         split_idx = int(len(X) * 0.8)
         X_train, X_val = X[:split_idx], X[split_idx:]
         y_train, y_val = y[:split_idx], y[split_idx:]
         w_train = sample_weights[:split_idx] if len(sample_weights) > 0 else None
 
-        # Train GradientBoosting model
-        gb_model = GradientBoostingRegressor(
-            n_estimators=100,
-            learning_rate=0.1,
-            max_depth=4,
-            min_samples_leaf=max(3, len(X_train) // 20),
-            subsample=0.8,
-            random_state=42,
-        )
-        gb_model.fit(X_train, y_train, sample_weight=w_train)
+        gb_model, rf_model, lgbm_model, iso_model = self._fit_all_models(X_train, y_train, w_train)
+        accuracy_scores = self._compute_validation_metrics(gb_model, rf_model, lgbm_model, X_val, y_val)
 
-        # Train RandomForest model
-        rf_model = RandomForestRegressor(n_estimators=100, max_depth=5, random_state=42)
-        rf_model.fit(X_train, y_train, sample_weight=w_train)
-
-        # Train LightGBM model (always trained even if disabled in enabled_models,
-        # so toggling a model on doesn't require a full retrain cycle)
-        lgbm_model = lgb.LGBMRegressor(
-            n_estimators=100,
-            learning_rate=0.1,
-            max_depth=4,
-            num_leaves=15,
-            min_child_samples=max(3, len(X_train) // 20),
-            subsample=0.8,
-            random_state=42,
-            verbosity=-1,  # Suppress LightGBM info logs
-            importance_type="gain",  # Gain-based importance (reduction in loss)
-        )
-        lgbm_model.fit(X_train, y_train, sample_weight=w_train)
-
-        # Train IsolationForest for anomaly detection
-        iso_model = IsolationForest(n_estimators=100, contamination=0.05, random_state=42)
-        iso_model.fit(X_train)
-
-        # Compute validation metrics
-        gb_pred = gb_model.predict(X_val)
-        rf_pred = rf_model.predict(X_val)
-        lgbm_pred = lgbm_model.predict(X_val)
-
-        gb_mae = mean_absolute_error(y_val, gb_pred)
-        gb_r2 = r2_score(y_val, gb_pred) if len(y_val) > 1 else 0.0
-
-        rf_mae = mean_absolute_error(y_val, rf_pred)
-        rf_r2 = r2_score(y_val, rf_pred) if len(y_val) > 1 else 0.0
-
-        lgbm_mae = mean_absolute_error(y_val, lgbm_pred)
-        lgbm_r2 = r2_score(y_val, lgbm_pred) if len(y_val) > 1 else 0.0
-
-        # Extract feature importance from RandomForest
         config = await self._get_feature_config()
         feature_names = await self._get_feature_names(config)
         feature_importance = {
-            name: round(float(importance), 4) for name, importance in zip(feature_names, rf_model.feature_importances_)
+            name: round(float(imp), 4)
+            for name, imp in zip(feature_names, rf_model.feature_importances_, strict=False)
         }
-
-        # Extract LightGBM feature importance (gain-based)
         lgbm_feature_importance = {
-            name: round(float(importance), 4)
-            for name, importance in zip(feature_names, lgbm_model.feature_importances_)
+            name: round(float(imp), 4)
+            for name, imp in zip(feature_names, lgbm_model.feature_importances_, strict=False)
         }
 
-        # Create scaler for feature normalization
         scaler = StandardScaler()
         scaler.fit(X_train)
 
-        # Store model data with complete metadata
         model_data = {
-            "target": target,
-            "capability": capability_name,
-            "gb_model": gb_model,
-            "rf_model": rf_model,
-            "lgbm_model": lgbm_model,
-            "iso_model": iso_model,
-            "scaler": scaler,
+            "target": target, "capability": capability_name,
+            "gb_model": gb_model, "rf_model": rf_model, "lgbm_model": lgbm_model,
+            "iso_model": iso_model, "scaler": scaler,
             "trained_at": datetime.now().isoformat(),
-            "num_samples": len(X),
-            "num_train": len(X_train),
-            "num_val": len(X_val),
+            "num_samples": len(X), "num_train": len(X_train), "num_val": len(X_val),
             "feature_names": feature_names,
             "feature_importance": feature_importance,
             "lgbm_feature_importance": lgbm_feature_importance,
-            "accuracy_scores": {
-                "gb_mae": round(gb_mae, 3),
-                "gb_r2": round(gb_r2, 3),
-                "rf_mae": round(rf_mae, 3),
-                "rf_r2": round(rf_r2, 3),
-                "lgbm_mae": round(lgbm_mae, 3),
-                "lgbm_r2": round(lgbm_r2, 3),
-            },
+            "accuracy_scores": accuracy_scores,
         }
 
-        # Save to disk
         model_file = self.models_dir / f"{target}_model.pkl"
         with open(model_file, "wb") as f:
             pickle.dump(model_data, f)
-
-        # Cache in memory
         self.models[target] = model_data
 
         self.logger.info(
             f"Model trained for {target}: "
             f"{len(X)} samples ({len(X_train)} train, {len(X_val)} val), "
             f"{len(feature_names)} features, "
-            f"GB MAE={gb_mae:.2f} R²={gb_r2:.3f}, "
-            f"RF MAE={rf_mae:.2f} R²={rf_r2:.3f}, "
-            f"LGBM MAE={lgbm_mae:.2f} R²={lgbm_r2:.3f}"
+            f"GB MAE={accuracy_scores['gb_mae']:.2f} R²={accuracy_scores['gb_r2']:.3f}, "
+            f"RF MAE={accuracy_scores['rf_mae']:.2f} R²={accuracy_scores['rf_r2']:.3f}, "
+            f"LGBM MAE={accuracy_scores['lgbm_mae']:.2f} R²={accuracy_scores['lgbm_r2']:.3f}"
         )
 
-    async def _train_anomaly_detector(self, training_data: List[Dict[str, Any]]):
+    async def _train_anomaly_detector(self, training_data: list[dict[str, Any]]):
         """Train global anomaly detector on all features.
 
         Args:
@@ -582,8 +553,8 @@ class MLEngine(Module):
         self.logger.info(f"Anomaly detector trained: {len(X)} samples, contamination=0.05")
 
     async def _build_training_dataset(
-        self, snapshots: List[Dict[str, Any]], target: str
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        self, snapshots: list[dict[str, Any]], target: str
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Build training dataset from snapshots.
 
         Args:
@@ -638,7 +609,7 @@ class MLEngine(Module):
 
         return np.array(X_list), np.array(y_list), sample_weights
 
-    async def _get_feature_config(self) -> Dict[str, Any]:
+    async def _get_feature_config(self) -> dict[str, Any]:
         """Get feature configuration from cache or return default.
 
         Returns:
@@ -660,7 +631,7 @@ class MLEngine(Module):
         self.logger.debug("Using default feature config (no cache found)")
         return default
 
-    async def _get_feature_names(self, config: Optional[Dict[str, Any]] = None) -> List[str]:
+    async def _get_feature_names(self, config: dict[str, Any] | None = None) -> list[str]:
         """Return ordered list of feature names from config.
 
         Args:
@@ -672,60 +643,53 @@ class MLEngine(Module):
         if config is None:
             config = await self._get_feature_config()
 
-        names = []
+        names: list[str] = []
+        self._collect_time_feature_names(config.get("time_features", {}), names)
+        self._collect_dict_feature_names(config.get("weather_features", {}), names, prefix="weather_")
+        self._collect_dict_feature_names(config.get("home_features", {}), names)
+        self._collect_dict_feature_names(config.get("lag_features", {}), names)
+        self._collect_dict_feature_names(config.get("interaction_features", {}), names)
 
-        # Time features
-        tc = config.get("time_features", {})
-        if tc.get("hour_sin_cos"):
-            names.extend(["hour_sin", "hour_cos"])
-        if tc.get("dow_sin_cos"):
-            names.extend(["dow_sin", "dow_cos"])
-        if tc.get("month_sin_cos"):
-            names.extend(["month_sin", "month_cos"])
-        if tc.get("day_of_year_sin_cos"):
-            names.extend(["day_of_year_sin", "day_of_year_cos"])
+        # Rolling window features (always included)
+        for hours in ROLLING_WINDOWS_HOURS:
+            names.extend([
+                f"rolling_{hours}h_event_count",
+                f"rolling_{hours}h_domain_entropy",
+                f"rolling_{hours}h_dominant_domain_pct",
+                f"rolling_{hours}h_trend",
+            ])
+
+        return names
+
+    @staticmethod
+    def _collect_time_feature_names(tc: dict[str, Any], names: list[str]) -> None:
+        """Append time feature names from config section to names list."""
+        _SIN_COS_PAIRS = {
+            "hour_sin_cos": ("hour_sin", "hour_cos"),
+            "dow_sin_cos": ("dow_sin", "dow_cos"),
+            "month_sin_cos": ("month_sin", "month_cos"),
+            "day_of_year_sin_cos": ("day_of_year_sin", "day_of_year_cos"),
+        }
+        for key, pair in _SIN_COS_PAIRS.items():
+            if tc.get(key):
+                names.extend(pair)
         for simple in [
-            "is_weekend",
-            "is_holiday",
-            "is_night",
-            "is_work_hours",
-            "minutes_since_sunrise",
-            "minutes_until_sunset",
-            "daylight_remaining_pct",
+            "is_weekend", "is_holiday", "is_night", "is_work_hours",
+            "minutes_since_sunrise", "minutes_until_sunset", "daylight_remaining_pct",
         ]:
             if tc.get(simple):
                 names.append(simple)
 
-        # Weather features
-        for key in config.get("weather_features", {}):
-            if config["weather_features"][key]:
-                names.append(f"weather_{key}")
+    @staticmethod
+    def _collect_dict_feature_names(
+        section: dict[str, Any], names: list[str], prefix: str = "",
+    ) -> None:
+        """Append enabled feature names from a config section to names list."""
+        for key, enabled in section.items():
+            if enabled:
+                names.append(f"{prefix}{key}")
 
-        # Home state features
-        for key in config.get("home_features", {}):
-            if config["home_features"][key]:
-                names.append(key)
-
-        # Lag features
-        for key in config.get("lag_features", {}):
-            if config["lag_features"][key]:
-                names.append(key)
-
-        # Interaction features
-        for key in config.get("interaction_features", {}):
-            if config["interaction_features"][key]:
-                names.append(key)
-
-        # Rolling window features (always included)
-        for hours in ROLLING_WINDOWS_HOURS:
-            names.append(f"rolling_{hours}h_event_count")
-            names.append(f"rolling_{hours}h_domain_entropy")
-            names.append(f"rolling_{hours}h_dominant_domain_pct")
-            names.append(f"rolling_{hours}h_trend")
-
-        return names
-
-    def _compute_time_features(self, snapshot: Dict[str, Any]) -> Dict[str, float]:
+    def _compute_time_features(self, snapshot: dict[str, Any]) -> dict[str, float]:
         """Compute time features from snapshot if not present.
 
         Args:
@@ -824,7 +788,7 @@ class MLEngine(Module):
         }
 
     def _compute_decay_weights(
-        self, snapshots: List[Dict[str, Any]], reference_date: Optional[datetime] = None
+        self, snapshots: list[dict[str, Any]], reference_date: datetime | None = None
     ) -> np.ndarray:
         """Compute decay-based sample weights for training data.
 
@@ -868,7 +832,7 @@ class MLEngine(Module):
 
         return np.array(weights, dtype=float)
 
-    async def _compute_rolling_window_stats(self, activity_log: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+    async def _compute_rolling_window_stats(self, activity_log: dict[str, Any] | None = None) -> dict[str, float]:
         """Compute rolling window statistics from activity log.
 
         For each window size (1h, 3h, 6h), computes:
@@ -889,103 +853,82 @@ class MLEngine(Module):
             if cache_entry and cache_entry.get("data"):
                 activity_log = cache_entry["data"]
 
-        stats: Dict[str, float] = {}
+        stats: dict[str, float] = {}
 
         if not activity_log:
-            # Return zeros for all rolling window features
-            for hours in ROLLING_WINDOWS_HOURS:
-                stats[f"rolling_{hours}h_event_count"] = 0
-                stats[f"rolling_{hours}h_domain_entropy"] = 0
-                stats[f"rolling_{hours}h_dominant_domain_pct"] = 0
-                stats[f"rolling_{hours}h_trend"] = 0  # 0=stable
-            return stats
+            return self._empty_rolling_window_stats()
 
         windows = activity_log.get("windows", [])
         if not windows:
-            for hours in ROLLING_WINDOWS_HOURS:
-                stats[f"rolling_{hours}h_event_count"] = 0
-                stats[f"rolling_{hours}h_domain_entropy"] = 0
-                stats[f"rolling_{hours}h_dominant_domain_pct"] = 0
-                stats[f"rolling_{hours}h_trend"] = 0
-            return stats
+            return self._empty_rolling_window_stats()
 
         now = datetime.now()
-
         for hours in ROLLING_WINDOWS_HOURS:
             cutoff = (now - timedelta(hours=hours)).isoformat()
-
-            # Filter windows within this time range
-            # String comparison works because activity_monitor generates ISO 8601
-            # timestamps in consistent local timezone format (lexicographic order)
             relevant = [w for w in windows if w.get("window_start", "") >= cutoff]
-
-            if not relevant:
-                stats[f"rolling_{hours}h_event_count"] = 0
-                stats[f"rolling_{hours}h_domain_entropy"] = 0
-                stats[f"rolling_{hours}h_dominant_domain_pct"] = 0
-                stats[f"rolling_{hours}h_trend"] = 0
-                continue
-
-            # Aggregate domain counts across windows
-            total_events = 0
-            domain_counts: Dict[str, int] = {}
-            for w in relevant:
-                total_events += w.get("event_count", 0)
-                for domain, count in w.get("by_domain", {}).items():
-                    domain_counts[domain] = domain_counts.get(domain, 0) + count
-
-            stats[f"rolling_{hours}h_event_count"] = total_events
-
-            # Domain entropy: -sum(p * log2(p)) for each domain
-            if total_events > 0 and domain_counts:
-                entropy = 0.0
-                for count in domain_counts.values():
-                    p = count / total_events
-                    if p > 0:
-                        entropy -= p * math.log2(p)
-                stats[f"rolling_{hours}h_domain_entropy"] = round(entropy, 4)
-
-                # Dominant domain percentage
-                max_count = max(domain_counts.values())
-                stats[f"rolling_{hours}h_dominant_domain_pct"] = round(max_count / total_events, 4)
-            else:
-                stats[f"rolling_{hours}h_domain_entropy"] = 0
-                stats[f"rolling_{hours}h_dominant_domain_pct"] = 0
-
-            # Activity trend: compare first half vs second half of window
-            if len(relevant) >= 2:
-                mid = len(relevant) // 2
-                first_half = relevant[:mid]
-                second_half = relevant[mid:]
-                first_count = sum(w.get("event_count", 0) for w in first_half)
-                second_count = sum(w.get("event_count", 0) for w in second_half)
-
-                if first_count == 0 and second_count == 0:
-                    trend = 0.0  # stable
-                elif first_count == 0:
-                    trend = 1.0  # increasing
-                else:
-                    ratio = second_count / first_count
-                    if ratio > 1.2:
-                        trend = 1.0  # increasing
-                    elif ratio < 0.8:
-                        trend = -1.0  # decreasing
-                    else:
-                        trend = 0.0  # stable
-                stats[f"rolling_{hours}h_trend"] = trend
-            else:
-                stats[f"rolling_{hours}h_trend"] = 0.0
+            self._compute_single_window_stats(stats, hours, relevant)
 
         return stats
 
+    @staticmethod
+    def _empty_rolling_window_stats() -> dict[str, float]:
+        """Return zero-valued rolling window stats for all window sizes."""
+        stats: dict[str, float] = {}
+        for hours in ROLLING_WINDOWS_HOURS:
+            stats[f"rolling_{hours}h_event_count"] = 0
+            stats[f"rolling_{hours}h_domain_entropy"] = 0
+            stats[f"rolling_{hours}h_dominant_domain_pct"] = 0
+            stats[f"rolling_{hours}h_trend"] = 0
+        return stats
+
+    @staticmethod
+    def _compute_single_window_stats(
+        stats: dict[str, float], hours: int, relevant: list[dict[str, Any]],
+    ) -> None:
+        """Compute event count, entropy, dominant domain pct, and trend for one window size."""
+        prefix = f"rolling_{hours}h"
+        if not relevant:
+            stats[f"{prefix}_event_count"] = 0
+            stats[f"{prefix}_domain_entropy"] = 0
+            stats[f"{prefix}_dominant_domain_pct"] = 0
+            stats[f"{prefix}_trend"] = 0
+            return
+
+        # Aggregate domain counts across windows
+        total_events = 0
+        domain_counts: dict[str, int] = {}
+        for w in relevant:
+            total_events += w.get("event_count", 0)
+            for domain, count in w.get("by_domain", {}).items():
+                domain_counts[domain] = domain_counts.get(domain, 0) + count
+
+        stats[f"{prefix}_event_count"] = total_events
+
+        # Domain entropy and dominant domain pct
+        if total_events > 0 and domain_counts:
+            entropy = 0.0
+            for count in domain_counts.values():
+                p = count / total_events
+                if p > 0:
+                    entropy -= p * math.log2(p)
+            stats[f"{prefix}_domain_entropy"] = round(entropy, 4)
+            max_count = max(domain_counts.values())
+            stats[f"{prefix}_dominant_domain_pct"] = round(max_count / total_events, 4)
+        else:
+            stats[f"{prefix}_domain_entropy"] = 0
+            stats[f"{prefix}_dominant_domain_pct"] = 0
+
+        # Activity trend: compare first half vs second half
+        stats[f"{prefix}_trend"] = _compute_trend(relevant)
+
     async def _extract_features(
         self,
-        snapshot: Dict[str, Any],
-        config: Optional[Dict[str, Any]] = None,
-        prev_snapshot: Optional[Dict[str, Any]] = None,
-        rolling_stats: Optional[Dict[str, float]] = None,
-        rolling_window_stats: Optional[Dict[str, float]] = None,
-    ) -> Optional[Dict[str, float]]:
+        snapshot: dict[str, Any],
+        config: dict[str, Any] | None = None,
+        prev_snapshot: dict[str, Any] | None = None,
+        rolling_stats: dict[str, float] | None = None,
+        rolling_window_stats: dict[str, float] | None = None,
+    ) -> dict[str, float] | None:
         """Extract feature vector from snapshot using shared vector_builder.
 
         Delegates base feature extraction to vector_builder.build_feature_vector()
@@ -1012,7 +955,7 @@ class MLEngine(Module):
 
         return features
 
-    def _extract_target(self, snapshot: Dict[str, Any], target: str) -> Optional[float]:
+    def _extract_target(self, snapshot: dict[str, Any], target: str) -> float | None:
         """Extract target value from snapshot.
 
         Args:
@@ -1040,7 +983,7 @@ class MLEngine(Module):
 
         return float(value) if value is not None else None
 
-    async def generate_predictions(self) -> Dict[str, Any]:
+    async def generate_predictions(self) -> dict[str, Any]:
         """Generate predictions for tomorrow using trained models.
 
         Uses configurable model blending (GradientBoosting, RandomForest, LightGBM)
@@ -1055,162 +998,155 @@ class MLEngine(Module):
             self.logger.warning("No models loaded. Train models first.")
             return {}
 
-        # Get latest snapshot from cache or discovery data
-        snapshot = await self._get_current_snapshot()
-        if not snapshot:
-            self.logger.error("No current snapshot available for prediction")
+        X, feature_names = await self._build_prediction_feature_vector()
+        if X is None:
             return {}
-
-        # Get previous snapshot for lag features
-        prev_snapshot = await self._get_previous_snapshot()
-
-        # Compute rolling stats (last 7 snapshots)
-        rolling_stats = await self._compute_rolling_stats()
-
-        # Compute rolling window stats from live activity log
-        rolling_window_stats = await self._compute_rolling_window_stats()
-
-        # Build feature config
-        config = await self._get_feature_config()
-
-        # Extract features from current state
-        features = await self._extract_features(
-            snapshot,
-            config=config,
-            prev_snapshot=prev_snapshot,
-            rolling_stats=rolling_stats,
-            rolling_window_stats=rolling_window_stats,
-        )
-
-        if features is None:
-            self.logger.error("Failed to extract features from snapshot")
-            return {}
-
-        # Generate predictions for each trained model
-        predictions_dict = {}
-        feature_names = await self._get_feature_names(config)
-
-        # Build feature vector in correct order (same for all models)
-        feature_vector = [features.get(name, 0) for name in feature_names]
-        X = np.array([feature_vector], dtype=float)
 
         # Detect anomalies if model exists
-        is_anomaly = False
-        anomaly_score = None
-        if "anomaly_detector" in self.models:
-            try:
-                anomaly_model = self.models["anomaly_detector"]["model"]
-                anomaly_score = float(anomaly_model.decision_function(X)[0])
-                # Negative score = anomaly (more negative = more anomalous)
-                is_anomaly = bool(anomaly_model.predict(X)[0] == -1)
-                self.logger.info(f"Anomaly detection: score={anomaly_score:.3f}, is_anomaly={is_anomaly}")
-            except Exception as e:
-                self.logger.error(f"Anomaly detection failed: {e}")
+        is_anomaly, anomaly_score = self._run_anomaly_detection(X)
 
-        for target, model_data in self.models.items():
-            # Skip anomaly detector (already processed)
-            if target == "anomaly_detector":
-                continue
+        # Generate predictions for each target
+        predictions_dict = self._predict_all_targets(X, is_anomaly)
 
-            try:
-                # Scale features
-                scaler = model_data["scaler"]
-                X_scaled = scaler.transform(X)
-
-                # Collect predictions from all enabled models
-                individual_preds: Dict[str, float] = {}
-                active_weights: Dict[str, float] = {}
-
-                if self.enabled_models.get("gb") and "gb_model" in model_data:
-                    individual_preds["gb"] = float(model_data["gb_model"].predict(X_scaled)[0])
-                    active_weights["gb"] = self.model_weights.get("gb", 0.35)
-
-                if self.enabled_models.get("rf") and "rf_model" in model_data:
-                    individual_preds["rf"] = float(model_data["rf_model"].predict(X_scaled)[0])
-                    active_weights["rf"] = self.model_weights.get("rf", 0.25)
-
-                if self.enabled_models.get("lgbm") and "lgbm_model" in model_data:
-                    individual_preds["lgbm"] = float(model_data["lgbm_model"].predict(X_scaled)[0])
-                    active_weights["lgbm"] = self.model_weights.get("lgbm", 0.40)
-
-                if not individual_preds:
-                    self.logger.warning(f"No enabled models produced predictions for {target}")
-                    continue
-
-                # Normalize weights to sum to 1.0
-                weight_sum = sum(active_weights.values())
-                normalized_weights = {k: v / weight_sum for k, v in active_weights.items()}
-
-                # Blend predictions using normalized weights
-                blended_pred = sum(normalized_weights[k] * individual_preds[k] for k in individual_preds)
-
-                # Calculate confidence based on model agreement
-                # Standard deviation of predictions relative to mean
-                pred_values = list(individual_preds.values())
-                avg_pred = sum(pred_values) / len(pred_values)
-
-                if len(pred_values) > 1 and abs(avg_pred) > 1e-6:
-                    max_diff = max(abs(p - avg_pred) for p in pred_values)
-                    rel_diff = max_diff / abs(avg_pred)
-                    confidence = max(0.0, min(1.0, 1.0 - rel_diff))
-                elif len(pred_values) == 1:
-                    # Single model — no agreement signal, moderate confidence
-                    confidence = 0.7
-                else:
-                    # All predictions near zero
-                    max_diff = max(abs(p - avg_pred) for p in pred_values) if pred_values else 0
-                    confidence = 1.0 if max_diff < 0.1 else 0.5
-
-                # Build prediction entry with per-model values
-                pred_entry = {
-                    "value": round(blended_pred, 2),
-                    "confidence": round(confidence, 3),
-                    "is_anomaly": is_anomaly,
-                    "blend_weights": {k: round(v, 3) for k, v in normalized_weights.items()},
-                }
-
-                # Include individual model predictions
-                if "gb" in individual_preds:
-                    pred_entry["gb_prediction"] = round(individual_preds["gb"], 2)
-                if "rf" in individual_preds:
-                    pred_entry["rf_prediction"] = round(individual_preds["rf"], 2)
-                if "lgbm" in individual_preds:
-                    pred_entry["lgbm_prediction"] = round(individual_preds["lgbm"], 2)
-
-                predictions_dict[target] = pred_entry
-
-                model_details = ", ".join(f"{k.upper()}={v:.2f}" for k, v in individual_preds.items())
-                self.logger.debug(
-                    f"Prediction for {target}: {blended_pred:.2f} ({model_details}, conf={confidence:.3f})"
-                )
-
-            except Exception as e:
-                self.logger.error(f"Failed to predict {target}: {e}")
-                continue
-
-        # Build final result
+        # Build and cache final result
         result = {
             "timestamp": datetime.now().isoformat(),
             "predictions": predictions_dict,
             "anomaly_detected": is_anomaly,
             "anomaly_score": round(anomaly_score, 3) if anomaly_score is not None else None,
             "feature_count": len(feature_names),
-            "model_count": len([k for k in self.models.keys() if k != "anomaly_detector"]),
+            "model_count": len([k for k in self.models if k != "anomaly_detector"]),
         }
 
-        # Store in cache
         await self.hub.set_cache(
-            "ml_predictions",
-            result,
-            category="predictions",
-            ttl_seconds=86400,  # 24 hours
+            "ml_predictions", result, category="predictions", ttl_seconds=86400,
         )
 
         self.logger.info(f"Generated {len(predictions_dict)} predictions (anomaly_detected={is_anomaly})")
-
         return result
 
-    async def _get_current_snapshot(self) -> Optional[Dict[str, Any]]:
+    async def _build_prediction_feature_vector(self) -> tuple[np.ndarray | None, list[str]]:
+        """Build the feature vector for prediction from current state.
+
+        Returns:
+            Tuple of (X array, feature_names) or (None, []) if unavailable.
+        """
+        snapshot = await self._get_current_snapshot()
+        if not snapshot:
+            self.logger.error("No current snapshot available for prediction")
+            return None, []
+
+        prev_snapshot = await self._get_previous_snapshot()
+        rolling_stats = await self._compute_rolling_stats()
+        rolling_window_stats = await self._compute_rolling_window_stats()
+        config = await self._get_feature_config()
+
+        features = await self._extract_features(
+            snapshot, config=config, prev_snapshot=prev_snapshot,
+            rolling_stats=rolling_stats, rolling_window_stats=rolling_window_stats,
+        )
+        if features is None:
+            self.logger.error("Failed to extract features from snapshot")
+            return None, []
+
+        feature_names = await self._get_feature_names(config)
+        feature_vector = [features.get(name, 0) for name in feature_names]
+        return np.array([feature_vector], dtype=float), feature_names
+
+    def _run_anomaly_detection(self, X: np.ndarray) -> tuple[bool, float | None]:
+        """Run anomaly detection on feature vector.
+
+        Returns:
+            (is_anomaly, anomaly_score) tuple.
+        """
+        if "anomaly_detector" not in self.models:
+            return False, None
+        try:
+            anomaly_model = self.models["anomaly_detector"]["model"]
+            score = float(anomaly_model.decision_function(X)[0])
+            is_anomaly = bool(anomaly_model.predict(X)[0] == -1)
+            self.logger.info(f"Anomaly detection: score={score:.3f}, is_anomaly={is_anomaly}")
+            return is_anomaly, score
+        except Exception as e:
+            self.logger.error(f"Anomaly detection failed: {e}")
+            return False, None
+
+    def _predict_all_targets(self, X: np.ndarray, is_anomaly: bool) -> dict[str, Any]:
+        """Generate blended predictions for all trained targets.
+
+        Returns:
+            Dict mapping target name to prediction entry.
+        """
+        predictions_dict: dict[str, Any] = {}
+        for target, model_data in self.models.items():
+            if target == "anomaly_detector":
+                continue
+            try:
+                entry = self._predict_single_target(target, model_data, X, is_anomaly)
+                if entry is not None:
+                    predictions_dict[target] = entry
+            except Exception as e:
+                self.logger.error(f"Failed to predict {target}: {e}")
+        return predictions_dict
+
+    def _predict_single_target(
+        self, target: str, model_data: dict, X: np.ndarray, is_anomaly: bool,
+    ) -> dict[str, Any] | None:
+        """Predict a single target using model blending.
+
+        Returns:
+            Prediction entry dict or None if no models produced predictions.
+        """
+        X_scaled = model_data["scaler"].transform(X)
+
+        # Collect predictions from all enabled models
+        individual_preds: dict[str, float] = {}
+        active_weights: dict[str, float] = {}
+        _MODEL_KEYS = [("gb", 0.35), ("rf", 0.25), ("lgbm", 0.40)]
+        for model_key, default_weight in _MODEL_KEYS:
+            if self.enabled_models.get(model_key) and f"{model_key}_model" in model_data:
+                individual_preds[model_key] = float(model_data[f"{model_key}_model"].predict(X_scaled)[0])
+                active_weights[model_key] = self.model_weights.get(model_key, default_weight)
+
+        if not individual_preds:
+            self.logger.warning(f"No enabled models produced predictions for {target}")
+            return None
+
+        # Blend predictions
+        weight_sum = sum(active_weights.values())
+        normalized_weights = {k: v / weight_sum for k, v in active_weights.items()}
+        blended_pred = sum(normalized_weights[k] * individual_preds[k] for k in individual_preds)
+
+        confidence = self._compute_prediction_confidence(individual_preds)
+
+        pred_entry: dict[str, Any] = {
+            "value": round(blended_pred, 2),
+            "confidence": round(confidence, 3),
+            "is_anomaly": is_anomaly,
+            "blend_weights": {k: round(v, 3) for k, v in normalized_weights.items()},
+        }
+        for model_key in ("gb", "rf", "lgbm"):
+            if model_key in individual_preds:
+                pred_entry[f"{model_key}_prediction"] = round(individual_preds[model_key], 2)
+
+        model_details = ", ".join(f"{k.upper()}={v:.2f}" for k, v in individual_preds.items())
+        self.logger.debug(f"Prediction for {target}: {blended_pred:.2f} ({model_details}, conf={confidence:.3f})")
+        return pred_entry
+
+    @staticmethod
+    def _compute_prediction_confidence(individual_preds: dict[str, float]) -> float:
+        """Compute confidence score based on model agreement."""
+        pred_values = list(individual_preds.values())
+        avg_pred = sum(pred_values) / len(pred_values)
+        if len(pred_values) > 1 and abs(avg_pred) > 1e-6:
+            max_diff = max(abs(p - avg_pred) for p in pred_values)
+            return max(0.0, min(1.0, 1.0 - max_diff / abs(avg_pred)))
+        if len(pred_values) == 1:
+            return 0.7
+        max_diff = max(abs(p - avg_pred) for p in pred_values) if pred_values else 0
+        return 1.0 if max_diff < 0.1 else 0.5
+
+    async def _get_current_snapshot(self) -> dict[str, Any] | None:
         """Get latest snapshot from cache or build from discovery data.
 
         Returns:
@@ -1240,7 +1176,7 @@ class MLEngine(Module):
 
         return snapshot
 
-    async def _get_previous_snapshot(self) -> Optional[Dict[str, Any]]:
+    async def _get_previous_snapshot(self) -> dict[str, Any] | None:
         """Get previous snapshot for lag features.
 
         Returns:
@@ -1259,7 +1195,7 @@ class MLEngine(Module):
 
         return None
 
-    async def _compute_rolling_stats(self) -> Dict[str, float]:
+    async def _compute_rolling_stats(self) -> dict[str, float]:
         """Compute rolling statistics from recent snapshots.
 
         Returns:
@@ -1303,7 +1239,7 @@ class MLEngine(Module):
         # frozen feature config.  compare_model_accuracy() in intelligence.py
         # provides the comparison logic once both model sets exist.
 
-    async def on_event(self, event_type: str, data: Dict[str, Any]):
+    async def on_event(self, event_type: str, data: dict[str, Any]):
         """Handle hub events.
 
         Args:

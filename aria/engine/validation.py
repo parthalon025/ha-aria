@@ -4,7 +4,6 @@ Prevents the scenario where HA restarts mid-snapshot, producing a snapshot with
 0 entities or 90% unavailable, which poisons model training for a week.
 """
 
-from typing import Dict, List, Tuple
 
 # Minimum viable snapshot requirements
 MIN_ENTITY_COUNT = 100  # HA has ~3050; anything below 100 means HA was down
@@ -12,7 +11,7 @@ MAX_UNAVAILABLE_RATIO = 0.5  # >50% unavailable = HA was likely restarting
 REQUIRED_SECTIONS = ["date", "entities"]
 
 
-def validate_snapshot(snapshot: Dict) -> List[str]:
+def validate_snapshot(snapshot: dict) -> list[str]:
     """Validate a single snapshot for training readiness.
 
     Returns list of error strings (empty = valid).
@@ -42,8 +41,8 @@ def validate_snapshot(snapshot: Dict) -> List[str]:
 
 
 def validate_snapshot_batch(
-    snapshots: List[Dict],
-) -> Tuple[List[Dict], List[Dict]]:
+    snapshots: list[dict],
+) -> tuple[list[dict], list[dict]]:
     """Validate a batch of snapshots, separating valid from rejected.
 
     Returns (valid_snapshots, rejected_snapshots).

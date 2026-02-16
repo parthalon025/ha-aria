@@ -2,11 +2,11 @@
 
 import asyncio
 import logging
-from typing import Dict, Set, Optional, Any, Callable
+from collections.abc import Callable
 from datetime import datetime, timedelta
+from typing import Any
 
 from aria.hub.cache import CacheManager
-
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class Module:
         """Cleanup module resources."""
         pass
 
-    async def on_event(self, event_type: str, data: Dict[str, Any]):
+    async def on_event(self, event_type: str, data: dict[str, Any]):
         """Handle hub event.
 
         Args:
@@ -49,12 +49,12 @@ class IntelligenceHub:
             cache_path: Path to SQLite cache database
         """
         self.cache = CacheManager(cache_path)
-        self.modules: Dict[str, Module] = {}
-        self.module_status: Dict[str, str] = {}  # module_id -> "running" | "failed"
-        self.subscribers: Dict[str, Set[Callable]] = {}
-        self.tasks: Set[asyncio.Task] = set()
+        self.modules: dict[str, Module] = {}
+        self.module_status: dict[str, str] = {}  # module_id -> "running" | "failed"
+        self.subscribers: dict[str, set[Callable]] = {}
+        self.tasks: set[asyncio.Task] = set()
         self._running = False
-        self._start_time: Optional[datetime] = None
+        self._start_time: datetime | None = None
         self._request_count: int = 0
         self.logger = logging.getLogger("hub")
 
@@ -163,7 +163,7 @@ class IntelligenceHub:
             self.subscribers[event_type].discard(callback)
             self.logger.debug(f"Unsubscribed from event: {event_type}")
 
-    async def publish(self, event_type: str, data: Dict[str, Any]):
+    async def publish(self, event_type: str, data: dict[str, Any]):
         """Publish event to all subscribers.
 
         Args:
@@ -191,7 +191,7 @@ class IntelligenceHub:
                 self.logger.error(f"Error in module {module.module_id} event handler: {e}")
 
     async def schedule_task(
-        self, task_id: str, coro: Callable, interval: Optional[timedelta] = None, run_immediately: bool = True
+        self, task_id: str, coro: Callable, interval: timedelta | None = None, run_immediately: bool = True
     ):
         """Schedule a task to run periodically.
 
@@ -232,7 +232,7 @@ class IntelligenceHub:
         if events_deleted or preds_deleted:
             self.logger.info(f"Retention pruning: {events_deleted} events, {preds_deleted} predictions deleted")
 
-    async def get_cache(self, category: str) -> Optional[Dict[str, Any]]:
+    async def get_cache(self, category: str) -> dict[str, Any] | None:
         """Get data from cache.
 
         Args:
@@ -243,7 +243,7 @@ class IntelligenceHub:
         """
         return await self.cache.get(category)
 
-    async def get_cache_fresh(self, category: str, max_age: timedelta, caller: str = "") -> Optional[Dict[str, Any]]:
+    async def get_cache_fresh(self, category: str, max_age: timedelta, caller: str = "") -> dict[str, Any] | None:
         """Get cache data with freshness check.
 
         Returns the cache entry like get_cache(), but logs a warning if
@@ -270,7 +270,7 @@ class IntelligenceHub:
                 pass
         return entry
 
-    async def set_cache(self, category: str, data: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None) -> int:
+    async def set_cache(self, category: str, data: dict[str, Any], metadata: dict[str, Any] | None = None) -> int:
         """Set data in cache and publish update event.
 
         Args:
@@ -290,7 +290,7 @@ class IntelligenceHub:
 
         return version
 
-    async def get_module(self, module_id: str) -> Optional[Module]:
+    async def get_module(self, module_id: str) -> Module | None:
         """Get registered module by ID.
 
         Args:
@@ -323,7 +323,7 @@ class IntelligenceHub:
             return 0.0
         return (datetime.now() - self._start_time).total_seconds()
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Perform health check on hub and modules.
 
         Returns:
@@ -332,7 +332,7 @@ class IntelligenceHub:
         return {
             "status": "ok" if self._running else "stopped",
             "uptime_seconds": round(self.get_uptime_seconds()),
-            "modules": {module_id: self.module_status.get(module_id, "unknown") for module_id in self.modules.keys()},
+            "modules": {module_id: self.module_status.get(module_id, "unknown") for module_id in self.modules},
             "cache": {"categories": await self.cache.list_categories()},
             "timestamp": datetime.now().isoformat(),
         }
