@@ -1719,5 +1719,49 @@ async def test_load_training_data_rejects_corrupt_snapshots(ml_engine, tmp_path)
     assert result[0]["entities"]["unavailable"] == 10
 
 
+class TestSchedulePeriodicTraining:
+    """Test schedule_periodic_training staleness detection."""
+
+    @pytest.mark.asyncio
+    async def test_schedule_periodic_training_runs_immediately_when_stale(self, ml_engine, mock_hub):
+        """If last training was >7 days ago, schedule_periodic_training should set run_immediately=True."""
+        stale_date = (datetime.now() - timedelta(days=10)).isoformat()
+        mock_hub.get_cache = AsyncMock(return_value={
+            "data": {"last_trained": stale_date}
+        })
+        mock_hub.schedule_task = AsyncMock()
+
+        await ml_engine.schedule_periodic_training(interval_days=7)
+
+        mock_hub.schedule_task.assert_called_once()
+        call_kwargs = mock_hub.schedule_task.call_args[1]
+        assert call_kwargs["run_immediately"] is True
+
+    @pytest.mark.asyncio
+    async def test_schedule_periodic_training_not_immediate_when_fresh(self, ml_engine, mock_hub):
+        """If last training was recent, schedule_periodic_training should set run_immediately=False."""
+        fresh_date = (datetime.now() - timedelta(days=2)).isoformat()
+        mock_hub.get_cache = AsyncMock(return_value={
+            "data": {"last_trained": fresh_date}
+        })
+        mock_hub.schedule_task = AsyncMock()
+
+        await ml_engine.schedule_periodic_training(interval_days=7)
+
+        call_kwargs = mock_hub.schedule_task.call_args[1]
+        assert call_kwargs["run_immediately"] is False
+
+    @pytest.mark.asyncio
+    async def test_schedule_periodic_training_runs_immediately_when_no_metadata(self, ml_engine, mock_hub):
+        """If no training metadata exists, should run immediately."""
+        mock_hub.get_cache = AsyncMock(return_value=None)
+        mock_hub.schedule_task = AsyncMock()
+
+        await ml_engine.schedule_periodic_training(interval_days=7)
+
+        call_kwargs = mock_hub.schedule_task.call_args[1]
+        assert call_kwargs["run_immediately"] is True
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

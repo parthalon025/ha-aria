@@ -1318,9 +1318,42 @@ class MLEngine(Module):
     async def schedule_periodic_training(self, interval_days: int = 7):
         """Schedule periodic model retraining.
 
+        Checks ml_training_metadata cache to determine if training should run
+        immediately (stale or missing) or wait for the next scheduled interval.
+
         Args:
             interval_days: Days between training runs
         """
+        # Determine staleness from cache metadata
+        run_immediately = False
+        try:
+            metadata = await self.hub.get_cache("ml_training_metadata")
+            if metadata is None:
+                run_immediately = True
+                self.logger.info("No training metadata found — will train immediately on startup")
+            else:
+                # Handle both {"data": {"last_trained": ...}} and {"last_trained": ...}
+                data = metadata.get("data", metadata) if isinstance(metadata, dict) else metadata
+                last_trained_str = data.get("last_trained") if isinstance(data, dict) else None
+                if not last_trained_str:
+                    run_immediately = True
+                    self.logger.info("Training metadata missing last_trained — will train immediately")
+                else:
+                    last_trained = datetime.fromisoformat(last_trained_str)
+                    days_since = (datetime.now() - last_trained).total_seconds() / 86400
+                    if days_since > interval_days:
+                        run_immediately = True
+                        self.logger.info(
+                            f"Last training was {days_since:.1f} days ago (>{interval_days}) — will train immediately"
+                        )
+                    else:
+                        self.logger.info(
+                            f"Last training was {days_since:.1f} days ago — next scheduled run in "
+                            f"{interval_days - days_since:.1f} days"
+                        )
+        except Exception as e:
+            run_immediately = True
+            self.logger.warning(f"Failed to check training metadata: {e} — will train immediately")
 
         async def training_task():
             try:
@@ -1332,7 +1365,7 @@ class MLEngine(Module):
             task_id="ml_training_periodic",
             coro=training_task,
             interval=timedelta(days=interval_days),
-            run_immediately=False,
+            run_immediately=run_immediately,
         )
 
         self.logger.info(f"Scheduled periodic training every {interval_days} days")
