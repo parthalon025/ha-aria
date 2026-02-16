@@ -25,6 +25,7 @@ def run_validation() -> dict:
         "tests/integration/test_validation_scenarios.py",
         "tests/integration/test_validation_backtest.py",
         "-v",
+        "-s",
         "--timeout=120",
         "--tb=short",
     ]
@@ -63,24 +64,19 @@ def _parse_pytest_output(stdout: str, stderr: str, returncode: int) -> dict:
     """Parse pytest verbose output into structured result."""
     lines = stdout.splitlines()
     tests = []
-    passed = 0
-    failed = 0
-    skipped = 0
 
-    # Parse PASSED/FAILED lines from -v output
+    # Parse PASSED/FAILED lines from -v output (require :: to avoid bare PASSED lines)
     for line in lines:
-        if " PASSED" in line:
-            name = line.split(" PASSED")[0].strip().split("::")[-1]
-            tests.append({"name": name, "status": "passed"})
-            passed += 1
-        elif " FAILED" in line:
-            name = line.split(" FAILED")[0].strip().split("::")[-1]
-            tests.append({"name": name, "status": "failed"})
-            failed += 1
-        elif " SKIPPED" in line:
-            name = line.split(" SKIPPED")[0].strip().split("::")[-1]
-            tests.append({"name": name, "status": "skipped"})
-            skipped += 1
+        if "::" not in line:
+            continue
+        for status in ("PASSED", "FAILED", "SKIPPED"):
+            if f" {status}" in line:
+                name = line.split(f" {status}")[0].strip().split("::")[-1]
+                tests.append({"name": name, "status": status.lower()})
+                break
+
+    # Extract totals from summary line (e.g. "17 passed, 2 failed in 34s")
+    passed, failed, skipped = _extract_summary_counts(lines)
 
     # Extract the accuracy report from captured stdout
     report = _extract_accuracy_report(stdout)
@@ -95,6 +91,27 @@ def _parse_pytest_output(stdout: str, stderr: str, returncode: int) -> dict:
         "report": report,
         "raw_output": stdout[-2000:] if len(stdout) > 2000 else stdout,
     }
+
+
+def _extract_summary_counts(lines: list[str]) -> tuple[int, int, int]:
+    """Extract pass/fail/skip counts from pytest summary line like '17 passed, 2 failed'."""
+
+    for line in reversed(lines):
+        if "passed" in line or "failed" in line:
+            passed = _match_count(r"(\d+) passed", line)
+            failed = _match_count(r"(\d+) failed", line)
+            skipped = _match_count(r"(\d+) skipped", line)
+            if passed or failed or skipped:
+                return passed, failed, skipped
+    return 0, 0, 0
+
+
+def _match_count(pattern: str, text: str) -> int:
+    """Extract integer from a regex match, or return 0."""
+    import re
+
+    m = re.search(pattern, text)
+    return int(m.group(1)) if m else 0
 
 
 def _extract_accuracy_report(stdout: str) -> dict:
@@ -122,7 +139,8 @@ def _extract_scenario_scores(lines: list[str]) -> tuple[dict, float | None]:
                     overall = float(p.rstrip("%"))
                     break
             break
-        if "%" in line and not line.startswith("-") and not line.startswith("="):
+        stripped = line.strip()
+        if "%" in stripped and not stripped.startswith("-") and not stripped.startswith("="):
             parts = line.split()
             if len(parts) >= 2:
                 pcts = [float(p.rstrip("%")) for p in parts[1:] if p.endswith("%")]
@@ -144,7 +162,9 @@ def _extract_backtest_scores(lines: list[str]) -> dict:
         if "REAL-DATA BACKTEST" in line or "Real vs Synthetic" in line:
             in_backtest = True
             continue
-        if in_backtest and ("real data" in line.lower() or "real:" in line.lower()):
+        if in_backtest and (
+            "overall accuracy" in line.lower() or "real data" in line.lower() or "real:" in line.lower()
+        ):
             pcts = [float(p.rstrip("%")) for p in line.split() if p.endswith("%")]
             if pcts:
                 backtest["overall"] = pcts[0]
