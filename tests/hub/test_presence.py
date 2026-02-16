@@ -469,6 +469,63 @@ class TestRoomResolution:
         room = await module._resolve_room("sensor.unknown_thing", {})
         assert room is None
 
+    async def test_resolve_room_unwraps_cache_data(self, module):
+        """_resolve_room should look inside the 'data' wrapper from hub cache."""
+        module.hub.get_cache = AsyncMock(return_value={
+            "category": "entities",
+            "data": {
+                "binary_sensor.closet_motion": {
+                    "area_id": "closet",
+                    "device_id": "dev123",
+                }
+            },
+            "version": 1,
+        })
+        room = await module._resolve_room("binary_sensor.closet_motion", {})
+        assert room == "closet"
+
+    async def test_resolve_room_device_fallback_unwraps_cache(self, module):
+        """Device fallback in _resolve_room should also unwrap cache data."""
+        async def mock_get_cache(key):
+            if key == "entities":
+                return {
+                    "category": "entities",
+                    "data": {
+                        "light.kitchen_lamp": {
+                            "device_id": "dev456",
+                        }
+                    },
+                }
+            elif key == "devices":
+                return {
+                    "category": "devices",
+                    "data": {
+                        "dev456": {"area_id": "kitchen"}
+                    },
+                }
+            return None
+        module.hub.get_cache = AsyncMock(side_effect=mock_get_cache)
+        room = await module._resolve_room("light.kitchen_lamp", {})
+        assert room == "kitchen"
+
+    async def test_person_home_bypasses_room_resolution(self, module):
+        """Person entities should NOT call _resolve_room."""
+        module._resolve_room = AsyncMock(return_value=None)  # Would block if called
+        data = {
+            "new_state": {
+                "entity_id": "person.justin",
+                "state": "home",
+                "attributes": {},
+            }
+        }
+        await module._handle_ha_state_change(data)
+        signals = module._room_signals.get("overall", [])
+        assert len(signals) == 1
+        assert signals[0][0] == "device_tracker"
+        assert signals[0][1] == 0.9
+        # _resolve_room should NOT have been called
+        module._resolve_room.assert_not_called()
+
 
 # ============================================================================
 # Presence State Flush

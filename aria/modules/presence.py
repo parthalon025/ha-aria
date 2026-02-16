@@ -430,6 +430,20 @@ class PresenceModule(Module):
         device_class = attrs.get("device_class", "")
         now = datetime.now()
 
+        # Person/device tracker (home/away) — doesn't need room resolution
+        if entity_id.startswith("person."):
+            if state == "home":
+                self._add_signal(
+                    "overall", "device_tracker", 0.9,
+                    f"{entity_id} is home", now,
+                )
+            elif state == "not_home":
+                self._add_signal(
+                    "overall", "device_tracker", 0.1,
+                    f"{entity_id} is away", now,
+                )
+            return
+
         # Resolve entity to room (use area_id from attributes or device)
         room = await self._resolve_room(entity_id, attrs)
         if not room:
@@ -460,19 +474,6 @@ class PresenceModule(Module):
                     f"{entity_id} pressed", now,
                 )
 
-        # Person/device tracker (home/away)
-        elif entity_id.startswith("person."):
-            if state == "home":
-                self._add_signal(
-                    "overall", "device_tracker", 0.9,
-                    f"{entity_id} is home", now,
-                )
-            elif state == "not_home":
-                self._add_signal(
-                    "overall", "device_tracker", 0.1,
-                    f"{entity_id} is away", now,
-                )
-
         # Door sensors
         elif entity_id.startswith("binary_sensor.") and device_class == "door":
             if state in ("on", "off"):
@@ -489,8 +490,9 @@ class PresenceModule(Module):
         """
         # Try discovery cache (entities -> device -> area chain)
         try:
-            entities_cache = await self.hub.get_cache("entities")
-            if entities_cache:
+            entities_entry = await self.hub.get_cache("entities")
+            if entities_entry:
+                entities_cache = entities_entry.get("data", entities_entry) if isinstance(entities_entry, dict) else {}
                 entity_data = entities_cache.get(entity_id, {})
                 area = entity_data.get("area_id") or entity_data.get("area")
                 if area:
@@ -499,8 +501,9 @@ class PresenceModule(Module):
                 # Fall back to device -> area
                 device_id = entity_data.get("device_id")
                 if device_id:
-                    devices_cache = await self.hub.get_cache("devices")
-                    if devices_cache:
+                    devices_entry = await self.hub.get_cache("devices")
+                    if devices_entry:
+                        devices_cache = devices_entry.get("data", devices_entry) if isinstance(devices_entry, dict) else {}
                         device = devices_cache.get(device_id, {})
                         area = device.get("area_id")
                         if area:
@@ -517,6 +520,7 @@ class PresenceModule(Module):
         if "front_door" in eid or "doorbell" in eid:
             return "front_door"
 
+        self.logger.debug("Could not resolve room for %s", entity_id)
         return None
 
     # ------------------------------------------------------------------
