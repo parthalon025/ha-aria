@@ -16,6 +16,7 @@ import Shadow from './pages/Shadow.jsx';
 import Settings from './pages/Settings.jsx';
 import DataCuration from './pages/DataCuration.jsx';
 import Guide from './pages/Guide.jsx';
+import Presence from './pages/Presence.jsx';
 
 /**
  * Custom hash-based history for preact-router.
@@ -113,6 +114,7 @@ export default function App() {
               <Shadow path="/shadow" />
               <Settings path="/settings" />
               <DataCuration path="/data-curation" />
+              <Presence path="/presence" />
               <Guide path="/guide" />
             </Router>
           </ErrorBoundary>
