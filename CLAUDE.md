@@ -48,6 +48,8 @@ curl -s http://127.0.0.1:8001/api/cache/activity_summary | /usr/bin/python3 -m j
 
 23 commands via `aria` entry point — full reference: `docs/cli-reference.md`
 
+**Pre-flight health check:** `bin/check-ha-health.sh` — validates HA connectivity + core stats before batch timers run. Used by all snapshot/training systemd timers.
+
 ## Architecture
 
 Single `aria.*` package: `hub/` (real-time core + 12 modules), `engine/` (batch ML, 7 subpackages), `modules/` (discovery through presence), `dashboard/` (Preact SPA). Full layout, module registry, cache categories: `docs/architecture-detailed.md`. Closed-loop feedback system connects ML accuracy, shadow hit rates, automation acceptance, drift signals, and activity label corrections back into the learning pipeline.
@@ -84,16 +86,16 @@ See: `~/Documents/docs/lessons/2026-02-15-horizontal-vertical-pipeline-testing.m
 
 ### Unit Tests
 
-**Memory warning:** The full suite (~1111 tests) can consume 4-8G RAM. If concurrent agents or services are running, check `free -h` first. If available memory < 4G, run by suite instead of the full set. Shadow engine tests previously consumed 17G+ RAM due to mock objects returning None in tight loops — those are fixed, but watch for regressions.
+**Memory warning:** The full suite (~1096 tests: 230 engine + 824 hub + 42 integration) can consume 4-8G RAM. If concurrent agents or services are running, check `free -h` first. If available memory < 4G, run by suite instead of the full set. Shadow engine tests previously consumed 17G+ RAM due to mock objects returning None in tight loops — those are fixed, but watch for regressions.
 
 ```bash
-# All tests (~1111) — use timeout to catch hangs
+# All tests (~1096) — use timeout to catch hangs
 .venv/bin/python -m pytest tests/ -v --timeout=120
 
 # By suite (safer when memory-constrained)
-.venv/bin/python -m pytest tests/hub/ -v         # Hub (~670 tests)
-.venv/bin/python -m pytest tests/engine/ -v       # Engine (222 tests)
-.venv/bin/python -m pytest tests/integration/ -v  # Integration (39 tests)
+.venv/bin/python -m pytest tests/hub/ -v         # Hub (~824 tests)
+.venv/bin/python -m pytest tests/engine/ -v       # Engine (230 tests)
+.venv/bin/python -m pytest tests/integration/ -v  # Integration (42 tests)
 
 # By feature area (use -k for keyword filtering)
 .venv/bin/python -m pytest tests/hub/ -k "organic" -v       # Organic discovery (148 tests)
@@ -102,6 +104,7 @@ See: `~/Documents/docs/lessons/2026-02-15-horizontal-vertical-pipeline-testing.m
 .venv/bin/python -m pytest tests/hub/ -k "data_quality" -v  # Data quality/curation
 .venv/bin/python -m pytest tests/hub/ -k "feedback" -v      # Closed-loop feedback
 .venv/bin/python -m pytest tests/hub/ -k "activity_labeler" -v  # Activity labeler
+.venv/bin/python -m pytest tests/engine/activity_labeler/ -v   # Activity labeler engine (115 tests)
 .venv/bin/python -m pytest tests/hub/test_presence.py -v       # Presence (51 tests)
 .venv/bin/python -m pytest tests/hub/test_watchdog.py -v       # Watchdog (31 tests)
 ```
@@ -153,8 +156,10 @@ HA uses a three-tier hierarchy: **entity → device → area**. Only ~0.2% of en
 - **Organic discovery Ollama contention** — If LLM naming is enabled, the Sunday 4:00 AM run (~45 min) overlaps with suggest-automations at 4:30 AM. Move one timer if both use Ollama.
 - **Capabilities cache is extended, not replaced** — Organic discovery adds fields (`source`, `usefulness`, `layer`, `status`, etc.) to the existing capabilities cache. Existing consumers see the same key with optional new fields. Seed capabilities are always preserved.
 - **Activity labeler Ollama dependency** — Uses ollama-queue (port 7683) for LLM-based activity predictions every 15 min. May queue-stack with organic discovery on Sundays (4:00 AM). Monitor queue depth if both run concurrently.
-- **Activity labeler feature vector is 8 features** — If adding features, update `_context_to_features()`, adjust tests, and the classifier invalidation check in `initialize()` will auto-reset incompatible cached classifiers.
+- **Activity labeler feature vector is 10 features** — presence_probability and occupied_room_count added to the original 8. Cached classifiers auto-invalidate on feature count mismatch. If adding more features, update `_context_to_features()` in `aria/engine/activity_labeler/feature_config.py`, adjust tests, and the classifier invalidation check will auto-reset incompatible cached classifiers.
 - **Intelligence features default to 0** — If intelligence cache is empty or engine hasn't run, correlated_entities_active, anomaly_nearby, active_appliance_count all default to 0. This is safe but means early predictions use only the base 5 sensor features.
+- **PresenceCollector reads from hub API first, falls back to SQLite** — Unlike other collectors that read from HA states, PresenceCollector calls the hub's `/api/cache/presence` endpoint (or hits `hub.db` directly if hub is offline). It's invoked separately from the normal collector loop in `snapshot.py`.
+- **Snapshot validation rejects corrupt snapshots** — Snapshots with <100 entities or >50% unavailable are rejected before training. This prevents model corruption from bad data. Validation is wired into `aria train`, `aria train-labeler`, and the training pipeline.
 - **Feedback data requires service restart** — New backend code writes to cache but the running service uses old code until `systemctl --user restart aria-hub`. Always restart + vertical trace after deploying feedback changes.
 - **Engine conftest collision** — `from conftest import X` resolves to the wrong conftest in full-suite runs. Use `importlib.util.spec_from_file_location` for explicit file-based conftest imports. Tests that pass in isolation may break in full-suite runs due to implicit pytest conftest namespacing.
 - **Presence cache access goes through hub** — Use `await self.hub.set_cache()` and `await self.hub.get_cache()`, NOT `self.hub.cache.set_cache()`. CacheManager doesn't expose set_cache directly; it goes through IntelligenceHub.
