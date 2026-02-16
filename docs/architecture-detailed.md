@@ -59,7 +59,7 @@ aria/
 | Module | File | Purpose |
 |--------|------|---------|
 | `discovery` | `aria/modules/discovery.py` | Scans HA (REST + WebSocket), detects capabilities, caches entities/devices/areas |
-| `ml_engine` | `aria/modules/ml_engine.py` | Feature engineering, model training (GradientBoosting, RandomForest, LightGBM), periodic retraining |
+| `ml_engine` | `aria/modules/ml_engine.py` | Model training (GradientBoosting, RandomForest, LightGBM), periodic retraining. Feature extraction delegates to engine's `vector_builder` (single source of truth). Snapshot validation applied before training. Stale training check on startup triggers retraining if >7 days since last train. |
 | `pattern_recognition` | `aria/modules/patterns.py` | Detects recurring event sequences from logbook data |
 | `orchestrator` | `aria/modules/orchestrator.py` | Generates automation suggestions from detected patterns |
 | `shadow_engine` | `aria/modules/shadow_engine.py` | Predict-compare-score loop: captures context on state_changed, generates predictions (next_domain, room_activation, routine_trigger), scores against reality |
@@ -76,7 +76,7 @@ Each module declares its capabilities via a `CAPABILITIES` class attribute (see 
 | Package | Path | Purpose |
 |---------|------|---------|
 | `collectors` | `aria/engine/collectors/` | HA API, logbook, snapshot, registry data collection, presence (reads hub cache) |
-| `features` | `aria/engine/features/` | Time features, vector builder, feature config (4 presence features) |
+| `features` | `aria/engine/features/` | Time features, vector builder (single source of truth for feature extraction — used by both engine and hub ML training), feature config (4 presence features) |
 | `validation` | `aria/engine/validation.py` | Snapshot validation layer (MIN_ENTITY_COUNT, MAX_UNAVAILABLE_RATIO checks) |
 | `models` | `aria/engine/models/` | ML models: GradientBoosting, RandomForest, IsolationForest, Prophet, device failure, registry |
 | `predictions` | `aria/engine/predictions/` | Prediction generation and scoring |

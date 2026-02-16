@@ -70,7 +70,7 @@ Preact SPA at `aria/dashboard/spa/`. Must rebuild after JSX changes: `cd aria/da
 
 ARIA has the deepest pipeline — engine→JSON files→hub cache→API→WebSocket→dashboard. Unit tests cover each layer but not the flow between them. After any deployment or feature change, run dual-axis tests:
 
-**Horizontal:** Hit every API endpoint (`/api/cache/{category}` for all 8 categories, `/api/cache/presence`, `/api/shadow/accuracy`, `/api/pipeline`, `/api/ml/*`, `/api/capabilities/*`, `/api/config`, `/api/curation/summary`, `/api/capabilities/feedback/health`, `/api/activity/current`, `/api/activity/labels`, `/api/activity/stats`, `/api/automations/feedback`). Confirm each returns expected shape with real data.
+**Horizontal:** Hit every API endpoint (`/api/cache/{category}` for all 8 categories, `/api/cache/presence`, `/api/shadow/accuracy`, `/api/pipeline`, `/api/ml/*`, `/api/ml/pipeline`, `/api/capabilities/*`, `/api/config`, `/api/curation/summary`, `/api/capabilities/feedback/health`, `/api/activity/current`, `/api/activity/labels`, `/api/activity/stats`, `/api/automations/feedback`). Confirm each returns expected shape with real data.
 
 **Vertical:** Trigger one engine command (e.g., `aria snapshot-intraday`), then trace:
 ```
@@ -86,10 +86,10 @@ See: `~/Documents/docs/lessons/2026-02-15-horizontal-vertical-pipeline-testing.m
 
 ### Unit Tests
 
-**Memory warning:** The full suite (~1096 tests: 230 engine + 824 hub + 42 integration) can consume 4-8G RAM. If concurrent agents or services are running, check `free -h` first. If available memory < 4G, run by suite instead of the full set. Shadow engine tests previously consumed 17G+ RAM due to mock objects returning None in tight loops — those are fixed, but watch for regressions.
+**Memory warning:** The full suite (~1240 tests) can consume 4-8G RAM. If concurrent agents or services are running, check `free -h` first. If available memory < 4G, run by suite instead of the full set. Shadow engine tests previously consumed 17G+ RAM due to mock objects returning None in tight loops — those are fixed, but watch for regressions.
 
 ```bash
-# All tests (~1096) — use timeout to catch hangs
+# All tests (~1240) — use timeout to catch hangs
 .venv/bin/python -m pytest tests/ -v --timeout=120
 
 # By suite (safer when memory-constrained)
@@ -159,7 +159,8 @@ HA uses a three-tier hierarchy: **entity → device → area**. Only ~0.2% of en
 - **Activity labeler feature vector is 10 features** — presence_probability and occupied_room_count added to the original 8. Cached classifiers auto-invalidate on feature count mismatch. If adding more features, update `_context_to_features()` in `aria/engine/activity_labeler/feature_config.py`, adjust tests, and the classifier invalidation check will auto-reset incompatible cached classifiers.
 - **Intelligence features default to 0** — If intelligence cache is empty or engine hasn't run, correlated_entities_active, anomaly_nearby, active_appliance_count all default to 0. This is safe but means early predictions use only the base 5 sensor features.
 - **PresenceCollector reads from hub API first, falls back to SQLite** — Unlike other collectors that read from HA states, PresenceCollector calls the hub's `/api/cache/presence` endpoint (or hits `hub.db` directly if hub is offline). It's invoked separately from the normal collector loop in `snapshot.py`.
-- **Snapshot validation rejects corrupt snapshots** — Snapshots with <100 entities or >50% unavailable are rejected before training. This prevents model corruption from bad data. Validation is wired into `aria train`, `aria train-labeler`, and the training pipeline.
+- **Snapshot validation rejects corrupt snapshots** — Snapshots with <100 entities or >50% unavailable are rejected before training. This prevents model corruption from bad data. Validation is wired into both engine training and hub ML training paths.
+- **ML training runs on startup if stale** — Hub's ml_engine module checks last training timestamp on startup. If >7 days since last train, it triggers retraining immediately. This means the first startup after a long downtime will be slower than usual while models retrain.
 - **Feedback data requires service restart** — New backend code writes to cache but the running service uses old code until `systemctl --user restart aria-hub`. Always restart + vertical trace after deploying feedback changes.
 - **Engine conftest collision** — `from conftest import X` resolves to the wrong conftest in full-suite runs. Use `importlib.util.spec_from_file_location` for explicit file-based conftest imports. Tests that pass in isolation may break in full-suite runs due to implicit pytest conftest namespacing.
 - **Presence cache access goes through hub** — Use `await self.hub.set_cache()` and `await self.hub.get_cache()`, NOT `self.hub.cache.set_cache()`. CacheManager doesn't expose set_cache directly; it goes through IntelligenceHub.

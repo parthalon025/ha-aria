@@ -80,6 +80,18 @@ curl -s http://127.0.0.1:8001/api/ml/features | python3 -m json.tool
 curl -s http://127.0.0.1:8001/api/ml/models | python3 -m json.tool
 curl -s http://127.0.0.1:8001/api/ml/anomalies | python3 -m json.tool
 curl -s http://127.0.0.1:8001/api/ml/shap | python3 -m json.tool
+
+# ML pipeline overview (aggregated pipeline state)
+curl -s http://127.0.0.1:8001/api/ml/pipeline | python3 -m json.tool
+
+# Response shape:
+# {
+#   "snapshot": {"last_run": "...", "entity_count": 3065, "status": "ok"},
+#   "training": {"last_trained": "...", "stale": false, "models": [...]},
+#   "features": {"source": "vector_builder", "count": 14},
+#   "validation": {"min_entities": 100, "max_unavailable_ratio": 0.5},
+#   "drift": {"detected": false, "last_check": "..."}
+# }
 ```
 
 ## Organic Discovery
