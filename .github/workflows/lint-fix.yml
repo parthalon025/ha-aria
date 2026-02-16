@@ -1,0 +1,33 @@
+name: Auto-fix lint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "aria/**/*.py"
+      - "tests/**/*.py"
+
+permissions:
+  contents: write
+
+jobs:
+  lint-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - name: Auto-fix lint violations
+        run: |
+          ruff check aria/ tests/ --fix || true
+          ruff format aria/ tests/
+      - name: Commit fixes if any
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet && exit 0
+          git add -A
+          git commit -m "style: auto-fix ruff lint violations [skip ci]"
+          git push
