@@ -13,9 +13,9 @@ The dashboard has 13 pages built from dozens of shared components. Without a sin
 **Design language:** `docs/design-language.md` — MUST READ before creating or modifying UI components
 **Design doc:** `docs/plans/2026-02-13-aria-ui-redesign-design.md`
 
-## Pages (13)
+## Pages (15)
 
-Home (pipeline flowchart), Discovery, Capabilities, Data Curation, Intelligence, Predictions, Patterns, Shadow Mode, ML Engine (feature selection, model health), Automations, Settings, Guide (onboarding)
+Home (pipeline flowchart), Discovery, Capabilities, Data Curation, Presence, Intelligence, Predictions, Patterns, Shadow Mode, ML Engine (feature selection, model health), Automations, Settings, Validation (on-demand test suite), Guide (onboarding)
 
 ## Sidebar
 
