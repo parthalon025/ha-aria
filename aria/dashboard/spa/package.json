@@ -12,7 +12,7 @@
     "build:js": "node esbuild.config.mjs"
   },
   "dependencies": {
-    "@preact/signals": "^2.0.0",
+    "@preact/signals": "^2.8.1",
     "preact": "^10.25.0",
     "preact-router": "^4.1.2",
     "uplot": "^1.6.32"
