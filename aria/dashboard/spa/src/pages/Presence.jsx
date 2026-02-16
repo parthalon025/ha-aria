@@ -93,7 +93,7 @@ function RoomCard({ name, room }) {
   );
 }
 
-/** Identified person row */
+/** Identified person row with camera and room info */
 function PersonRow({ name, info }) {
   return (
     <div class="flex items-center gap-3 py-2" style="border-bottom: 1px solid var(--border-subtle)">
@@ -167,6 +167,117 @@ function SignalFeed({ rooms }) {
   );
 }
 
+/** Recent person detection card with thumbnail from any camera */
+function DetectionCard({ detection }) {
+  const hasThumbnail = detection.event_id && detection.has_snapshot;
+  const thumbnailUrl = hasThumbnail ? `/api/frigate/thumbnail/${detection.event_id}` : null;
+
+  return (
+    <div class="t-frame p-2 flex gap-3" style="min-width: 0;">
+      {/* Thumbnail or placeholder */}
+      <div class="flex-shrink-0 rounded overflow-hidden" style="width: 64px; height: 64px; background: var(--bg-inset);">
+        {thumbnailUrl ? (
+          <img
+            src={thumbnailUrl}
+            alt={`Detection on ${detection.camera}`}
+            style="width: 100%; height: 100%; object-fit: cover;"
+            loading="lazy"
+          />
+        ) : (
+          <div class="flex items-center justify-center w-full h-full" style="color: var(--text-tertiary); font-size: 20px;">
+            {'\u{1F464}'}
+          </div>
+        )}
+      </div>
+      {/* Detail */}
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          {detection.sub_label ? (
+            <span class="text-sm font-bold" style="color: var(--status-healthy); text-transform: capitalize;">{detection.sub_label}</span>
+          ) : (
+            <span class="text-sm font-medium" style="color: var(--text-secondary)">Unknown person</span>
+          )}
+          <span class="text-xs rounded px-1" style="background: var(--bg-surface-raised); color: var(--text-tertiary);">
+            {Math.round((detection.score || 0) * 100)}%
+          </span>
+        </div>
+        <div class="text-xs mt-0.5" style="color: var(--text-tertiary); text-transform: capitalize;">
+          {detection.camera.replace(/_/g, ' ')} \u2192 {detection.room.replace(/_/g, ' ')}
+        </div>
+        {detection.timestamp && (
+          <div class="text-xs mt-0.5" style="color: var(--text-tertiary)">{relativeTime(detection.timestamp)}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Face Recognition status and configuration display */
+function FaceRecognitionStatus({ faceConfig, labeledFaces }) {
+  const enabled = faceConfig && faceConfig.enabled;
+  const config = (faceConfig && faceConfig.config) || {};
+  const labeledCount = faceConfig ? faceConfig.labeled_count || 0 : 0;
+  const labeledNames = labeledFaces || {};
+
+  return (
+    <div class="space-y-3">
+      {/* Status indicators */}
+      <div class="flex flex-wrap gap-3">
+        <div class="t-frame p-3 flex-1" style="min-width: 120px;">
+          <div class="text-xs" style="color: var(--text-tertiary)">Status</div>
+          <div class="flex items-center gap-1.5 mt-1">
+            <span class="inline-block w-2 h-2 rounded-full" style={`background: ${enabled ? 'var(--status-healthy)' : 'var(--status-error)'}`} />
+            <span class="text-sm font-medium" style={`color: ${enabled ? 'var(--status-healthy)' : 'var(--status-error)'}`}>
+              {enabled ? 'Active' : 'Disabled'}
+            </span>
+          </div>
+        </div>
+        <div class="t-frame p-3 flex-1" style="min-width: 120px;">
+          <div class="text-xs" style="color: var(--text-tertiary)">Labeled Faces</div>
+          <div class="text-xl font-bold mt-1" style={`color: ${labeledCount > 0 ? 'var(--accent)' : 'var(--text-tertiary)'}`}>
+            {labeledCount}
+          </div>
+        </div>
+        <div class="t-frame p-3 flex-1" style="min-width: 120px;">
+          <div class="text-xs" style="color: var(--text-tertiary)">Threshold</div>
+          <div class="text-sm font-bold mt-1" style="color: var(--text-primary)">
+            {config.recognition_threshold ? `${Math.round(config.recognition_threshold * 100)}%` : '--'}
+          </div>
+        </div>
+        <div class="t-frame p-3 flex-1" style="min-width: 120px;">
+          <div class="text-xs" style="color: var(--text-tertiary)">Model</div>
+          <div class="text-sm font-medium mt-1" style="color: var(--text-primary)">
+            {config.model_size || '--'}
+          </div>
+        </div>
+      </div>
+
+      {/* Labeled persons list */}
+      {Object.keys(labeledNames).length > 0 && (
+        <div>
+          <div class="text-xs font-medium mb-1.5" style="color: var(--text-secondary)">Known Faces</div>
+          <div class="flex flex-wrap gap-2">
+            {Object.entries(labeledNames).map(([name, count]) => (
+              <span key={name} class="text-xs rounded px-2 py-1" style="background: var(--accent-glow); color: var(--accent); text-transform: capitalize;">
+                {name} ({count} sample{count !== 1 ? 's' : ''})
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Labeling guide when no faces labeled */}
+      {labeledCount === 0 && enabled && (
+        <Callout>
+          No faces labeled yet. Frigate automatically collects face samples from person detections.
+          To enable face recognition: open Frigate UI, go to a person event, and assign a name to the detected face.
+          After labeling {config.min_faces || 2}+ samples per person, ARIA will identify them automatically across all cameras.
+        </Callout>
+      )}
+    </div>
+  );
+}
+
 export default function Presence() {
   const { data, loading, error, refetch } = useCache('presence');
 
@@ -180,20 +291,26 @@ export default function Presence() {
   const persons = presence.identified_persons || {};
   const cameraRooms = presence.camera_rooms || {};
   const mqttConnected = presence.mqtt_connected;
+  const faceRecognition = presence.face_recognition || {};
+  const recentDetections = presence.recent_detections || [];
   const roomNames = Object.keys(rooms);
   const personNames = Object.keys(persons);
   const totalSignals = roomNames.reduce((sum, r) => sum + (rooms[r].signals || []).length, 0);
+  const cameraCount = Object.keys(cameraRooms).length;
 
   // Hero metric: number of occupied rooms
   const heroValue = occupiedRooms.length;
   const heroLabel = heroValue === 1 ? '1 room occupied' : `${heroValue} rooms occupied`;
+
+  // Count unique cameras with recent detections
+  const activeCameras = new Set(recentDetections.map(d => d.camera));
 
   return (
     <div class="space-y-6 animate-page-enter">
       <PageBanner page="PRESENCE" subtitle="Room-level occupancy from cameras, motion sensors, and device signals fused through Bayesian probability." />
 
       {/* Connection status */}
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 flex-wrap">
         <div class="flex items-center gap-2 text-xs">
           <span class="inline-block w-2.5 h-2.5 rounded-full" style={`background: ${mqttConnected ? 'var(--status-healthy)' : 'var(--status-error)'}`} />
           <span style={`color: ${mqttConnected ? 'var(--status-healthy)' : 'var(--status-error)'}`}>
@@ -201,7 +318,8 @@ export default function Presence() {
           </span>
         </div>
         <div class="text-xs" style="color: var(--text-tertiary)">
-          {roomNames.length} room{roomNames.length !== 1 ? 's' : ''} tracked \u00B7 {totalSignals} signal{totalSignals !== 1 ? 's' : ''} \u00B7 {Object.keys(cameraRooms).length} camera{Object.keys(cameraRooms).length !== 1 ? 's' : ''}
+          {roomNames.length} room{roomNames.length !== 1 ? 's' : ''} \u00B7 {totalSignals} signal{totalSignals !== 1 ? 's' : ''} \u00B7 {cameraCount} camera{cameraCount !== 1 ? 's' : ''}
+          {activeCameras.size > 0 && ` \u00B7 ${activeCameras.size} detecting`}
         </div>
       </div>
 
@@ -229,7 +347,10 @@ export default function Presence() {
           {personNames.length === 0 ? (
             <div>
               <p class="text-sm" style="color: var(--text-tertiary)">No identified persons yet.</p>
-              <p class="text-xs mt-1" style="color: var(--text-tertiary)">Face recognition builds over time. Frigate collects unknown faces automatically — label them in the Frigate UI to enable identification.</p>
+              <p class="text-xs mt-1" style="color: var(--text-tertiary)">
+                Face recognition builds over time. Frigate collects unknown faces automatically
+                {faceRecognition.labeled_count > 0 ? ` \u2014 ${faceRecognition.labeled_count} face${faceRecognition.labeled_count !== 1 ? 's' : ''} labeled so far.` : ' \u2014 label them in the Frigate UI to enable identification.'}
+              </p>
             </div>
           ) : (
             <div>
@@ -240,6 +361,19 @@ export default function Presence() {
           )}
         </div>
       </div>
+
+      {/* Recent Detections — cross-camera person sightings with thumbnails */}
+      <Section title="Recent Detections" subtitle="Person detections across all cameras, newest first. Thumbnails from Frigate event snapshots." summary={`${recentDetections.length} events`} defaultOpen={recentDetections.length > 0}>
+        {recentDetections.length === 0 ? (
+          <Callout>No person detections yet. Walk past a camera to trigger a detection event.</Callout>
+        ) : (
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {recentDetections.slice(0, 12).map((det, i) => (
+              <DetectionCard key={det.event_id || i} detection={det} />
+            ))}
+          </div>
+        )}
+      </Section>
 
       {/* Room cards */}
       <Section title="Room Occupancy" subtitle="Per-room probability from fused sensor signals. Rooms above 50% are considered occupied." summary={`${roomNames.length} rooms`}>
@@ -254,6 +388,11 @@ export default function Presence() {
               ))}
           </div>
         )}
+      </Section>
+
+      {/* Face Recognition */}
+      <Section title="Face Recognition" subtitle="Frigate collects face samples from person detections. Label faces in the Frigate UI to enable cross-camera identification." summary={faceRecognition.enabled ? `${faceRecognition.labeled_count || 0} labeled` : 'disabled'} defaultOpen={false}>
+        <FaceRecognitionStatus faceConfig={faceRecognition} labeledFaces={faceRecognition.labeled_faces || {}} />
       </Section>
 
       {/* Signal Feed */}
@@ -273,7 +412,7 @@ export default function Presence() {
       </Section>
 
       {/* Camera Status */}
-      <Section title="Cameras" subtitle="Active camera-to-room mappings. Cameras publish person detections to MQTT via Frigate." summary={`${Object.keys(cameraRooms).length} mapped`} defaultOpen={false}>
+      <Section title="Cameras" subtitle="Active camera-to-room mappings. Cameras publish person detections to MQTT via Frigate." summary={`${cameraCount} mapped`} defaultOpen={false}>
         <div class="t-frame p-4" data-label="camera map">
           <CameraStrip cameraRooms={cameraRooms} />
         </div>

@@ -1083,6 +1083,34 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
             logger.exception("Error bulk updating curation")
             raise HTTPException(status_code=500, detail="Internal server error")
 
+    # ------------------------------------------------------------------
+    # Frigate proxy (thumbnails/snapshots for dashboard)
+    # ------------------------------------------------------------------
+
+    @router.get("/api/frigate/thumbnail/{event_id}")
+    async def frigate_thumbnail(event_id: str):
+        """Proxy a Frigate event thumbnail for the dashboard."""
+        presence_mod = hub.modules.get("presence")
+        if not presence_mod or not hasattr(presence_mod, "get_frigate_thumbnail"):
+            raise HTTPException(status_code=503, detail="Presence module not loaded")
+        data = await presence_mod.get_frigate_thumbnail(event_id)
+        if data is None:
+            raise HTTPException(status_code=404, detail="Thumbnail not found")
+        from fastapi.responses import Response
+        return Response(content=data, media_type="image/jpeg")
+
+    @router.get("/api/frigate/snapshot/{event_id}")
+    async def frigate_snapshot(event_id: str):
+        """Proxy a Frigate event snapshot for the dashboard."""
+        presence_mod = hub.modules.get("presence")
+        if not presence_mod or not hasattr(presence_mod, "get_frigate_snapshot"):
+            raise HTTPException(status_code=503, detail="Presence module not loaded")
+        data = await presence_mod.get_frigate_snapshot(event_id)
+        if data is None:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        from fastapi.responses import Response
+        return Response(content=data, media_type="image/jpeg")
+
     # WebSocket endpoint (auth handled inline — FastAPI dependency injection
     # doesn't apply to websocket routes on the main app)
     @app.websocket("/ws")

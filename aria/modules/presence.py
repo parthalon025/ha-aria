@@ -95,6 +95,18 @@ class PresenceModule(Module):
         # Identified persons: {person_name: {room, last_seen, confidence}}
         self._identified_persons: Dict[str, Dict] = {}
 
+        # Recent person detections across all cameras (ring buffer, newest last)
+        self._recent_detections: List[Dict] = []
+        self._max_recent_detections = 20
+
+        # Frigate API base URL (Docker runs locally even though MQTT is on HA Pi)
+        self._frigate_url = os.environ.get("FRIGATE_URL", "http://127.0.0.1:5000")
+
+        # Face recognition config (fetched lazily from Frigate)
+        self._face_config: Optional[Dict] = None
+        self._labeled_faces: Dict[str, int] = {}  # name -> count
+        self._face_config_fetched = False
+
         # Bayesian estimator (shared with engine, but used in real-time here)
         self._occupancy = BayesianOccupancy()
 
@@ -130,6 +142,14 @@ class PresenceModule(Module):
             run_immediately=False,
         )
 
+        # Fetch Frigate face recognition config (once, then periodically)
+        await self.hub.schedule_task(
+            task_id="presence_face_config",
+            coro=self._fetch_face_config,
+            interval=timedelta(minutes=5),
+            run_immediately=True,
+        )
+
         self.logger.info("Presence module started")
 
     async def shutdown(self):
@@ -140,6 +160,64 @@ class PresenceModule(Module):
             except Exception:
                 pass
         self.logger.info("Presence module shut down")
+
+    # ------------------------------------------------------------------
+    # Frigate API helpers (face config, thumbnails, labeled faces)
+    # ------------------------------------------------------------------
+
+    async def _fetch_face_config(self):
+        """Fetch face recognition config and labeled faces from Frigate."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Fetch face recognition config
+                async with session.get(
+                    f"{self._frigate_url}/api/config", timeout=aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    if resp.status == 200:
+                        config = await resp.json()
+                        self._face_config = config.get("face_recognition", {})
+                        self._face_config_fetched = True
+
+                # Fetch labeled faces (name -> list of face images)
+                async with session.get(
+                    f"{self._frigate_url}/api/faces", timeout=aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    if resp.status == 200:
+                        faces = await resp.json()
+                        self._labeled_faces = {
+                            name: len(images) if isinstance(images, list) else 0
+                            for name, images in faces.items()
+                        }
+        except Exception as e:
+            self.logger.debug(f"Failed to fetch Frigate face config: {e}")
+
+    async def get_frigate_thumbnail(self, event_id: str) -> Optional[bytes]:
+        """Proxy a Frigate event thumbnail. Returns JPEG bytes or None."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self._frigate_url}/api/events/{event_id}/thumbnail.jpg",
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp:
+                    if resp.status == 200:
+                        return await resp.read()
+        except Exception:
+            pass
+        return None
+
+    async def get_frigate_snapshot(self, event_id: str) -> Optional[bytes]:
+        """Proxy a Frigate event snapshot. Returns JPEG bytes or None."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self._frigate_url}/api/events/{event_id}/snapshot.jpg",
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp:
+                    if resp.status == 200:
+                        return await resp.read()
+        except Exception:
+            pass
+        return None
 
     # ------------------------------------------------------------------
     # MQTT listener (Frigate events)
@@ -223,6 +301,21 @@ class PresenceModule(Module):
                 room, "camera_person", min(score, 0.99),
                 f"person detected on {camera} (score={score:.2f})", now,
             )
+
+            # Track recent detection for cross-camera view
+            event_id = after.get("id", "")
+            self._recent_detections.append({
+                "event_id": event_id,
+                "camera": camera,
+                "room": room,
+                "score": round(score, 3),
+                "sub_label": sub_label[0] if isinstance(sub_label, list) and sub_label else sub_label,
+                "has_snapshot": after.get("has_snapshot", False),
+                "timestamp": now.isoformat(),
+            })
+            # Keep ring buffer bounded
+            if len(self._recent_detections) > self._max_recent_detections:
+                self._recent_detections = self._recent_detections[-self._max_recent_detections:]
 
             if sub_label and isinstance(sub_label, list) and sub_label:
                 # Face recognized — sub_label is the person's name
@@ -526,6 +619,13 @@ class PresenceModule(Module):
             },
             "mqtt_connected": self._mqtt_connected,
             "camera_rooms": self.camera_rooms,
+            "face_recognition": {
+                "enabled": bool(self._face_config and self._face_config.get("enabled")),
+                "config": self._face_config or {},
+                "labeled_faces": self._labeled_faces,
+                "labeled_count": len(self._labeled_faces),
+            },
+            "recent_detections": list(reversed(self._recent_detections)),
         }
 
         # Write to cache
