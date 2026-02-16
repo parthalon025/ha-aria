@@ -1111,6 +1111,31 @@ def _register_curation_routes(router: APIRouter, hub: IntelligenceHub) -> None:
             raise HTTPException(status_code=500, detail="Internal server error") from None
 
 
+def _register_validation_routes(router: APIRouter) -> None:
+    """Register validation suite run/results endpoints."""
+
+    @router.post("/api/validation/run")
+    async def run_validation_suite():
+        """Run the full validation test suite. Returns structured results."""
+        import asyncio
+
+        from aria.hub.validation_runner import run_validation
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, run_validation)
+        return result
+
+    @router.get("/api/validation/latest")
+    async def get_validation_latest():
+        """Return the most recent validation run result."""
+        from aria.hub.validation_runner import get_latest
+
+        result = get_latest()
+        if result is None:
+            return {"status": "no_runs", "message": "No validation runs yet. POST /api/validation/run to start one."}
+        return result
+
+
 def _register_frigate_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     """Register Frigate proxy endpoints for thumbnails and snapshots."""
 
@@ -1212,6 +1237,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
     _register_pipeline_routes(router, hub)
     _register_config_routes(router, hub, ws_manager)
     _register_curation_routes(router, hub)
+    _register_validation_routes(router)
     _register_frigate_routes(router, hub)
 
     # WebSocket endpoint (auth handled inline — FastAPI dependency injection
