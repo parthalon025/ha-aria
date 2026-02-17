@@ -164,13 +164,29 @@ function BusArchitecture({ moduleStatuses, cacheData }) {
     });
   }
 
-  // Arrow helper — small downward arrow
-  function Arrow({ x, y, label }) {
+  // Arrow helper — downward arrow with optional label
+  function Arrow({ x, y, label, length, labelSide }) {
+    const len = length || 18;
+    const side = labelSide || 'right';
+    const lx = side === 'left' ? x - 6 : x + 6;
+    const anchor = side === 'left' ? 'end' : 'start';
     return (
       <g>
-        <line x1={x} y1={y} x2={x} y2={y + 18} stroke="var(--border-primary)" stroke-width="1" />
-        <polygon points={`${x - 3},${y + 14} ${x + 3},${y + 14} ${x},${y + 18}`} fill="var(--border-primary)" />
-        {label && <text x={x + 6} y={y + 12} fill="var(--text-tertiary)" font-size="7" font-family="var(--font-mono)">{label}</text>}
+        <line x1={x} y1={y} x2={x} y2={y + len} stroke="var(--border-primary)" stroke-width="1" />
+        <polygon points={`${x - 3},${y + len - 4} ${x + 3},${y + len - 4} ${x},${y + len}`} fill="var(--border-primary)" />
+        {label && <text x={lx} y={y + len / 2 + 3} text-anchor={anchor} fill="var(--text-tertiary)" font-size="7" font-family="var(--font-mono)">{label}</text>}
+      </g>
+    );
+  }
+
+  // Labeled connection line between two points (no arrowhead, dashed)
+  function DataLine({ x1, y1, x2, y2, label, color }) {
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2;
+    return (
+      <g>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color || 'var(--border-primary)'} stroke-width="0.7" stroke-dasharray="3 2" opacity="0.6" />
+        {label && <text x={mx} y={my - 3} text-anchor="middle" fill={color || 'var(--text-tertiary)'} font-size="6.5" font-family="var(--font-mono)">{label}</text>}
       </g>
     );
   }
@@ -186,15 +202,22 @@ function BusArchitecture({ moduleStatuses, cacheData }) {
     );
   }
 
+  // Section label helper
+  function SectionLabel({ y, label }) {
+    return <text x="430" y={y} text-anchor="middle" fill="var(--text-tertiary)" font-size="9" font-weight="700" font-family="var(--font-mono)" letter-spacing="2">{label}</text>;
+  }
+
   // Center x for each node column
   const cx = nodeX.map((x) => x + nodeW / 2);
+  // Bottom y of a node at yOffset
+  const nodeBot = (yOff) => yOff + 55;
 
   // Vertical tracer path down center
-  const tracerPath = 'M430,28 L430,80 L430,250 L430,325 L430,405 L430,475 L430,530';
+  const tracerPath = 'M430,28 L430,70 L430,290 L430,380 L430,500 L430,580 L430,640';
 
   return (
     <section class="t-terminal-bg rounded-lg p-4 overflow-x-auto">
-      <svg viewBox="0 0 860 560" class="w-full" style="min-width: 700px; max-width: 100%;">
+      <svg viewBox="0 0 860 670" class="w-full" style="min-width: 700px; max-width: 100%;">
         <defs>
           <filter id="led-glow">
             <feGaussianBlur stdDeviation="2" result="blur" />
@@ -212,61 +235,103 @@ function BusArchitecture({ moduleStatuses, cacheData }) {
           </filter>
         </defs>
 
-        {/* Layer 1: HOME ASSISTANT banner */}
-        <Banner y={0} label="HOME ASSISTANT" sublabel="REST API \u00B7 WebSocket \u00B7 MQTT" />
+        {/* === Layer 1: HOME ASSISTANT === */}
+        <Banner y={0} label="HOME ASSISTANT" sublabel="REST /api/states \u00B7 WebSocket state_changed \u00B7 MQTT frigate/events" />
 
-        {/* Connection labels from HA to intake */}
-        <Arrow x={cx[0]} y={28} label="scheduled" />
-        <Arrow x={cx[1]} y={28} label="on startup" />
-        <Arrow x={cx[2]} y={28} label="real-time" />
-        <Arrow x={cx[3]} y={28} label="mqtt" />
+        {/* HA → Intake: exact protocol per module */}
+        <Arrow x={cx[0]} y={28} label="REST /api/states" length={30} />
+        <Arrow x={cx[1]} y={28} label="REST + WS registries" length={30} />
+        <Arrow x={cx[2]} y={28} label="WS state_changed" length={30} />
+        <Arrow x={cx[3]} y={28} label="MQTT + WS sensors" length={30} />
 
-        {/* Layer 2: INTAKE row */}
-        <text x="430" y={58} text-anchor="middle" fill="var(--text-tertiary)" font-size="9" font-weight="700" font-family="var(--font-mono)" letter-spacing="2">INTAKE</text>
-        {renderRow(FLOW_INTAKE, 62)}
+        {/* === Layer 2: INTAKE === */}
+        <SectionLabel y={70} label="INTAKE" />
+        {renderRow(FLOW_INTAKE, 76)}
 
         {/* Engine Pipeline detail box */}
-        <g transform="translate(30, 125)">
-          <rect width="800" height="42" rx="4" fill="none" stroke="var(--border-primary)" stroke-width="1" stroke-dasharray="4 2" />
-          <text x="12" y="14" fill="var(--text-tertiary)" font-size="8" font-weight="600" font-family="var(--font-mono)">ENGINE PIPELINE</text>
-          <text x="12" y="32" fill="var(--text-tertiary)" font-size="8" font-family="var(--font-mono)">
-            {'snapshots \u2192 baselines \u2192 ML training \u2192 predictions \u2192 correlations \u2192 anomalies'}
+        <g transform="translate(30, 140)">
+          <rect width="800" height="55" rx="4" fill="none" stroke="var(--border-primary)" stroke-width="1" stroke-dasharray="4 2" />
+          <text x="12" y="14" fill="var(--text-tertiary)" font-size="8" font-weight="600" font-family="var(--font-mono)">ENGINE PIPELINE  ~/ha-logs/intelligence/</text>
+          <text x="12" y="28" fill="var(--text-tertiary)" font-size="7.5" font-family="var(--font-mono)">
+            {'intraday/HH00.json \u2192 daily/YYYY-MM-DD.json \u2192 baselines.json \u2192 ml_models/*.pkl'}
+          </text>
+          <text x="12" y="42" fill="var(--text-tertiary)" font-size="7.5" font-family="var(--font-mono)">
+            {'\u2192 predictions.json \u2192 correlations.json \u2192 entity_correlations.json \u2192 sequence_anomalies.json'}
           </text>
         </g>
 
-        {/* Arrows from intake to Hub Cache */}
-        {cx.map((x, i) => <Arrow key={`a1-${i}`} x={x} y={170} label={['JSON files', 'entities', 'events', 'occupancy'][i]} />)}
+        {/* Intake → Hub Cache: exact cache categories written */}
+        <Arrow x={cx[0]} y={198} label="intelligence (JSON)" length={28} />
+        <Arrow x={cx[1]} y={198} label="entities, devices, areas, capabilities" length={28} />
+        <Arrow x={cx[2]} y={198} label="activity_log, activity_summary" length={28} />
+        <Arrow x={cx[3]} y={198} label="presence (Bayesian)" length={28} />
 
-        {/* Layer 3: HUB CACHE banner */}
-        <Banner y={192} label="HUB CACHE" sublabel="SQLite \u00B7 15 categories" color="var(--status-healthy)" />
+        {/* === Layer 3: HUB CACHE === */}
+        <Banner y={230} label="HUB CACHE" sublabel="SQLite hub.db \u00B7 15 cache categories \u00B7 WebSocket push on update" color="var(--status-healthy)" />
 
-        {/* Arrows from cache to processing */}
-        {cx.map((x, i) => <Arrow key={`a2-${i}`} x={x} y={220} />)}
+        {/* Cache → Processing: what each module reads */}
+        <Arrow x={cx[0]} y={258} label="engine JSON + activity" length={28} />
+        <Arrow x={cx[1]} y={258} label="capabilities + activity_log" length={28} />
+        <Arrow x={cx[2]} y={258} label="state_changed events" length={28} />
+        <Arrow x={cx[3]} y={258} label="logbook + snapshots" length={28} />
 
-        {/* Layer 4: PROCESSING row */}
-        <text x="430" y={248} text-anchor="middle" fill="var(--text-tertiary)" font-size="9" font-weight="700" font-family="var(--font-mono)" letter-spacing="2">PROCESSING</text>
-        {renderRow(FLOW_PROCESSING, 255)}
+        {/* === Layer 4: PROCESSING === */}
+        <SectionLabel y={296} label="PROCESSING" />
+        {renderRow(FLOW_PROCESSING, 302)}
 
-        {/* Layer 5: ENRICHMENT row */}
-        <text x="430" y={328} text-anchor="middle" fill="var(--text-tertiary)" font-size="9" font-weight="700" font-family="var(--font-mono)" letter-spacing="2">ENRICHMENT</text>
-        {renderRow(FLOW_ENRICHMENT, 335)}
+        {/* Processing writes back to cache — show specific outputs */}
+        <g transform="translate(0, 362)">
+          {/* Intelligence writes */}
+          <text x={cx[0]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'\u2193 intelligence cache'}</text>
+          {/* ML Engine writes */}
+          <text x={cx[1]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'\u2193 ml_predictions, capabilities'}</text>
+          {/* Shadow writes */}
+          <text x={cx[2]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'\u2193 predictions tbl, pipeline_state'}</text>
+          {/* Patterns writes */}
+          <text x={cx[3]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'\u2193 patterns cache'}</text>
+        </g>
+
+        {/* Feedback loops: ML→capabilities, Shadow→capabilities */}
+        <DataLine x1={cx[1]} y1={370} x2={cx[1] - 60} y2={380} label="ml_accuracy \u2192 capabilities" color="var(--status-warning)" />
+        <DataLine x1={cx[2]} y1={370} x2={cx[2] - 60} y2={380} label="hit_rate \u2192 capabilities" color="var(--status-warning)" />
+
+        {/* === Layer 5: ENRICHMENT === */}
+        <SectionLabel y={396} label="ENRICHMENT" />
+        {renderRow(FLOW_ENRICHMENT, 402)}
+
+        {/* Enrichment writes */}
+        <g transform="translate(0, 462)">
+          <text x={cx[0]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'automation_suggestions'}</text>
+          <text x={cx[1]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'capabilities (organic)'}</text>
+          <text x={cx[2]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'entity_curation tbl'}</text>
+          <text x={cx[3]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'activity_labels'}</text>
+        </g>
+
+        {/* Cross-module reads shown as dashed lines */}
+        {/* Orchestrator reads patterns */}
+        <DataLine x1={cx[3]} y1={nodeBot(302)} x2={cx[0]} y2={402} label="reads patterns" />
+        {/* Organic discovery reads entities + activity_log */}
+        <DataLine x1={cx[1] - 40} y1={nodeBot(302) + 20} x2={cx[1]} y2={402} label="reads entities + activity" />
 
         {/* Arrows to YOU */}
-        <Arrow x={430} y={395} />
+        <Arrow x={430} y={475} length={22} />
 
-        {/* Layer 6: YOU banner */}
-        <g transform="translate(200, 418)">
+        {/* === Layer 6: YOU === */}
+        <g transform="translate(200, 502)">
           <rect x="0" y="0" width="460" height="35" rx="4" fill="var(--bg-inset)" stroke="var(--accent)" stroke-width="2" />
-          <text x="230" y="22" text-anchor="middle" fill="var(--accent)" font-size="12" font-weight="bold" font-family="var(--font-mono)">
+          <text x="230" y="14" text-anchor="middle" fill="var(--accent)" font-size="11" font-weight="bold" font-family="var(--font-mono)">
             {'YOU:  Label \u00B7 Curate \u00B7 Review \u00B7 Advance'}
+          </text>
+          <text x="230" y="28" text-anchor="middle" fill="var(--text-tertiary)" font-size="7.5" font-family="var(--font-mono)">
+            {'corrections \u2192 activity_labels  |  curation rules \u2192 entity_curation  |  approve \u2192 automation_suggestions'}
           </text>
         </g>
 
         {/* Arrow to Dashboard */}
-        <Arrow x={430} y={453} />
+        <Arrow x={430} y={537} length={22} />
 
-        {/* Layer 7: DASHBOARD banner */}
-        <Banner y={475} label="DASHBOARD" sublabel="13 pages \u00B7 WebSocket push" />
+        {/* === Layer 7: DASHBOARD === */}
+        <Banner y={563} label="DASHBOARD" sublabel="13 pages \u00B7 WebSocket push \u00B7 reads all cache categories via /api/cache/*" />
 
         {/* Flowing dot tracer along center vertical */}
         <circle r="3" fill="var(--accent)" opacity="0.7" filter="url(#tracer-glow)">
