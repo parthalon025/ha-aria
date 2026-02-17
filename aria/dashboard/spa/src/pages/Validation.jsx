@@ -120,7 +120,7 @@ export default function Validation() {
 
   return (
     <div class="space-y-6">
-      <PageBanner title="VALIDATION" />
+      <PageBanner page="VALIDATION" />
 
       {/* Run button */}
       <div class="flex items-center gap-4">
