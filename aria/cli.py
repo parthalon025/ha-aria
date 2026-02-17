@@ -389,6 +389,16 @@ async def _register_analysis_modules(hub, intelligence_dir, _init, logger):
     except Exception as e:
         logger.warning(f"Online learner module failed (non-fatal): {e}")
 
+    # pattern_recognition (Tier 3+ — module self-gates on hardware tier)
+    try:
+        from aria.modules.pattern_recognition import PatternRecognitionModule
+
+        pattern_recognition = PatternRecognitionModule(hub)
+        hub.register_module(pattern_recognition)
+        await _init(pattern_recognition, "pattern_recognition")()
+    except Exception as e:
+        logger.warning(f"Pattern recognition module failed (non-fatal): {e}")
+
 
 async def _register_monitor_modules(hub, ha_url, ha_token, _init, logger):
     """Register monitoring modules (activity monitor, labeler, presence)."""
