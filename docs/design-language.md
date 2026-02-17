@@ -16,27 +16,32 @@ Reference for creating and modifying UI components. Read this before touching an
 
 **Philosophy:** Each page tells its story within the ARIA pipeline (Data Collection → Learning → Actions). Components should reinforce where the user is in that flow.
 
-## Data Science Approach to Visualization
+## Science-Backed Visualization Framework
 
-ARIA's dashboard is designed with data science principles. Follow these when creating or modifying any data display.
+All dashboard visual design must be grounded in peer-reviewed research. This is not optional — it applies to every chart, diagram, layout, and interaction. When in doubt, cite the principle.
 
-### Guiding Principles
+### Foundational Research (always apply)
 
-1. **Data-ink ratio (Tufte).** Maximize the share of ink used to present actual data. Remove chartjunk: unnecessary gridlines, decorative elements, redundant labels. Every pixel should earn its place.
+| # | Principle | Source | Rule |
+|---|-----------|--------|------|
+| 1 | **Data-ink ratio** | Tufte, *The Visual Display of Quantitative Information*, 1983 | Maximize data-carrying pixels. Remove chartjunk: decorative gridlines, redundant labels, ornamental elements. Every pixel earns its place or gets deleted. |
+| 2 | **Perceptual accuracy hierarchy** | Cleveland & McGill, *JASA*, 1984 | Position > Length > Angle > Area > Color saturation > Color hue. Encode the most important variable in position (e.g., node placement = module role), use color for secondary dimensions only (e.g., status). Never reverse this. |
+| 3 | **Preattentive processing** | Treisman & Gelade, *Cognitive Psychology*, 1980 | Color, size, orientation, and motion are processed in <250ms without conscious effort. Use max 3-4 color channels. Combine color + line style for colorblind safety (don't rely on hue alone). |
+| 4 | **Gestalt grouping** | Wertheimer, *Psychologische Forschung*, 1923 | Enclosure > Connection > Proximity > Similarity. Swim lane backgrounds (enclosure) are stronger than whitespace (proximity) for grouping. Use enclosure for primary grouping, proximity for secondary. |
+| 5 | **Cognitive load** | Sweller, *Cognitive Science*, 1988; Miller, *Psych Review*, 1956 | Working memory holds 7±2 chunks. A diagram with 40 labels exceeds capacity. Show ≤15 primary elements; use progressive disclosure for detail. |
+| 6 | **Progressive disclosure** | Shneiderman, *IEEE Software*, 1996 | "Overview first, zoom and filter, then details on demand." Default view = structural understanding in 10 seconds. Hover/click = specific data paths in 60 seconds. |
+| 7 | **Small multiples** | Tufte, *Envisioning Information*, 1990 | When metrics have different units or scales, NEVER overlay them on the same y-axis. Stack small multiples sharing the x-axis. |
+| 8 | **Sparklines** | Tufte, *Beautiful Evidence*, 2006 | A number without trend is half a story. Every HeroCard KPI should have a sparkline when historical data is available. |
 
-2. **Small multiples over overlays.** When metrics have different units or scales, NEVER overlay them on the same y-axis. Use stacked small multiples — one chart per metric sharing the x-axis. This prevents the "two y-axis" problem where readers can't tell which scale applies.
+### Application Rules
 
-3. **Pre-attentive attributes.** Use color intensity (not color hue alone) to encode magnitude. Human vision processes intensity differences pre-attentively (~200ms), while reading numbers is slow (~500ms+). Heatmaps exploit this.
-
-4. **Sparklines for context.** A number without trend is half a story. Edward Tufte's sparklines — tiny word-sized graphics — give trend context without taking space. Every HeroCard KPI should have a sparkline when historical data is available.
-
-5. **Diverging scales for correlation.** Correlation data needs a diverging color scale centered on zero. Use one hue for positive (moving together), another for negative (moving opposite), and neutral for near-zero. Filter out weak signals (|r| ≤ 0.3).
-
-6. **Temporal swim-lanes.** For event timelines, group by category (domain) and lay events along a shared time axis. This reveals temporal clustering and concurrent activity that flat lists hide.
-
-7. **Rolling averages over raw points.** Raw daily accuracy is noisy. A 7-day rolling average reveals the true trend. Show both when space allows — the rolling line for the story, the raw points for the detail.
-
-8. **Explain like I'm 5.** Every visualization MUST include a plain-English explanation and a legend. If a user needs domain expertise to interpret a chart, the chart has failed. The explanation goes between the section title and the visualization.
+1. **Diverging scales for correlation.** Use one hue for positive, another for negative, neutral for near-zero. Filter weak signals (|r| ≤ 0.3).
+2. **Temporal swim-lanes.** Group events by category along a shared time axis. Reveals clustering that flat lists hide.
+3. **Rolling averages over raw points.** 7-day rolling average for trend, raw points for detail. Show both when space allows.
+4. **Explain like I'm 5.** Every visualization MUST include a plain-English explanation and legend. If a user needs domain expertise to interpret a chart, the chart has failed.
+5. **Color-coding protocol.** Max 3 semantic colors per diagram. Each color must also have a non-color discriminator (dash pattern, shape, label). Include a visible legend.
+6. **Feedback loops are visually distinct.** Data that flows backward (writes back to a source it reads from) must use a different visual treatment — curved arcs, distinct color, dashed stroke. Feedback is the exception path; it should look like one.
+7. **Hover detail for density.** When a diagram or chart contains more than 15 data points, show structural overview by default. Detail appears on hover via SVG tooltip panel or HTML overlay.
 
 ### Choosing the Right Visualization
 
