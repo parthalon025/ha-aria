@@ -47,6 +47,70 @@ const FLOW_ENRICHMENT = [
   { id: 'activity_labeler', label: 'Labeler', metricKey: 'current_activity' },
 ];
 
+// Progressive disclosure: detail shown on hover (Shneiderman 1996)
+const NODE_DETAIL = {
+  engine: {
+    protocol: 'REST /api/states (systemd timers)',
+    reads: 'All entity states, logbook, calendar, weather',
+    writes: '~/ha-logs/intelligence/*.json (predictions, baselines, correlations, anomalies)',
+  },
+  discovery: {
+    protocol: 'REST registries + WS registry_updated',
+    reads: 'Entity/device/area registries from HA',
+    writes: 'entities, devices, areas, capabilities (seed)',
+  },
+  activity_monitor: {
+    protocol: 'WS state_changed (real-time)',
+    reads: 'All state_changed events, REST /api/states (startup seed)',
+    writes: 'activity_log (15-min windows), activity_summary (live)',
+  },
+  presence: {
+    protocol: 'MQTT frigate/events + WS state_changed',
+    reads: 'Camera person/face detections, motion/light/dimmer sensors',
+    writes: 'presence (Bayesian per-room probability)',
+  },
+  intelligence: {
+    protocol: 'Reads engine JSON files from disk',
+    reads: 'Engine outputs + activity_log + activity_summary',
+    writes: 'intelligence (consolidated: maturity, predictions, trends, drift)',
+  },
+  ml_engine: {
+    protocol: 'Trains from daily snapshot files',
+    reads: 'capabilities, activity_log, daily/*.json snapshots',
+    writes: 'ml_predictions, ml_training_metadata, capabilities (ml_accuracy feedback)',
+  },
+  shadow_engine: {
+    protocol: 'Subscribes to hub state_changed events',
+    reads: 'Entity state changes, activity context',
+    writes: 'predictions table, pipeline_state, capabilities (hit_rate feedback)',
+  },
+  pattern_recognition: {
+    protocol: 'Reads logbook JSON files',
+    reads: '~/ha-logs/logbook/*.json, intraday snapshots',
+    writes: 'patterns (temporal sequences per area)',
+  },
+  orchestrator: {
+    protocol: 'Can call HA /api/automation/trigger',
+    reads: 'patterns cache',
+    writes: 'automation_suggestions, pending_automations',
+  },
+  organic_discovery: {
+    protocol: 'Weekly timer + Ollama queue (LLM naming)',
+    reads: 'entities, devices, areas, activity_log, discovery_history',
+    writes: 'capabilities (organic), discovery_settings, discovery_history',
+  },
+  data_quality: {
+    protocol: 'Classifies entities into tiers 1/2/3',
+    reads: 'entities, activity_log (event rates)',
+    writes: 'entity_curation table (included/excluded/tier)',
+  },
+  activity_labeler: {
+    protocol: 'Ollama queue for LLM fallback',
+    reads: 'Sensor context: power, lights, motion, occupancy, time',
+    writes: 'activity_labels (predictions + corrections + classifier)',
+  },
+};
+
 function getNodeStatus(moduleStatuses, nodeId) {
   const status = moduleStatuses?.[nodeId];
   if (status === 'running') return 'healthy';
@@ -91,7 +155,7 @@ function getNodeMetric(cacheData, node) {
   }
 }
 
-function ModuleNode({ x, y, status, label, metric, glowing, animateMetric }) {
+function ModuleNode({ x, y, status, label, metric, glowing, animateMetric, nodeId, onHover }) {
   const colors = {
     healthy: 'var(--status-healthy)',
     waiting: 'var(--status-waiting)',
@@ -101,7 +165,12 @@ function ModuleNode({ x, y, status, label, metric, glowing, animateMetric }) {
   const color = colors[status] || colors.waiting;
 
   return (
-    <g transform={`translate(${x}, ${y})`}>
+    <g
+      transform={`translate(${x}, ${y})`}
+      onMouseEnter={() => onHover && onHover(nodeId)}
+      onMouseLeave={() => onHover && onHover(null)}
+      style="cursor: default;"
+    >
       <rect width="180" height="55" rx="4" fill="var(--bg-surface)" stroke={glowing ? 'var(--accent)' : 'var(--border-primary)'} stroke-width={glowing ? '2' : '1'} />
       {glowing && (
         <rect width="180" height="55" rx="4" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.3">
@@ -121,10 +190,15 @@ function ModuleNode({ x, y, status, label, metric, glowing, animateMetric }) {
 
 
 function BusArchitecture({ moduleStatuses, cacheData }) {
+  // Layout constants — generous spacing (Gestalt proximity principle)
   const nodeX = [30, 235, 440, 645];
   const nodeW = 180;
+  const cx = nodeX.map((x) => x + nodeW / 2);
 
-  // --- Activity Labeler pulse animation (kept from original) ---
+  // --- Hover state for progressive disclosure (Shneiderman 1996) ---
+  const [hoveredNode, setHoveredNode] = useState(null);
+
+  // --- Activity Labeler pulse animation ---
   const prevActivityRef = useRef(null);
   const [labelerGlowing, setLabelerGlowing] = useState(false);
   const [labelerAnimateMetric, setLabelerAnimateMetric] = useState(false);
@@ -159,188 +233,197 @@ function BusArchitecture({ moduleStatuses, cacheData }) {
           metric={getNodeMetric(cacheData, node)}
           glowing={isLabeler && labelerGlowing}
           animateMetric={isLabeler && labelerAnimateMetric}
+          nodeId={node.id}
+          onHover={setHoveredNode}
         />
       );
     });
   }
 
-  // Arrow helper — downward arrow with optional label
-  function Arrow({ x, y, label, length, labelSide }) {
-    const len = length || 18;
-    const side = labelSide || 'right';
-    const lx = side === 'left' ? x - 6 : x + 6;
-    const anchor = side === 'left' ? 'end' : 'start';
+  // --- Primitive helpers ---
+
+  // Downward arrow with color-coded stroke (preattentive: Treisman 1985)
+  // type: 'external' (accent), 'cache' (green), 'internal' (default gray)
+  function Arrow({ x, y, label, length, type }) {
+    const len = length || 20;
+    const colors = { external: 'var(--accent)', cache: 'var(--status-healthy)', feedback: 'var(--status-warning)' };
+    const stroke = colors[type] || 'var(--border-primary)';
     return (
       <g>
-        <line x1={x} y1={y} x2={x} y2={y + len} stroke="var(--border-primary)" stroke-width="1" />
-        <polygon points={`${x - 3},${y + len - 4} ${x + 3},${y + len - 4} ${x},${y + len}`} fill="var(--border-primary)" />
-        {label && <text x={lx} y={y + len / 2 + 3} text-anchor={anchor} fill="var(--text-tertiary)" font-size="7" font-family="var(--font-mono)">{label}</text>}
+        <line x1={x} y1={y} x2={x} y2={y + len} stroke={stroke} stroke-width="1" />
+        <polygon points={`${x - 3},${y + len - 4} ${x + 3},${y + len - 4} ${x},${y + len}`} fill={stroke} />
+        {label && <text x={x + 6} y={y + len / 2 + 3} fill="var(--text-tertiary)" font-size="8" font-family="var(--font-mono)">{label}</text>}
       </g>
     );
   }
 
-  // Labeled connection line between two points (no arrowhead, dashed)
-  function DataLine({ x1, y1, x2, y2, label, color }) {
-    const mx = (x1 + x2) / 2;
-    const my = (y1 + y2) / 2;
+  // Swim lane background (Gestalt enclosure — strongest grouping cue)
+  function SwimLane({ y, height, label, color }) {
     return (
       <g>
-        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color || 'var(--border-primary)'} stroke-width="0.7" stroke-dasharray="3 2" opacity="0.6" />
-        {label && <text x={mx} y={my - 3} text-anchor="middle" fill={color || 'var(--text-tertiary)'} font-size="6.5" font-family="var(--font-mono)">{label}</text>}
+        <rect x="15" y={y} width="830" height={height} rx="6" fill={color || 'var(--bg-surface)'} opacity="0.15" stroke="var(--border-primary)" stroke-width="0.5" />
+        <text x="28" y={y + 14} fill="var(--text-tertiary)" font-size="9" font-weight="700" font-family="var(--font-mono)" letter-spacing="2" opacity="0.7">{label}</text>
       </g>
     );
   }
 
-  // Banner bar helper
+  // Banner divider bar
   function Banner({ y, label, sublabel, color }) {
     return (
       <g>
-        <rect x="20" y={y} width="820" height="28" rx="4" fill="var(--bg-inset)" stroke={color || 'var(--accent)'} stroke-width="1.5" />
-        <text x="430" y={y + 13} text-anchor="middle" fill={color || 'var(--accent)'} font-size="11" font-weight="700" font-family="var(--font-mono)">{label}</text>
+        <rect x="20" y={y} width="820" height={sublabel ? 28 : 22} rx="4" fill="var(--bg-inset)" stroke={color || 'var(--accent)'} stroke-width="1.5" />
+        <text x="430" y={y + (sublabel ? 13 : 15)} text-anchor="middle" fill={color || 'var(--accent)'} font-size="11" font-weight="700" font-family="var(--font-mono)">{label}</text>
         {sublabel && <text x="430" y={y + 24} text-anchor="middle" fill="var(--text-tertiary)" font-size="8" font-family="var(--font-mono)">{sublabel}</text>}
       </g>
     );
   }
 
-  // Section label helper
-  function SectionLabel({ y, label }) {
-    return <text x="430" y={y} text-anchor="middle" fill="var(--text-tertiary)" font-size="9" font-weight="700" font-family="var(--font-mono)" letter-spacing="2">{label}</text>;
+  // Feedback arc — curved dashed line returning upward (amber, visually distinct)
+  function FeedbackArc({ x, y1, y2, label }) {
+    const curveX = x + 95;
+    const path = `M${x},${y1} Q${curveX},${(y1 + y2) / 2} ${x},${y2}`;
+    return (
+      <g>
+        <path d={path} fill="none" stroke="var(--status-warning)" stroke-width="1" stroke-dasharray="4 3" opacity="0.7" />
+        <polygon points={`${x - 3},${y2 + 3} ${x + 3},${y2 + 3} ${x},${y2}`} fill="var(--status-warning)" opacity="0.7" />
+        {label && <text x={curveX - 8} y={(y1 + y2) / 2 + 3} fill="var(--status-warning)" font-size="7.5" font-family="var(--font-mono)" text-anchor="end">{label}</text>}
+      </g>
+    );
   }
 
-  // Center x for each node column
-  const cx = nodeX.map((x) => x + nodeW / 2);
-  // Bottom y of a node at yOffset
-  const nodeBot = (yOff) => yOff + 55;
+  // --- Hover detail panel (progressive disclosure) ---
+  function DetailPanel() {
+    if (!hoveredNode || !NODE_DETAIL[hoveredNode]) return null;
+    const d = NODE_DETAIL[hoveredNode];
+    const panelY = 542;
+    return (
+      <g>
+        <rect x="20" y={panelY} width="820" height="56" rx="4" fill="var(--bg-surface)" stroke="var(--accent)" stroke-width="1" opacity="0.95" />
+        <text x="32" y={panelY + 14} fill="var(--accent)" font-size="10" font-weight="700" font-family="var(--font-mono)">{hoveredNode.replace(/_/g, ' ').toUpperCase()}</text>
+        <text x="32" y={panelY + 28} fill="var(--text-tertiary)" font-size="8" font-family="var(--font-mono)">
+          {`\u25B6 ${d.protocol}    \u2502  reads: ${d.reads}`}
+        </text>
+        <text x="32" y={panelY + 42} fill="var(--text-tertiary)" font-size="8" font-family="var(--font-mono)">
+          {`\u25BC writes: ${d.writes}`}
+        </text>
+      </g>
+    );
+  }
 
-  // Vertical tracer path down center
-  const tracerPath = 'M430,28 L430,70 L430,290 L430,380 L430,500 L430,580 L430,640';
+  // Tracer path — follows center vertical through diagram
+  const tracerPath = 'M430,28 L430,65 L430,258 L430,345 L430,445 L430,510 L430,540';
+
+  // --- Y coordinates (consistent 70px between layers, uniform spacing) ---
+  const yHA = 0;
+  const yIntake = 52;           // swim lane top
+  const yIntakeNodes = 70;      // nodes inside lane
+  const yIntakeBot = 140;       // swim lane bottom
+  const yCache = 152;           // hub cache banner
+  const yProc = 192;            // swim lane top
+  const yProcNodes = 210;       // nodes inside lane
+  const yProcBot = 282;         // swim lane bottom
+  const yEnrich = 294;          // swim lane top
+  const yEnrichNodes = 312;     // nodes inside lane
+  const yEnrichBot = 382;       // swim lane bottom
+  const yYou = 398;             // YOU banner
+  const yDash = 452;            // dashboard banner
+  const svgHeight = hoveredNode ? 605 : 490;
 
   return (
     <section class="t-terminal-bg rounded-lg p-4 overflow-x-auto">
-      <svg viewBox="0 0 860 670" class="w-full" style="min-width: 700px; max-width: 100%;">
+      <svg viewBox={`0 0 860 ${svgHeight}`} class="w-full" style="min-width: 700px; max-width: 100%; transition: height 0.2s ease;">
         <defs>
           <filter id="led-glow">
             <feGaussianBlur stdDeviation="2" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
           <filter id="tracer-glow">
             <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
         </defs>
 
-        {/* === Layer 1: HOME ASSISTANT === */}
-        <Banner y={0} label="HOME ASSISTANT" sublabel="REST /api/states \u00B7 WebSocket state_changed \u00B7 MQTT frigate/events" />
+        {/* ═══ HOME ASSISTANT ═══ */}
+        <Banner y={yHA} label="HOME ASSISTANT" sublabel="REST \u00B7 WebSocket \u00B7 MQTT" />
 
-        {/* HA → Intake: exact protocol per module */}
-        <Arrow x={cx[0]} y={28} label="REST /api/states" length={30} />
-        <Arrow x={cx[1]} y={28} label="REST + WS registries" length={30} />
-        <Arrow x={cx[2]} y={28} label="WS state_changed" length={30} />
-        <Arrow x={cx[3]} y={28} label="MQTT + WS sensors" length={30} />
+        {/* HA → Intake arrows — color-coded by protocol (preattentive processing) */}
+        <Arrow x={cx[0]} y={28} label="REST /api/states" length={24} type="external" />
+        <Arrow x={cx[1]} y={28} label="REST + WS registries" length={24} type="external" />
+        <Arrow x={cx[2]} y={28} label="WS state_changed" length={24} type="external" />
+        <Arrow x={cx[3]} y={28} label="MQTT + WS" length={24} type="external" />
 
-        {/* === Layer 2: INTAKE === */}
-        <SectionLabel y={70} label="INTAKE" />
-        {renderRow(FLOW_INTAKE, 76)}
+        {/* ═══ INTAKE swim lane ═══ (Gestalt enclosure) */}
+        <SwimLane y={yIntake} height={yIntakeBot - yIntake} label="INTAKE" color="var(--accent)" />
+        {renderRow(FLOW_INTAKE, yIntakeNodes)}
 
-        {/* Engine Pipeline detail box */}
-        <g transform="translate(30, 140)">
-          <rect width="800" height="55" rx="4" fill="none" stroke="var(--border-primary)" stroke-width="1" stroke-dasharray="4 2" />
-          <text x="12" y="14" fill="var(--text-tertiary)" font-size="8" font-weight="600" font-family="var(--font-mono)">ENGINE PIPELINE  ~/ha-logs/intelligence/</text>
-          <text x="12" y="28" fill="var(--text-tertiary)" font-size="7.5" font-family="var(--font-mono)">
-            {'intraday/HH00.json \u2192 daily/YYYY-MM-DD.json \u2192 baselines.json \u2192 ml_models/*.pkl'}
-          </text>
-          <text x="12" y="42" fill="var(--text-tertiary)" font-size="7.5" font-family="var(--font-mono)">
-            {'\u2192 predictions.json \u2192 correlations.json \u2192 entity_correlations.json \u2192 sequence_anomalies.json'}
-          </text>
-        </g>
+        {/* Intake → Cache arrows — show what each writes */}
+        <Arrow x={cx[0]} y={yIntakeBot} label="JSON files" length={12} type="cache" />
+        <Arrow x={cx[1]} y={yIntakeBot} label="entities, caps" length={12} type="cache" />
+        <Arrow x={cx[2]} y={yIntakeBot} label="activity_log" length={12} type="cache" />
+        <Arrow x={cx[3]} y={yIntakeBot} label="presence" length={12} type="cache" />
 
-        {/* Intake → Hub Cache: exact cache categories written */}
-        <Arrow x={cx[0]} y={198} label="intelligence (JSON)" length={28} />
-        <Arrow x={cx[1]} y={198} label="entities, devices, areas, capabilities" length={28} />
-        <Arrow x={cx[2]} y={198} label="activity_log, activity_summary" length={28} />
-        <Arrow x={cx[3]} y={198} label="presence (Bayesian)" length={28} />
+        {/* ═══ HUB CACHE ═══ */}
+        <Banner y={yCache} label="HUB CACHE" sublabel="SQLite hub.db \u00B7 15 categories \u00B7 WebSocket push" color="var(--status-healthy)" />
 
-        {/* === Layer 3: HUB CACHE === */}
-        <Banner y={230} label="HUB CACHE" sublabel="SQLite hub.db \u00B7 15 cache categories \u00B7 WebSocket push on update" color="var(--status-healthy)" />
+        {/* Cache → Processing arrows — show what each reads */}
+        <Arrow x={cx[0]} y={yCache + 28} label="engine JSON" length={12} />
+        <Arrow x={cx[1]} y={yCache + 28} label="caps + activity" length={12} />
+        <Arrow x={cx[2]} y={yCache + 28} label="state events" length={12} />
+        <Arrow x={cx[3]} y={yCache + 28} label="logbook" length={12} />
 
-        {/* Cache → Processing: what each module reads */}
-        <Arrow x={cx[0]} y={258} label="engine JSON + activity" length={28} />
-        <Arrow x={cx[1]} y={258} label="capabilities + activity_log" length={28} />
-        <Arrow x={cx[2]} y={258} label="state_changed events" length={28} />
-        <Arrow x={cx[3]} y={258} label="logbook + snapshots" length={28} />
+        {/* ═══ PROCESSING swim lane ═══ */}
+        <SwimLane y={yProc} height={yProcBot - yProc} label="PROCESSING" color="var(--status-healthy)" />
+        {renderRow(FLOW_PROCESSING, yProcNodes)}
 
-        {/* === Layer 4: PROCESSING === */}
-        <SectionLabel y={296} label="PROCESSING" />
-        {renderRow(FLOW_PROCESSING, 302)}
+        {/* Feedback arcs — ML and Shadow write back to capabilities (amber, distinct) */}
+        <FeedbackArc x={cx[1] + 90} y1={yProcNodes + 30} y2={yCache + 14} label="ml_accuracy" />
+        <FeedbackArc x={cx[2] + 90} y1={yProcNodes + 30} y2={yCache + 14} label="hit_rate" />
 
-        {/* Processing writes back to cache — show specific outputs */}
-        <g transform="translate(0, 362)">
-          {/* Intelligence writes */}
-          <text x={cx[0]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'\u2193 intelligence cache'}</text>
-          {/* ML Engine writes */}
-          <text x={cx[1]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'\u2193 ml_predictions, capabilities'}</text>
-          {/* Shadow writes */}
-          <text x={cx[2]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'\u2193 predictions tbl, pipeline_state'}</text>
-          {/* Patterns writes */}
-          <text x={cx[3]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'\u2193 patterns cache'}</text>
-        </g>
+        {/* Processing → Enrichment arrows */}
+        <Arrow x={cx[0]} y={yProcBot} label="intelligence" length={12} type="cache" />
+        <Arrow x={cx[1]} y={yProcBot} label="ml_predictions" length={12} type="cache" />
+        <Arrow x={cx[2]} y={yProcBot} label="pipeline_state" length={12} type="cache" />
+        <Arrow x={cx[3]} y={yProcBot} label="patterns" length={12} type="cache" />
 
-        {/* Feedback loops: ML→capabilities, Shadow→capabilities */}
-        <DataLine x1={cx[1]} y1={370} x2={cx[1] - 60} y2={380} label="ml_accuracy \u2192 capabilities" color="var(--status-warning)" />
-        <DataLine x1={cx[2]} y1={370} x2={cx[2] - 60} y2={380} label="hit_rate \u2192 capabilities" color="var(--status-warning)" />
+        {/* ═══ ENRICHMENT swim lane ═══ */}
+        <SwimLane y={yEnrich} height={yEnrichBot - yEnrich} label="ENRICHMENT" color="var(--status-warning)" />
+        {renderRow(FLOW_ENRICHMENT, yEnrichNodes)}
 
-        {/* === Layer 5: ENRICHMENT === */}
-        <SectionLabel y={396} label="ENRICHMENT" />
-        {renderRow(FLOW_ENRICHMENT, 402)}
+        {/* Enrichment output labels (short, 1-2 words — Tufte data-ink ratio) */}
+        <text x={cx[0]} y={yEnrichBot - 4} text-anchor="middle" fill="var(--text-tertiary)" font-size="7.5" font-family="var(--font-mono)" opacity="0.8">{'\u2193 suggestions'}</text>
+        <text x={cx[1]} y={yEnrichBot - 4} text-anchor="middle" fill="var(--text-tertiary)" font-size="7.5" font-family="var(--font-mono)" opacity="0.8">{'\u2193 organic caps'}</text>
+        <text x={cx[2]} y={yEnrichBot - 4} text-anchor="middle" fill="var(--text-tertiary)" font-size="7.5" font-family="var(--font-mono)" opacity="0.8">{'\u2193 curation tbl'}</text>
+        <text x={cx[3]} y={yEnrichBot - 4} text-anchor="middle" fill="var(--text-tertiary)" font-size="7.5" font-family="var(--font-mono)" opacity="0.8">{'\u2193 labels'}</text>
 
-        {/* Enrichment writes */}
-        <g transform="translate(0, 462)">
-          <text x={cx[0]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'automation_suggestions'}</text>
-          <text x={cx[1]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'capabilities (organic)'}</text>
-          <text x={cx[2]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'entity_curation tbl'}</text>
-          <text x={cx[3]} y={0} text-anchor="middle" fill="var(--text-tertiary)" font-size="6.5" font-family="var(--font-mono)">{'activity_labels'}</text>
-        </g>
-
-        {/* Cross-module reads shown as dashed lines */}
-        {/* Orchestrator reads patterns */}
-        <DataLine x1={cx[3]} y1={nodeBot(302)} x2={cx[0]} y2={402} label="reads patterns" />
-        {/* Organic discovery reads entities + activity_log */}
-        <DataLine x1={cx[1] - 40} y1={nodeBot(302) + 20} x2={cx[1]} y2={402} label="reads entities + activity" />
-
-        {/* Arrows to YOU */}
-        <Arrow x={430} y={475} length={22} />
-
-        {/* === Layer 6: YOU === */}
-        <g transform="translate(200, 502)">
-          <rect x="0" y="0" width="460" height="35" rx="4" fill="var(--bg-inset)" stroke="var(--accent)" stroke-width="2" />
-          <text x="230" y="14" text-anchor="middle" fill="var(--accent)" font-size="11" font-weight="bold" font-family="var(--font-mono)">
+        {/* ═══ YOU ═══ */}
+        <Arrow x={430} y={yEnrichBot} length={16} />
+        <g transform={`translate(220, ${yYou})`}>
+          <rect x="0" y="0" width="420" height="28" rx="4" fill="var(--bg-inset)" stroke="var(--accent)" stroke-width="2" />
+          <text x="210" y="18" text-anchor="middle" fill="var(--accent)" font-size="11" font-weight="bold" font-family="var(--font-mono)">
             {'YOU:  Label \u00B7 Curate \u00B7 Review \u00B7 Advance'}
           </text>
-          <text x="230" y="28" text-anchor="middle" fill="var(--text-tertiary)" font-size="7.5" font-family="var(--font-mono)">
-            {'corrections \u2192 activity_labels  |  curation rules \u2192 entity_curation  |  approve \u2192 automation_suggestions'}
-          </text>
         </g>
 
-        {/* Arrow to Dashboard */}
-        <Arrow x={430} y={537} length={22} />
+        {/* ═══ DASHBOARD ═══ */}
+        <Arrow x={430} y={yYou + 28} length={16} />
+        <Banner y={yDash} label="DASHBOARD" sublabel="13 pages \u00B7 WebSocket push" />
 
-        {/* === Layer 7: DASHBOARD === */}
-        <Banner y={563} label="DASHBOARD" sublabel="13 pages \u00B7 WebSocket push \u00B7 reads all cache categories via /api/cache/*" />
-
-        {/* Flowing dot tracer along center vertical */}
-        <circle r="3" fill="var(--accent)" opacity="0.7" filter="url(#tracer-glow)">
+        {/* Flowing tracer dot — single animation, restrained (Tufte: minimize decoration) */}
+        <circle r="3" fill="var(--accent)" opacity="0.6" filter="url(#tracer-glow)">
           <animateMotion dur="8s" repeatCount="indefinite" path={tracerPath} />
         </circle>
-        <circle r="5" fill="var(--accent)" opacity="0.2" filter="url(#tracer-glow)">
-          <animateMotion dur="8s" repeatCount="indefinite" path={tracerPath} begin="0.4s" />
-        </circle>
+
+        {/* Hover detail panel — appears at bottom when any module is hovered */}
+        <DetailPanel />
       </svg>
+
+      {/* Color legend — below SVG, not inside it (reduces SVG clutter) */}
+      <div class="flex gap-4 mt-2 text-xs" style="color: var(--text-tertiary); font-family: var(--font-mono);">
+        <span><span style="color: var(--accent);">{'\u25CF'}</span> external API</span>
+        <span><span style="color: var(--status-healthy);">{'\u25CF'}</span> cache write</span>
+        <span><span style="color: var(--status-warning);">{'\u25CF'}</span> feedback loop</span>
+        <span style="opacity: 0.6;">hover any module for detail</span>
+      </div>
     </section>
   );
 }
