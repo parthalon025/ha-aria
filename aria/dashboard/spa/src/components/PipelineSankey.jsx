@@ -86,7 +86,7 @@ function getNodeFreshness(cacheData, nodeId) {
   return { text: `${hours}h`, status: 'blocked' };
 }
 
-function SankeyNode({ node, status, metric, onClick, highlighted, dimmed, onMouseEnter, onMouseLeave, sparklineData, freshness }) {
+function SankeyNode({ node, status, metric, onClick, highlighted, dimmed, onMouseEnter, onMouseLeave, sparklineData, freshness, pulsing }) {
   const color = STATUS_COLORS[status] || STATUS_COLORS.waiting;
   const opacity = dimmed ? 0.12 : 1;
 
@@ -103,9 +103,13 @@ function SankeyNode({ node, status, metric, onClick, highlighted, dimmed, onMous
         height={node.h}
         rx="4"
         fill="var(--bg-surface)"
-        stroke={highlighted ? 'var(--accent)' : 'var(--border-primary)'}
-        stroke-width={highlighted ? '2' : '1'}
-      />
+        stroke={highlighted ? 'var(--accent)' : pulsing ? 'var(--accent)' : 'var(--border-primary)'}
+        stroke-width={highlighted ? '2' : pulsing ? '2' : '1'}
+      >
+        {pulsing && (
+          <animate attributeName="opacity" values="1;0.5;1" dur="0.6s" repeatCount="1" />
+        )}
+      </rect>
       {/* LED */}
       <circle cx="14" cy="14" r="4" fill={color}>
         {status === 'healthy' && (
@@ -239,6 +243,8 @@ export default function PipelineSankey({ moduleStatuses, cacheData }) {
   const [hoveredNode, setHoveredNode] = useState(null);
   const [traceTarget, setTraceTarget] = useState(null);
   const [transitioning, setTransitioning] = useState(false);
+  const prevTimestampsRef = useRef({});
+  const [pulsingNodes, setPulsingNodes] = useState(new Set());
 
   // Responsive width
   useEffect(() => {
@@ -287,6 +293,41 @@ export default function PipelineSankey({ moduleStatuses, cacheData }) {
     if (!traceSet) return false;
     return !traceSet.has(link.source) || !traceSet.has(link.target);
   }
+
+  // Detect cache timestamp changes and pulse affected nodes
+  useEffect(() => {
+    const categoryToNodes = {
+      capabilities: ['discovery', 'organic_discovery'],
+      activity_summary: ['activity_monitor'],
+      presence: ['presence'],
+      intelligence: ['intelligence'],
+      ml_pipeline: ['ml_engine'],
+      shadow_accuracy: ['shadow_engine'],
+      patterns: ['pattern_recognition'],
+      curation: ['data_quality'],
+      automations: ['orchestrator'],
+      activity_labels: ['activity_labeler'],
+    };
+
+    const newPulsing = new Set();
+    const currentTimestamps = {};
+
+    for (const [cat, nodeIds] of Object.entries(categoryToNodes)) {
+      const ts = cacheData?.[cat]?.timestamp || cacheData?.[cat]?.updated_at || null;
+      currentTimestamps[cat] = ts;
+      if (ts && prevTimestampsRef.current[cat] && ts !== prevTimestampsRef.current[cat]) {
+        for (const id of nodeIds) newPulsing.add(id);
+      }
+    }
+
+    prevTimestampsRef.current = currentTimestamps;
+
+    if (newPulsing.size > 0) {
+      setPulsingNodes(newPulsing);
+      const timer = setTimeout(() => setPulsingNodes(new Set()), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [cacheData]);
 
   const svgHeight = layout.svgHeight + (hoveredNode ? 66 : 0);
 
@@ -373,6 +414,7 @@ export default function PipelineSankey({ moduleStatuses, cacheData }) {
               onMouseLeave={() => setHoveredNode(null)}
               sparklineData={sparklineData}
               freshness={freshness}
+              pulsing={pulsingNodes.has(node.id) || (node.isGroup && node.childIds?.some(id => pulsingNodes.has(id)))}
             />
           );
         })}
