@@ -399,6 +399,29 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
             logger.exception("Error getting ML pipeline state")
             raise HTTPException(status_code=500, detail="Internal server error") from None
 
+    @router.get("/api/ml/hardware")
+    async def get_hardware_profile():
+        """Get hardware profile, recommended tier, and active fallbacks."""
+        try:
+            from aria.engine.hardware import recommend_tier, scan_hardware
+
+            profile = scan_hardware()
+            tier = recommend_tier(profile)
+            ml_module = hub.get_module("ml_engine")
+            return {
+                "ram_gb": profile.ram_gb,
+                "cpu_cores": profile.cpu_cores,
+                "gpu_available": profile.gpu_available,
+                "gpu_name": profile.gpu_name,
+                "recommended_tier": tier,
+                "current_tier": ml_module.current_tier if ml_module else tier,
+                "tier_override": "auto",
+                "active_fallbacks": (ml_module.fallback_tracker.to_dict() if ml_module else []),
+            }
+        except Exception:
+            logger.exception("Error getting hardware profile")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
+
 
 def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     """Register organic discovery and capability registry endpoints."""
