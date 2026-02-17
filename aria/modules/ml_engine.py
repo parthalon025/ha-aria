@@ -39,6 +39,8 @@ warnings.filterwarnings(
 from aria.capabilities import Capability, DemandSignal  # noqa: E402
 from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG as _ENGINE_FEATURE_CONFIG  # noqa: E402
 from aria.engine.features.vector_builder import build_feature_vector as _engine_build_feature_vector  # noqa: E402
+from aria.engine.hardware import recommend_tier, scan_hardware  # noqa: E402
+from aria.engine.models.registry import TieredModelRegistry  # noqa: E402
 from aria.engine.validation import validate_snapshot_batch  # noqa: E402
 from aria.hub.core import IntelligenceHub, Module  # noqa: E402
 
@@ -144,19 +146,22 @@ class MLEngine(Module):
             "climate": ["temperature", "humidity"],
         }
 
-        # Model configuration — which model types to train and their blend weights.
-        # Keys: "gb" (GradientBoosting), "rf" (RandomForest), "lgbm" (LightGBM)
-        # Weights are normalized at prediction time so they always sum to 1.0.
-        self.enabled_models: dict[str, bool] = {
-            "gb": True,
-            "rf": True,
-            "lgbm": True,
-        }
-        self.model_weights: dict[str, float] = {
-            "gb": 0.35,
-            "rf": 0.25,
-            "lgbm": 0.40,
-        }
+        # Hardware-aware tiered model registry (Phase 1)
+        self.registry = TieredModelRegistry.with_defaults()
+        hw_profile = scan_hardware()
+        self.current_tier = recommend_tier(hw_profile)
+        logger.info(
+            f"ML Engine tier: {self.current_tier} (hw: {hw_profile.ram_gb}GB RAM, {hw_profile.cpu_cores} cores)"
+        )
+
+        # Model configuration — derived from Tier 2 registry entries which match
+        # the current training pipeline (gb, rf, lgbm). Full registry-driven
+        # training will replace this when _fit_all_models is refactored.
+        _TRAINING_MODELS = {"gb", "rf", "lgbm"}
+        resolved = [e for e in self.registry.resolve("power_watts", self.current_tier) if e.name in _TRAINING_MODELS]
+        self.enabled_models: dict[str, bool] = {e.name: True for e in resolved}
+        total_w = sum(e.weight for e in resolved)
+        self.model_weights: dict[str, float] = {e.name: e.weight / total_w for e in resolved} if total_w else {}
 
         # Loaded models cache
         self.models: dict[str, dict[str, Any]] = {}

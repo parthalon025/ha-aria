@@ -1773,5 +1773,44 @@ class TestSchedulePeriodicTraining:
         assert call_kwargs["run_immediately"] is True
 
 
+class TestRegistryDrivenTraining:
+    @pytest.fixture
+    def ml_engine_with_registry(self, mock_hub, tmp_path):
+        models_dir = tmp_path / "models"
+        training_dir = tmp_path / "training_data"
+        models_dir.mkdir()
+        training_dir.mkdir()
+        engine = MLEngine(mock_hub, str(models_dir), str(training_dir))
+        return engine
+
+    def test_engine_has_registry(self, ml_engine_with_registry):
+        assert hasattr(ml_engine_with_registry, "registry")
+        assert ml_engine_with_registry.registry is not None
+
+    def test_engine_has_current_tier(self, ml_engine_with_registry):
+        assert hasattr(ml_engine_with_registry, "current_tier")
+        assert ml_engine_with_registry.current_tier in (1, 2, 3, 4)
+
+    def test_fit_uses_registry_entries(self, ml_engine_with_registry):
+        """Models resolved should correspond to registry entries for current tier."""
+        engine = ml_engine_with_registry
+        resolved = engine.registry.resolve("power_watts", engine.current_tier)
+        resolved_names = {e.name for e in resolved}
+        # At minimum, Tier 2 defaults should be present
+        assert len(resolved_names) >= 1
+
+    def test_enabled_models_derived_from_registry(self, ml_engine_with_registry):
+        """enabled_models dict should contain the training-pipeline models from the registry."""
+        engine = ml_engine_with_registry
+        # The training pipeline supports gb, rf, lgbm — these should be enabled
+        for name in ("gb", "rf", "lgbm"):
+            assert engine.enabled_models.get(name, False), f"{name} not in enabled_models"
+
+    def test_model_weights_from_registry(self, ml_engine_with_registry):
+        """model_weights should be populated from registry normalized weights."""
+        engine = ml_engine_with_registry
+        assert abs(sum(engine.model_weights.values()) - 1.0) < 0.01
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
