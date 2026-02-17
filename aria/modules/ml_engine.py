@@ -1061,7 +1061,7 @@ class MLEngine(Module):
             return {}
 
         # Detect anomalies if model exists
-        is_anomaly, anomaly_score = self._run_anomaly_detection(X)
+        is_anomaly, anomaly_score, anomaly_explanations = self._run_anomaly_detection(X, feature_names)
 
         # Generate predictions for each target
         predictions_dict = self._predict_all_targets(X, is_anomaly)
@@ -1072,6 +1072,7 @@ class MLEngine(Module):
             "predictions": predictions_dict,
             "anomaly_detected": is_anomaly,
             "anomaly_score": round(anomaly_score, 3) if anomaly_score is not None else None,
+            "anomaly_explanations": anomaly_explanations,
             "feature_count": len(feature_names),
             "model_count": len([k for k in self.models if k != "anomaly_detector"]),
         }
@@ -1117,23 +1118,41 @@ class MLEngine(Module):
         feature_vector = [features.get(name, 0) for name in feature_names]
         return np.array([feature_vector], dtype=float), feature_names
 
-    def _run_anomaly_detection(self, X: np.ndarray) -> tuple[bool, float | None]:
+    def _run_anomaly_detection(
+        self, X: np.ndarray, feature_names: list[str] | None = None
+    ) -> tuple[bool, float | None, list[dict]]:
         """Run anomaly detection on feature vector.
 
         Returns:
-            (is_anomaly, anomaly_score) tuple.
+            (is_anomaly, anomaly_score, explanations) tuple.
+            explanations is a list of top-3 feature contributions when
+            anomaly is detected, empty list otherwise.
         """
         if "anomaly_detector" not in self.models:
-            return False, None
+            return False, None, []
         try:
             anomaly_model = self.models["anomaly_detector"]["model"]
             score = float(anomaly_model.decision_function(X)[0])
             is_anomaly = bool(anomaly_model.predict(X)[0] == -1)
             self.logger.info(f"Anomaly detection: score={score:.3f}, is_anomaly={is_anomaly}")
-            return is_anomaly, score
+
+            explanations: list[dict] = []
+            if is_anomaly and feature_names:
+                from aria.engine.anomaly_explainer import AnomalyExplainer
+
+                explainer = AnomalyExplainer()
+                explanations = explainer.explain(anomaly_model, X, feature_names, top_n=3)
+                self.logger.info(f"Anomaly explanations: {', '.join(e['feature'] for e in explanations)}")
+
+                # Forward to pattern recognition module if available
+                pattern_mod = getattr(self.hub, "modules", {}).get("pattern_recognition")
+                if pattern_mod is not None:
+                    pattern_mod.store_anomaly_explanations(explanations)
+
+            return is_anomaly, score, explanations
         except Exception as e:
             self.logger.error(f"Anomaly detection failed: {e}")
-            return False, None
+            return False, None, []
 
     def _predict_all_targets(self, X: np.ndarray, is_anomaly: bool) -> dict[str, Any]:
         """Generate blended predictions for all trained targets.

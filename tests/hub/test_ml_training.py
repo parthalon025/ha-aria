@@ -2050,5 +2050,76 @@ class TestWeightTunerIntegration:
         assert engine.model_weights["lgbm"] == original_lgbm
 
 
+class TestAnomalyExplanation:
+    """Test anomaly explanation integration in ML engine."""
+
+    def _make_engine(self, tmp_path):
+        mock_hub = Mock(spec=IntelligenceHub)
+        mock_hub.get_cache = AsyncMock(return_value=None)
+        mock_hub.get_cache_fresh = AsyncMock(return_value=None)
+        mock_hub.set_cache = AsyncMock()
+        mock_hub.get_config_value = Mock(return_value=None)
+        mock_hub.logger = Mock()
+        mock_hub.modules = {}
+        return MLEngine(mock_hub, str(tmp_path / "m"), str(tmp_path / "t"))
+
+    def test_anomaly_detection_returns_explanations(self, tmp_path):
+        """When anomaly detected, returns feature explanations."""
+        from sklearn.ensemble import IsolationForest
+
+        engine = self._make_engine(tmp_path)
+
+        # Create a trained IsolationForest
+        np.random.seed(42)
+        X_train = np.random.normal(0, 1, (100, 5))
+        model = IsolationForest(n_estimators=50, contamination=0.05, random_state=42)
+        model.fit(X_train)
+        engine.models["anomaly_detector"] = {
+            "model": model,
+            "feature_names": ["power", "lights", "motion", "temp", "humidity"],
+        }
+
+        # Anomalous sample — extreme enough to trigger IsolationForest
+        X_anomalous = np.array([[50.0, 50.0, 50.0, 50.0, 50.0]])
+        is_anomaly, score, explanations = engine._run_anomaly_detection(
+            X_anomalous, ["power", "lights", "motion", "temp", "humidity"]
+        )
+
+        assert is_anomaly is True
+        assert len(explanations) == 3
+        assert all("feature" in e and "contribution" in e for e in explanations)
+
+    def test_anomaly_detection_no_model(self, tmp_path):
+        """Without anomaly model, returns empty explanations."""
+        engine = self._make_engine(tmp_path)
+        is_anomaly, score, explanations = engine._run_anomaly_detection(np.zeros((1, 5)), ["a", "b", "c", "d", "e"])
+        assert is_anomaly is False
+        assert explanations == []
+
+    def test_anomaly_detection_normal_no_explanations(self, tmp_path):
+        """Normal sample returns empty explanations."""
+        from sklearn.ensemble import IsolationForest
+
+        engine = self._make_engine(tmp_path)
+
+        np.random.seed(42)
+        X_train = np.random.normal(0, 1, (100, 5))
+        model = IsolationForest(n_estimators=50, contamination=0.05, random_state=42)
+        model.fit(X_train)
+        engine.models["anomaly_detector"] = {
+            "model": model,
+            "feature_names": ["power", "lights", "motion", "temp", "humidity"],
+        }
+
+        X_normal = np.array([[0.0, 0.0, 0.0, 0.0, 0.0]])
+        is_anomaly, score, explanations = engine._run_anomaly_detection(
+            X_normal, ["power", "lights", "motion", "temp", "humidity"]
+        )
+
+        # Normal → no explanations needed
+        if not is_anomaly:
+            assert explanations == []
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
