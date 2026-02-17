@@ -1830,5 +1830,225 @@ class TestRegistryDrivenTraining:
         assert abs(sum(engine.model_weights.values()) - 1.0) < 0.01
 
 
+class TestOnlineBlending:
+    """Test blending online (River) predictions into the ML engine ensemble."""
+
+    @pytest.fixture
+    def ml_engine_with_online(self, mock_hub, tmp_path):
+        """Create ML engine instance for blending tests."""
+        models_dir = tmp_path / "models"
+        training_dir = tmp_path / "training_data"
+        models_dir.mkdir()
+        training_dir.mkdir()
+        engine = MLEngine(mock_hub, str(models_dir), str(training_dir))
+        return engine
+
+    def test_engine_has_online_blend_weight(self, ml_engine_with_online):
+        """MLEngine should have an online_blend_weight attribute."""
+        assert hasattr(ml_engine_with_online, "online_blend_weight")
+        assert ml_engine_with_online.online_blend_weight == 0.3
+
+    def test_blend_without_online_uses_batch_only(self, ml_engine_with_online):
+        """When no online prediction available, batch weight = 1.0."""
+        engine = ml_engine_with_online
+        batch_pred = 500.0
+        online_pred = None
+        blended = engine._blend_batch_online(batch_pred, online_pred)
+        assert blended == batch_pred
+
+    def test_blend_with_online_applies_weight(self, ml_engine_with_online):
+        """When online prediction available, blend at configured ratio."""
+        engine = ml_engine_with_online
+        engine.online_blend_weight = 0.3
+        batch_pred = 500.0
+        online_pred = 520.0
+        blended = engine._blend_batch_online(batch_pred, online_pred)
+        expected = 0.7 * 500.0 + 0.3 * 520.0
+        assert blended == pytest.approx(expected, abs=0.01)
+
+    def test_blend_weight_zero_ignores_online(self, ml_engine_with_online):
+        """When online_blend_weight is 0, online prediction is ignored."""
+        engine = ml_engine_with_online
+        engine.online_blend_weight = 0.0
+        blended = engine._blend_batch_online(500.0, 520.0)
+        assert blended == 500.0
+
+    def test_blend_weight_one_uses_online_only(self, ml_engine_with_online):
+        """When online_blend_weight is 1.0, only online prediction is used."""
+        engine = ml_engine_with_online
+        engine.online_blend_weight = 1.0
+        blended = engine._blend_batch_online(500.0, 520.0)
+        assert blended == 520.0
+
+    def test_predict_single_target_includes_online_keys(self, ml_engine_with_online, mock_hub):
+        """pred_entry includes online_prediction and online_blend_weight when online is active."""
+        engine = ml_engine_with_online
+
+        # Set up a mock online learner that returns a prediction
+        mock_online_learner = Mock()
+        mock_online_learner.get_prediction.return_value = 510.0
+        mock_hub.modules = {"online_learner": mock_online_learner}
+
+        # Create minimal model_data with a trained scaler and model
+        from sklearn.preprocessing import StandardScaler
+
+        scaler = StandardScaler()
+        X_train = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        scaler.fit(X_train)
+
+        mock_model = Mock()
+        mock_model.predict.return_value = np.array([500.0])
+
+        model_data = {
+            "scaler": scaler,
+            "gb_model": mock_model,
+            "feature_names": ["f1", "f2", "f3"],
+        }
+
+        X = np.array([[2.0, 3.0, 4.0]])
+        entry = engine._predict_single_target("power_watts", model_data, X, False)
+
+        assert entry is not None
+        assert "online_prediction" in entry
+        assert entry["online_prediction"] == 510.0
+        assert "online_blend_weight" in entry
+        assert entry["online_blend_weight"] == 0.3
+
+    def test_predict_single_target_no_online_module(self, ml_engine_with_online, mock_hub):
+        """When no online_learner module registered, pred_entry omits online keys."""
+        engine = ml_engine_with_online
+
+        # Hub has no online_learner module registered
+        mock_hub.modules = {}
+
+        from sklearn.preprocessing import StandardScaler
+
+        scaler = StandardScaler()
+        X_train = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        scaler.fit(X_train)
+
+        mock_model = Mock()
+        mock_model.predict.return_value = np.array([500.0])
+
+        model_data = {
+            "scaler": scaler,
+            "gb_model": mock_model,
+            "feature_names": ["f1", "f2", "f3"],
+        }
+
+        X = np.array([[2.0, 3.0, 4.0]])
+        entry = engine._predict_single_target("power_watts", model_data, X, False)
+
+        assert entry is not None
+        assert "online_prediction" not in entry
+        assert "online_blend_weight" not in entry
+
+    def test_predict_single_target_online_returns_none(self, ml_engine_with_online, mock_hub):
+        """When online learner returns None, blended value uses batch only."""
+        engine = ml_engine_with_online
+
+        mock_online_learner = Mock()
+        mock_online_learner.get_prediction.return_value = None
+        mock_hub.modules = {"online_learner": mock_online_learner}
+
+        from sklearn.preprocessing import StandardScaler
+
+        scaler = StandardScaler()
+        X_train = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        scaler.fit(X_train)
+
+        mock_model = Mock()
+        mock_model.predict.return_value = np.array([500.0])
+
+        model_data = {
+            "scaler": scaler,
+            "gb_model": mock_model,
+            "feature_names": ["f1", "f2", "f3"],
+        }
+
+        X = np.array([[2.0, 3.0, 4.0]])
+        entry = engine._predict_single_target("power_watts", model_data, X, False)
+
+        assert entry is not None
+        # With online returning None, blended_pred should be batch-only (500.0)
+        assert entry["value"] == 500.0
+        assert "online_prediction" not in entry
+
+
+class TestWeightTunerIntegration:
+    """Test EnsembleWeightTuner wired into MLEngine."""
+
+    def test_engine_has_weight_tuner(self, ml_engine):
+        """MLEngine should have a weight_tuner attribute."""
+        assert hasattr(ml_engine, "weight_tuner")
+        from aria.engine.weight_tuner import EnsembleWeightTuner
+
+        assert isinstance(ml_engine.weight_tuner, EnsembleWeightTuner)
+
+    @pytest.mark.asyncio
+    async def test_apply_auto_weights_updates_model_weights(self, mock_hub, tmp_path):
+        """_apply_auto_weights should update model_weights from tuner."""
+        models_dir = tmp_path / "models"
+        training_data_dir = tmp_path / "training_data"
+        models_dir.mkdir()
+        training_data_dir.mkdir()
+
+        engine = MLEngine(mock_hub, str(models_dir), str(training_data_dir))
+
+        # Record some data in tuner
+        for _ in range(5):
+            engine.weight_tuner.record("gb", prediction=100.0, actual=102.0)  # MAE 2
+            engine.weight_tuner.record("rf", prediction=100.0, actual=110.0)  # MAE 10
+            engine.weight_tuner.record("lgbm", prediction=100.0, actual=103.0)  # MAE 3
+
+        await engine._apply_auto_weights()
+
+        # GB should have gotten a higher weight (lower MAE)
+        assert engine.model_weights["gb"] > engine.model_weights["rf"]
+        mock_hub.set_cache.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_apply_auto_weights_no_records(self, mock_hub, tmp_path):
+        """_apply_auto_weights with no tuner records should be a no-op."""
+        models_dir = tmp_path / "models"
+        training_data_dir = tmp_path / "training_data"
+        models_dir.mkdir()
+        training_data_dir.mkdir()
+
+        engine = MLEngine(mock_hub, str(models_dir), str(training_data_dir))
+        original_weights = dict(engine.model_weights)
+
+        await engine._apply_auto_weights()
+
+        # Weights should be unchanged
+        assert engine.model_weights == original_weights
+        mock_hub.set_cache.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_apply_auto_weights_partial_models(self, mock_hub, tmp_path):
+        """_apply_auto_weights only updates models present in both tuner and engine."""
+        models_dir = tmp_path / "models"
+        training_data_dir = tmp_path / "training_data"
+        models_dir.mkdir()
+        training_data_dir.mkdir()
+
+        engine = MLEngine(mock_hub, str(models_dir), str(training_data_dir))
+
+        # Only record for gb — rf and lgbm should keep original weights
+        for _ in range(5):
+            engine.weight_tuner.record("gb", prediction=100.0, actual=102.0)
+
+        original_rf = engine.model_weights["rf"]
+        original_lgbm = engine.model_weights["lgbm"]
+
+        await engine._apply_auto_weights()
+
+        # gb should be updated (tuner only has gb, so gb gets weight 1.0)
+        assert engine.model_weights["gb"] == pytest.approx(1.0, abs=0.01)
+        # rf and lgbm are not in tuner output, so they keep original values
+        assert engine.model_weights["rf"] == original_rf
+        assert engine.model_weights["lgbm"] == original_lgbm
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
