@@ -918,7 +918,7 @@ def _register_pipeline_routes(router: APIRouter, hub: IntelligenceHub) -> None:
             if pipeline.get("current_stage") == "backtest" and pipeline.get("backtest_accuracy") is None:
                 try:
                     bridge_stats = await hub.cache.get_accuracy_stats()
-                    shadow_acc = bridge_stats.get("overall_accuracy", 0) / 100.0
+                    shadow_acc = bridge_stats.get("overall_accuracy", 0)
                     if shadow_acc > 0:
                         await hub.cache.update_pipeline_state(backtest_accuracy=round(shadow_acc, 4))
                         pipeline["backtest_accuracy"] = round(shadow_acc, 4)
@@ -1030,7 +1030,7 @@ def _compute_stage_health(stats: dict) -> dict:
         stage_health["coverage"] = round(coverage, 3)
 
         # Confidence calibration: compare mean confidence vs actual accuracy
-        overall_acc = stats.get("overall_accuracy", 0) / 100.0  # normalize to 0-1
+        overall_acc = stats.get("overall_accuracy", 0)  # already 0-1 from cache
         # Calibration error = |mean_confidence - actual_accuracy|
         # Perfect calibration: predictions with 0.7 confidence are right 70% of the time
         mean_conf = stats.get("mean_confidence", overall_acc)

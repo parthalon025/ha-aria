@@ -384,3 +384,60 @@ class TestPipelineRetreat:
 
         response = api_client.post("/api/pipeline/retreat")
         assert response.status_code == 400
+
+
+# ============================================================================
+# Accuracy scale — overall_accuracy is 0-1, not /100
+# ============================================================================
+
+
+class TestAccuracyScale:
+    """Verify overall_accuracy is used as 0-1, not divided by 100."""
+
+    def test_pipeline_bridge_uses_raw_accuracy(self, api_hub, api_client):
+        """Shadow accuracy of 0.75 should bridge as 0.75, not 0.0075."""
+        pipeline_state = {
+            "current_stage": "backtest",
+            "stage_entered_at": "2026-02-10T00:00:00",
+            "backtest_accuracy": None,
+            "shadow_accuracy_7d": None,
+            "suggest_approval_rate_14d": None,
+            "autonomous_contexts": None,
+            "updated_at": "2026-02-12T10:00:00",
+        }
+        accuracy_stats = {
+            "overall_accuracy": 0.75,
+            "total_resolved": 100,
+            "per_outcome": {"correct": 75, "incorrect": 25},
+            "mean_confidence": 0.70,
+        }
+        api_hub.cache.get_pipeline_state = AsyncMock(return_value=pipeline_state)
+        api_hub.cache.get_accuracy_stats = AsyncMock(return_value=accuracy_stats)
+        api_hub.cache.update_pipeline_state = AsyncMock()
+
+        response = api_client.get("/api/pipeline")
+        assert response.status_code == 200
+
+        # Verify the bridged value is 0.75, NOT 0.0075
+        api_hub.cache.update_pipeline_state.assert_called_once()
+        call_kwargs = api_hub.cache.update_pipeline_state.call_args[1]
+        assert call_kwargs["backtest_accuracy"] == 0.75
+
+    def test_stage_health_confidence_calibration_uses_raw_accuracy(self):
+        """Calibration error should use raw 0-1 accuracy, not /100."""
+        from aria.hub.api import _compute_stage_health
+
+        accuracy_stats = {
+            "overall_accuracy": 0.75,
+            "total_resolved": 100,
+            "total_attempted": 100,
+            "per_outcome": {"correct": 75, "incorrect": 25},
+            "mean_confidence": 0.70,
+            "per_type": {},
+            "daily_trend": [],
+        }
+
+        stage_health = _compute_stage_health(accuracy_stats)
+        # Calibration: |0.70 - 0.75| = 0.05, so confidence_calibration = 0.95
+        # With /100 bug: |0.70 - 0.0075| = 0.6925, calibration = 0.308
+        assert stage_health.get("confidence_calibration", 0) > 0.9
