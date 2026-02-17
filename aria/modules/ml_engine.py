@@ -1092,8 +1092,7 @@ class MLEngine(Module):
         await self.hub.set_cache(
             "ml_predictions",
             result,
-            category="predictions",
-            ttl_seconds=86400,
+            {"source": "ml_engine", "ttl_seconds": 86400},
         )
 
         self.logger.info(f"Generated {len(predictions_dict)} predictions (anomaly_detected={is_anomaly})")

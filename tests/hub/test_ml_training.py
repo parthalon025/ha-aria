@@ -2158,5 +2158,44 @@ class TestTrajectoryFeature:
         assert engine._encode_trajectory("unknown") == 0  # Default
 
 
+class TestSetCachePredictions:
+    """Verify ML engine stores predictions via set_cache without TypeError."""
+
+    @pytest.mark.asyncio
+    async def test_generate_predictions_calls_set_cache_correctly(self):
+        """set_cache should be called with (category, data, metadata_dict)."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        hub = MagicMock()
+        hub.set_cache = AsyncMock()
+        hub.get_cache = AsyncMock(return_value=None)
+        hub.get_config_value = AsyncMock(return_value=None)
+
+        from aria.modules.ml_engine import MLEngine
+
+        engine = MLEngine.__new__(MLEngine)
+        engine.hub = hub
+        engine.models = {"power_watts": MagicMock()}  # Non-empty so we don't short-circuit
+        engine.logger = MagicMock()
+        engine.weight_tuner = MagicMock()
+        engine.weight_tuner.to_dict.return_value = {}
+        engine.online_blend_weight = 0.0
+
+        # Return a valid feature vector so we reach set_cache
+        engine._build_prediction_feature_vector = AsyncMock(
+            return_value=(np.array([[1.0, 2.0, 3.0]]), ["f1", "f2", "f3"])
+        )
+        engine._run_anomaly_detection = MagicMock(return_value=(False, 0.1, []))
+        engine._predict_all_targets = MagicMock(return_value={"power_watts": {"value": 100}})
+
+        await engine.generate_predictions()
+
+        assert hub.set_cache.called, "set_cache was never called"
+        args, kwargs = hub.set_cache.call_args
+        assert isinstance(args[0], str)
+        assert isinstance(args[1], dict)
+        assert "category" not in kwargs, f"'category' passed as kwarg conflicts with positional arg: {kwargs}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
