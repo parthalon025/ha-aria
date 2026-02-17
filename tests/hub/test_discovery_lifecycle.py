@@ -585,3 +585,26 @@ class TestArchiveScheduling:
 
         task_ids = [call.kwargs.get("task_id", "") for call in mock_hub.schedule_task.call_args_list]
         assert "discovery_archive_check" in task_ids
+
+
+# ============================================================================
+# Discovery Events
+# ============================================================================
+
+
+class TestDiscoveryEvents:
+    """Discovery should publish events for consumers."""
+
+    @pytest.mark.asyncio
+    async def test_publishes_discovery_complete(self, module, mock_hub):
+        """_store_discovery_results should publish discovery_complete event."""
+        results = {
+            "entities": {"light.x": {"area_id": "room"}},
+            "devices": {},
+            "areas": {},
+            "capabilities": {},
+        }
+        await module._store_discovery_results(results)
+
+        event_types = [c[0][0] for c in mock_hub.publish.call_args_list]
+        assert "discovery_complete" in event_types

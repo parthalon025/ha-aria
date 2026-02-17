@@ -274,6 +274,9 @@ class DiscoveryModule(Module):
         }
         await self.hub.set_cache("discovery_metadata", metadata)
 
+        # Notify consumers (e.g., PresenceModule refreshes camera mapping)
+        await self.hub.publish("discovery_complete", metadata)
+
     async def on_event(self, event_type: str, data: dict[str, Any]):
         """Handle hub events."""
         pass
