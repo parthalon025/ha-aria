@@ -174,6 +174,9 @@ class MLEngine(Module):
             total_w = sum(e.weight for e in resolved)
             self.model_weights = {e.name: e.weight / total_w for e in resolved} if total_w else {}
 
+        # Online prediction blend weight (Phase 2)
+        self.online_blend_weight = 0.3
+
         # Loaded models cache
         self.models: dict[str, dict[str, Any]] = {}
 
@@ -1168,8 +1171,12 @@ class MLEngine(Module):
 
         confidence = self._compute_prediction_confidence(individual_preds)
 
+        # Blend batch and online predictions (Phase 2)
+        online_pred = self._get_online_prediction(target, model_data, X)
+        final_pred = self._blend_batch_online(blended_pred, online_pred)
+
         pred_entry: dict[str, Any] = {
-            "value": round(blended_pred, 2),
+            "value": round(final_pred, 2),
             "confidence": round(confidence, 3),
             "is_anomaly": is_anomaly,
             "blend_weights": {k: round(v, 3) for k, v in normalized_weights.items()},
@@ -1178,9 +1185,54 @@ class MLEngine(Module):
             if model_key in individual_preds:
                 pred_entry[f"{model_key}_prediction"] = round(individual_preds[model_key], 2)
 
+        # Include online prediction metadata when available
+        if online_pred is not None:
+            pred_entry["online_prediction"] = round(online_pred, 2)
+            pred_entry["online_blend_weight"] = self.online_blend_weight
+
         model_details = ", ".join(f"{k.upper()}={v:.2f}" for k, v in individual_preds.items())
-        self.logger.debug(f"Prediction for {target}: {blended_pred:.2f} ({model_details}, conf={confidence:.3f})")
+        online_detail = f", ONLINE={online_pred:.2f}" if online_pred is not None else ""
+        self.logger.debug(
+            f"Prediction for {target}: {final_pred:.2f} ({model_details}{online_detail}, conf={confidence:.3f})"
+        )
         return pred_entry
+
+    def _get_online_prediction(self, target: str, model_data: dict, X: np.ndarray) -> float | None:
+        """Look up online learner prediction for a target.
+
+        Reconstructs a features dict from the numpy array and model_data's
+        feature_names, then queries the online learner module.
+
+        Returns:
+            Online prediction float, or None if unavailable.
+        """
+        # Access modules dict directly (sync) — hub.get_module() is async
+        # but only does a dict lookup, and we're in a sync call chain.
+        online_learner = getattr(self.hub, "modules", {}).get("online_learner")
+        if online_learner is None:
+            return None
+
+        feature_names = model_data.get("feature_names", [])
+        if feature_names and X.shape[1] == len(feature_names):
+            features_dict = {name: float(X[0, i]) for i, name in enumerate(feature_names)}
+        else:
+            features_dict = {}
+
+        try:
+            return online_learner.get_prediction(target, features_dict)
+        except Exception as e:
+            self.logger.debug(f"Online prediction failed for {target}: {e}")
+            return None
+
+    def _blend_batch_online(self, batch_pred: float, online_pred: float | None) -> float:
+        """Blend batch and online predictions.
+
+        Falls back to batch-only if online prediction is None or weight is zero.
+        """
+        if online_pred is None or self.online_blend_weight <= 0:
+            return batch_pred
+        batch_weight = 1.0 - self.online_blend_weight
+        return batch_weight * batch_pred + self.online_blend_weight * online_pred
 
     @staticmethod
     def _compute_prediction_confidence(individual_preds: dict[str, float]) -> float:
