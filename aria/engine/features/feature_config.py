@@ -56,6 +56,9 @@ DEFAULT_FEATURE_CONFIG = {
         "presence_identified_persons": True,
         "presence_camera_signals": True,
     },
+    "pattern_features": {
+        "trajectory_class": True,
+    },
     "target_metrics": [
         "power_watts",
         "lights_on",
@@ -73,6 +76,7 @@ _REQUIRED_SECTIONS = {
     "lag_features",
     "interaction_features",
     "presence_features",
+    "pattern_features",
     "target_metrics",
 }
 

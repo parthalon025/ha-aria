@@ -2121,5 +2121,42 @@ class TestAnomalyExplanation:
             assert explanations == []
 
 
+class TestTrajectoryFeature:
+    """Test trajectory_class feature integration."""
+
+    def _make_engine(self, tmp_path):
+        mock_hub = Mock(spec=IntelligenceHub)
+        mock_hub.get_cache = AsyncMock(return_value=None)
+        mock_hub.get_cache_fresh = AsyncMock(return_value=None)
+        mock_hub.set_cache = AsyncMock()
+        mock_hub.get_config_value = Mock(return_value=None)
+        mock_hub.logger = Mock()
+        mock_hub.modules = {}
+        return MLEngine(mock_hub, str(tmp_path / "m"), str(tmp_path / "t"))
+
+    async def test_feature_config_includes_pattern_features(self, tmp_path):
+        """Feature config includes pattern_features section."""
+        engine = self._make_engine(tmp_path)
+        config = await engine._get_feature_config()
+        assert "pattern_features" in config
+        assert config["pattern_features"]["trajectory_class"] is True
+
+    async def test_feature_names_include_trajectory(self, tmp_path):
+        """Feature names list includes trajectory_class when enabled."""
+        engine = self._make_engine(tmp_path)
+        config = await engine._get_feature_config()
+        feature_names = await engine._get_feature_names(config)
+        assert "trajectory_class" in feature_names
+
+    def test_encode_trajectory_all_classes(self, tmp_path):
+        """All trajectory classes encode to distinct integers."""
+        engine = self._make_engine(tmp_path)
+        assert engine._encode_trajectory("stable") == 0
+        assert engine._encode_trajectory("ramping_up") == 1
+        assert engine._encode_trajectory("winding_down") == 2
+        assert engine._encode_trajectory("anomalous_transition") == 3
+        assert engine._encode_trajectory("unknown") == 0  # Default
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -708,6 +708,10 @@ class MLEngine(Module):
                 ]
             )
 
+        # Pattern features (Phase 3)
+        if config.get("pattern_features", {}).get("trajectory_class", False):
+            names.append("trajectory_class")
+
         return names
 
     @staticmethod
@@ -1011,6 +1015,14 @@ class MLEngine(Module):
             features[f"rolling_{hours}h_dominant_domain_pct"] = rws.get(f"rolling_{hours}h_dominant_domain_pct", 0)
             features[f"rolling_{hours}h_trend"] = rws.get(f"rolling_{hours}h_trend", 0)
 
+        # Pattern features (Phase 3)
+        if config.get("pattern_features", {}).get("trajectory_class", False):
+            trajectory_cache = await self.hub.get_cache("pattern_trajectory")
+            trajectory = "stable"
+            if trajectory_cache and "data" in trajectory_cache:
+                trajectory = trajectory_cache["data"].get("trajectory", "stable")
+            features["trajectory_class"] = self._encode_trajectory(trajectory)
+
         return features
 
     def _extract_target(self, snapshot: dict[str, Any], target: str) -> float | None:
@@ -1117,6 +1129,18 @@ class MLEngine(Module):
         feature_names = await self._get_feature_names(config)
         feature_vector = [features.get(name, 0) for name in feature_names]
         return np.array([feature_vector], dtype=float), feature_names
+
+    # Trajectory class encoding (Phase 3)
+    _TRAJECTORY_ENCODING = {
+        "stable": 0,
+        "ramping_up": 1,
+        "winding_down": 2,
+        "anomalous_transition": 3,
+    }
+
+    def _encode_trajectory(self, trajectory: str) -> int:
+        """Encode trajectory class string to integer."""
+        return self._TRAJECTORY_ENCODING.get(trajectory, 0)
 
     def _run_anomaly_detection(
         self, X: np.ndarray, feature_names: list[str] | None = None
