@@ -2002,3 +2002,145 @@ class TestCapabilityFeedback:
         caps = await hub.get_cache("capabilities")
         assert "shadow_accuracy" in caps["data"]["media"]
         assert caps["data"]["media"]["shadow_accuracy"]["hit_rate"] == 1.0
+
+
+# ============================================================================
+# Shadow Resolved Event Emission (Phase 2 Online Learning)
+# ============================================================================
+
+
+class TestShadowResolvedEvents:
+    """Tests for shadow_resolved event emission during prediction resolution."""
+
+    @pytest.fixture
+    def hub(self):
+        h = MockHub()
+        h.publish = AsyncMock()
+        return h
+
+    @pytest.fixture
+    def engine(self, hub):
+        return ShadowEngine(hub)
+
+    def _make_pending_prediction(self, pred_id="pred-sr-1", outcome_events=None):
+        """Create a pending prediction with time_features in context."""
+        return {
+            "id": pred_id,
+            "context": {
+                "time_features": {
+                    "hour_sin": 0.5,
+                    "hour_cos": 0.866,
+                    "dow_sin": 0.0,
+                    "dow_cos": 1.0,
+                },
+                "timestamp": "2026-02-17T10:00:00",
+                "presence": {"home": True, "rooms": []},
+                "recent_events": [],
+                "current_states": {},
+            },
+            "predictions": [
+                {
+                    "type": "domain_event",
+                    "predicted": "light",
+                    "expected_domains": ["light"],
+                }
+            ],
+            "confidence": 0.8,
+            "is_exploration": False,
+        }
+
+    @pytest.mark.asyncio
+    async def test_resolution_publishes_shadow_resolved(self, engine, hub):
+        """Resolving a prediction should publish a shadow_resolved event with features."""
+        pending = [self._make_pending_prediction()]
+        hub.cache.get_pending_predictions = AsyncMock(return_value=pending)
+        engine._window_events["pred-sr-1"] = [
+            {"domain": "light", "entity_id": "light.kitchen", "to": "on"},
+        ]
+
+        await engine._resolve_expired_predictions()
+
+        # Should have published at least the generic shadow_resolved event
+        assert hub.publish.call_count >= 1
+        first_call = hub.publish.call_args_list[0]
+        assert first_call[0][0] == "shadow_resolved"
+        event_data = first_call[0][1]
+        assert event_data["prediction_id"] == "pred-sr-1"
+        assert "features" in event_data
+        assert event_data["features"]["hour_sin"] == 0.5
+        assert event_data["outcome"] in ("correct", "disagreement", "nothing")
+
+    @pytest.mark.asyncio
+    async def test_resolution_skips_publish_without_time_features(self, engine, hub):
+        """Should not publish shadow_resolved if context has no time_features."""
+        pred = self._make_pending_prediction()
+        pred["context"]["time_features"] = {}
+        hub.cache.get_pending_predictions = AsyncMock(return_value=[pred])
+        engine._window_events["pred-sr-1"] = []
+
+        await engine._resolve_expired_predictions()
+
+        hub.publish.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_per_target_events_from_intraday(self, engine, hub):
+        """Should emit per-target shadow_resolved events from intraday trend data."""
+        features = {"hour_sin": 0.5, "hour_cos": 0.866, "dow_sin": 0.0, "dow_cos": 1.0}
+
+        # Set up intelligence cache with intraday trend
+        await hub.set_cache(
+            "intelligence",
+            {
+                "intraday_trend": [
+                    {"hour": 10, "power_watts": 520.0, "lights_on": 3, "devices_home": 5},
+                ],
+                "trend_data": [],
+            },
+        )
+
+        await engine._emit_per_target_resolved(features, "correct")
+
+        # Should publish one event per available target metric
+        assert hub.publish.call_count == 3  # power_watts, lights_on, devices_home
+        targets_published = {call[0][1]["target"] for call in hub.publish.call_args_list}
+        assert targets_published == {"power_watts", "lights_on", "devices_home"}
+
+        # Verify event format matches OnlineLearnerModule expectations
+        for call in hub.publish.call_args_list:
+            event_type, data = call[0]
+            assert event_type == "shadow_resolved"
+            assert "target" in data
+            assert "features" in data
+            assert "actual_value" in data
+            assert isinstance(data["actual_value"], float)
+            assert data["outcome"] == "correct"
+
+    @pytest.mark.asyncio
+    async def test_per_target_events_fallback_to_daily_trend(self, engine, hub):
+        """Should fall back to daily trend when no intraday data exists."""
+        features = {"hour_sin": 0.0, "hour_cos": 1.0, "dow_sin": 0.0, "dow_cos": 1.0}
+
+        await hub.set_cache(
+            "intelligence",
+            {
+                "intraday_trend": [],
+                "trend_data": [
+                    {"date": "2026-02-17", "power_watts": 400.0, "unavailable": 2},
+                ],
+            },
+        )
+
+        await engine._emit_per_target_resolved(features, "disagreement")
+
+        assert hub.publish.call_count == 2  # power_watts, unavailable
+        targets = {call[0][1]["target"] for call in hub.publish.call_args_list}
+        assert targets == {"power_watts", "unavailable"}
+
+    @pytest.mark.asyncio
+    async def test_per_target_events_no_intelligence_cache(self, engine, hub):
+        """Should silently skip when intelligence cache is empty."""
+        features = {"hour_sin": 0.5, "hour_cos": 0.866, "dow_sin": 0.0, "dow_cos": 1.0}
+
+        await engine._emit_per_target_resolved(features, "correct")
+
+        hub.publish.assert_not_called()

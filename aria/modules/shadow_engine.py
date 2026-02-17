@@ -960,11 +960,70 @@ class ShadowEngine(Module):
                 )
 
                 self.logger.debug(f"Resolved {pred_id[:8]}: {outcome} ({len(actual_events)} events in window)")
+
+                # Publish shadow_resolved for online learning (Phase 2)
+                context_features = context.get("time_features", {})
+                if context_features:
+                    try:
+                        await self.hub.publish(
+                            "shadow_resolved",
+                            {
+                                "prediction_id": pred_id,
+                                "features": context_features,
+                                "outcome": outcome,
+                                "actual_data": actual_data,
+                                "timestamp": prediction.get("context", {}).get("timestamp", ""),
+                            },
+                        )
+                        # Emit per-target events for OnlineLearnerModule
+                        await self._emit_per_target_resolved(context_features, outcome)
+                    except Exception as e:
+                        self.logger.debug(f"Failed to publish shadow_resolved: {e}")
             except Exception as e:
                 self.logger.error(f"Failed to update prediction outcome {pred_id}: {e}")
 
         # Clean up any stale window_events entries
         self._cleanup_stale_windows()
+
+    async def _emit_per_target_resolved(self, features: dict, outcome: str) -> None:
+        """Emit shadow_resolved events per ML target for online learning.
+
+        Reads the latest intelligence cache to extract current metric values,
+        then publishes one event per target so OnlineLearnerModule can update
+        its River models with actual outcomes.
+        """
+        intelligence = await self.hub.get_cache("intelligence")
+        if not intelligence or not intelligence.get("data"):
+            return
+
+        data = intelligence["data"]
+
+        # Extract actual metric values from the latest intraday trend entry
+        intraday = data.get("intraday_trend", [])
+        if intraday:
+            latest = intraday[-1]
+        else:
+            # Fall back to latest daily trend entry
+            trend = data.get("trend_data", [])
+            latest = trend[-1] if trend else {}
+
+        if not latest:
+            return
+
+        targets = ["power_watts", "lights_on", "devices_home", "unavailable", "useful_events"]
+        for target in targets:
+            actual_value = latest.get(target)
+            if actual_value is not None:
+                with contextlib.suppress(Exception):
+                    await self.hub.publish(
+                        "shadow_resolved",
+                        {
+                            "target": target,
+                            "features": features,
+                            "actual_value": float(actual_value),
+                            "outcome": outcome,
+                        },
+                    )
 
     def _build_actual_summary(self, actual_events: list[dict[str, Any]]) -> tuple[set[str], set[str], dict[str, Any]]:
         """Build summary of what actually happened during a prediction window."""
