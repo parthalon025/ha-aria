@@ -505,6 +505,22 @@ CONFIG_DEFAULTS: list[dict[str, Any]] = [
         ),
         "category": "Presence Tracking",
     },
+    # ── Discovery Lifecycle ────────────────────────────────────────────
+    {
+        "key": "discovery.stale_ttl_hours",
+        "default_value": "72",
+        "value_type": "number",
+        "label": "Entity Stale TTL (hours)",
+        "description": (
+            "Hours after an entity disappears from HA discovery before it is archived. "
+            "While stale, entities remain usable. After archival, they are excluded from "
+            "active consumers but preserved for reference. Set to 0 to archive immediately."
+        ),
+        "category": "Discovery",
+        "min_value": 0,
+        "max_value": 720,
+        "step": 1,
+    },
     # ── Correction Propagation ─────────────────────────────────────────
     {
         "key": "propagation.enabled",
