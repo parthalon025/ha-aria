@@ -105,6 +105,12 @@ def synthetic_snapshots(tmp_path):
                 "devices_home": ["device_tracker.phone"],
             },
             "motion": {"active_count": 1 + (day_offset % 2)},
+            "presence": {
+                "overall_probability": 0.85,
+                "occupied_room_count": 2 + (day_offset % 3),
+                "identified_person_count": 1,
+                "camera_signal_count": day_offset % 4,
+            },
         }
 
         # Save snapshot file
@@ -601,6 +607,12 @@ class TestLightGBMIntegration:
                     "device_count_home": 2 + (day_offset % 2),
                 },
                 "motion": {"active_count": 1 + (day_offset % 2)},
+                "presence": {
+                    "overall_probability": 0.85,
+                    "occupied_room_count": 2 + (day_offset % 3),
+                    "identified_person_count": 1,
+                    "camera_signal_count": day_offset % 4,
+                },
             }
             snapshot_file = training_data_dir / f"{date.strftime('%Y-%m-%d')}.json"
             with open(snapshot_file, "w") as f:
@@ -1405,6 +1417,12 @@ class TestMLFeedbackToCapabilities:
                     "device_count_home": 2 + (day_offset % 2),
                 },
                 "motion": {"active_count": 1 + (day_offset % 2)},
+                "presence": {
+                    "overall_probability": 0.85,
+                    "occupied_room_count": 2 + (day_offset % 3),
+                    "identified_person_count": 1,
+                    "camera_signal_count": day_offset % 4,
+                },
             }
             snapshot_file = training_data_dir / f"{date.strftime('%Y-%m-%d')}.json"
             with open(snapshot_file, "w") as f:
