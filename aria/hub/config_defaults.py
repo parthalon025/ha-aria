@@ -655,6 +655,47 @@ CONFIG_DEFAULTS: list[dict[str, Any]] = [
         "category": "ml",
         "options": "auto,1,3,5,10",
     },
+    {
+        "key": "ml.online_blend_weight",
+        "default_value": "0.3",
+        "value_type": "number",
+        "label": "Online Blend Weight",
+        "description": (
+            "Weight for online model predictions in ensemble blend (0=disabled, 1=online only). Tier 3+ only."
+        ),
+        "category": "ml",
+        "min_value": 0.0,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    {
+        "key": "ml.online_min_samples",
+        "default_value": "5",
+        "value_type": "number",
+        "label": "Online Min Samples",
+        "description": "Minimum observations before online model starts predicting.",
+        "category": "ml",
+        "min_value": 1,
+        "max_value": 50,
+    },
+    {
+        "key": "ml.auto_tune_weights",
+        "default_value": "true",
+        "value_type": "boolean",
+        "label": "Auto-Tune Weights",
+        "description": "Automatically adjust ensemble weights based on rolling MAE (Tier 3+).",
+        "category": "ml",
+    },
+    {
+        "key": "ml.weight_tuner_window_days",
+        "default_value": "7",
+        "value_type": "number",
+        "label": "Weight Tuner Window (days)",
+        "description": "Rolling window for MAE-based weight computation.",
+        "category": "ml",
+        "min_value": 1,
+        "max_value": 30,
+    },
 ]
 
 
