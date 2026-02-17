@@ -422,6 +422,25 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
             logger.exception("Error getting hardware profile")
             raise HTTPException(status_code=500, detail="Internal server error") from None
 
+    @router.get("/api/ml/online")
+    async def get_online_learning_stats():
+        """Get online learning model stats, weight tuner data, and blend config."""
+        try:
+            online_learner = await hub.get_module("online_learner")
+            ml_engine = await hub.get_module("ml_engine")
+            return {
+                "models": online_learner.get_all_stats() if online_learner else {},
+                "weight_tuner": ml_engine.weight_tuner.to_dict()
+                if ml_engine and hasattr(ml_engine, "weight_tuner")
+                else {},
+                "online_blend_weight": ml_engine.online_blend_weight
+                if ml_engine and hasattr(ml_engine, "online_blend_weight")
+                else 0.0,
+            }
+        except Exception:
+            logger.exception("Error getting online learning stats")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
+
 
 def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     """Register organic discovery and capability registry endpoints."""
