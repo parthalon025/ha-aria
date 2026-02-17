@@ -55,13 +55,14 @@ aria/
 | `bin/discover.py` | Standalone discovery CLI (also used as subprocess) |
 | `bin/ha-log-sync` | Log sync script (called by `aria sync-logs`) |
 
-## Hub Modules (10, registered in order)
+## Hub Modules (11, registered in order)
 
 | Module | File | Purpose |
 |--------|------|---------|
 | `discovery` | `aria/modules/discovery.py` | Scans HA (REST + WebSocket), detects capabilities, caches entities/devices/areas |
 | `ml_engine` | `aria/modules/ml_engine.py` | Model training (GradientBoosting, RandomForest, LightGBM), periodic retraining. Feature extraction delegates to engine's `vector_builder` (single source of truth). Snapshot validation applied before training. Stale training check on startup triggers retraining if >7 days since last train. |
-| `pattern_recognition` | `aria/modules/patterns.py` | Detects recurring event sequences from logbook data |
+| `pattern_recognition` | `aria/modules/pattern_recognition.py` | Trajectory classification (DTW + heuristic), pattern scale tagging (micro/meso/macro), anomaly explanation. Subscribes to shadow_resolved events. Tier 3+ only. |
+| `patterns` | `aria/modules/patterns.py` | Detects recurring event sequences from logbook data |
 | `orchestrator` | `aria/modules/orchestrator.py` | Generates automation suggestions from detected patterns |
 | `shadow_engine` | `aria/modules/shadow_engine.py` | Predict-compare-score loop: captures context on state_changed, generates predictions (next_domain, room_activation, routine_trigger), scores against reality |
 | `data_quality` | `aria/modules/data_quality.py` | Entity classification pipeline — auto-exclude (domain, stale, noise, vehicle, unavailable grace period), edge cases, default include. Reads discovery cache, writes to `entity_curation` table. Runs on startup and daily. |
@@ -72,12 +73,20 @@ aria/
 
 Each module declares its capabilities via a `CAPABILITIES` class attribute (see `aria/capabilities.py` for the `Capability` dataclass). The `CapabilityRegistry.collect_from_modules()` method harvests all declarations for validation and CLI/API exposure.
 
+### Engine Standalone Modules (Phase 3)
+
+| Module | Path | Purpose |
+|--------|------|---------|
+| `anomaly_explainer` | `aria/engine/anomaly_explainer.py` | IsolationForest decision path tracing — identifies top-N features contributing to anomaly detection |
+| `pattern_scale` | `aria/engine/pattern_scale.py` | StrEnum for micro (<5min), meso (5min-4h), macro (4h+) time-scale classification |
+| `sequence` | `aria/engine/sequence.py` | DTW trajectory classifier (tslearn KNeighborsTimeSeriesClassifier) with heuristic fallback |
+
 ## Engine Subpackages (8)
 
 | Package | Path | Purpose |
 |---------|------|---------|
 | `collectors` | `aria/engine/collectors/` | HA API, logbook, snapshot, registry data collection, presence (reads hub cache) |
-| `features` | `aria/engine/features/` | Time features, vector builder (single source of truth for feature extraction — used by both engine and hub ML training), feature config (4 presence features) |
+| `features` | `aria/engine/features/` | Time features, vector builder (single source of truth for feature extraction — used by both engine and hub ML training), feature config (4 presence features + pattern_features) |
 | `validation` | `aria/engine/validation.py` | Snapshot validation layer (MIN_ENTITY_COUNT, MAX_UNAVAILABLE_RATIO checks) |
 | `models` | `aria/engine/models/` | ML models: GradientBoosting, RandomForest, IsolationForest, Prophet, device failure, registry |
 | `predictions` | `aria/engine/predictions/` | Prediction generation and scoring |

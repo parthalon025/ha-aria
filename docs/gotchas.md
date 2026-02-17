@@ -40,6 +40,14 @@ Implementation details and less-frequently-encountered gotchas. The top-level CL
 - **Frigate Docker required for camera presence** — Container at `~/frigate/` must be running for camera-based presence signals.
 - **Camera-to-room mapping is discovery-driven** — No hard-coded camera list. Cameras found via `camera.*` entities, room resolved via device→area chain. Manual overrides via `presence.camera_rooms` config key.
 
+## Pattern Recognition (Phase 3)
+
+- **Pattern recognition is Tier 3+ only** — Self-gates on hardware tier via `scan_hardware()` / `recommend_tier()`. On Tier 2 or below, module initializes but sets `active = False` and ignores all events.
+- **Trajectory classification uses heuristic until trained** — DTW classifier (tslearn) needs labeled training data. Before that, `label_window_heuristic()` classifies based on slope and coefficient of variation of the target column.
+- **Anomaly explanations require feature_names** — `_run_anomaly_detection` returns empty explanations list if feature_names is None. The ML engine passes feature_names from `_get_feature_names()`.
+- **Config values not yet wired** — The 4 `pattern.*` config entries in `config_defaults.py` (window_size, dtw_neighbors, anomaly_top_n, trajectory_change_threshold) are scaffolding — the module uses `DEFAULT_WINDOW_SIZE = 6` and hardcoded values. Wire these when the config UI lands.
+- **tslearn optional dependency** — In `[project.optional-dependencies]` under `ml-extra`. Not installed by default `pip install -e .` — needs `pip install -e '.[ml-extra]'`.
+
 ## ML & Training
 
 - **Snapshot validation rejects corrupt snapshots** — <100 entities or >50% unavailable → rejected before training.

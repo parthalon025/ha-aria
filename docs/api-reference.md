@@ -149,6 +149,35 @@ curl -s http://127.0.0.1:8001/api/validation/latest | python3 -m json.tool
 curl -s -X POST http://127.0.0.1:8001/api/validation/run -H 'Content-Type: application/json' -d '{}' | python3 -m json.tool
 ```
 
+## Pattern Recognition (Phase 3)
+
+```bash
+# Trajectory classification, anomaly explanations, pattern scales
+curl -s http://127.0.0.1:8001/api/patterns | python3 -m json.tool
+
+# Response shape:
+# {
+#   "trajectory": "ramping_up",      # Current trajectory class (or null)
+#   "active": true,                   # Module active (Tier 3+ hardware)
+#   "anomaly_explanations": [         # Top features driving anomalies
+#     {"feature": "power", "contribution": 0.45},
+#     {"feature": "lights", "contribution": 0.32}
+#   ],
+#   "pattern_scales": {               # Time-scale reference
+#     "micro": "Seconds to minutes — immediate reactions",
+#     "meso": "Minutes to hours — routines and sessions",
+#     "macro": "Days to weeks — seasonal patterns"
+#   },
+#   "shadow_events_processed": 42,
+#   "stats": {
+#     "active": true,
+#     "sequence_classifier": {"is_trained": false, "window_size": 6},
+#     "window_count": {"power_watts": 6},
+#     "current_trajectory": "ramping_up"
+#   }
+# }
+```
+
 ## Config & Curation
 
 ```bash
