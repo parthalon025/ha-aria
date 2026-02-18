@@ -96,6 +96,8 @@ max-complexity = 10
 # FastAPI route registration functions inherently have high statement counts
 # and cyclomatic complexity due to nested handler definitions — not refactorable
 "aria/hub/api.py" = ["C901", "PLR0915"]
+# Audit log/query methods inherently accept many filter parameters — not refactorable
+"aria/hub/audit.py" = ["PLR0913"]
 
 [tool.ruff.lint.pylint]
 max-args = 5
