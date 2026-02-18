@@ -8,6 +8,7 @@ a rolling 24-hour activity log in 15-minute windows.
 import asyncio
 import json
 import logging
+import random
 import shutil
 import subprocess
 import sys
@@ -302,8 +303,10 @@ class ActivityMonitor(Module):
 
             self._track_ws_disconnect()
 
-            # Backoff: 5s → 10s → 20s → 60s max
-            await asyncio.sleep(retry_delay)
+            # Backoff: 5s → 10s → 20s → 60s max, with ±25% jitter to prevent thundering herd
+            jitter = retry_delay * random.uniform(-0.25, 0.25)
+            actual_delay = retry_delay + jitter
+            await asyncio.sleep(actual_delay)
             retry_delay = min(retry_delay * 2, 60)
 
     # ------------------------------------------------------------------

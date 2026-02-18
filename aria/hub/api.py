@@ -552,7 +552,15 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
             raise HTTPException(status_code=404, detail=f"Unknown capability: {capability_name}")
         caps[capability_name]["status"] = "promoted"
         caps[capability_name]["promoted_at"] = datetime.now().strftime("%Y-%m-%d")
-        await hub.cache.set("capabilities", caps)
+        await hub.set_cache("capabilities", caps)
+        if hub.audit_logger:
+            await hub.audit_logger.log(
+                event_type="capability_status_change",
+                source="api",
+                action="promote",
+                subject=capability_name,
+                detail={"from_status": "candidate", "to_status": "promoted"},
+            )
         return {"capability": capability_name, "status": "promoted"}
 
     @router.put("/api/capabilities/{capability_name}/archive")
@@ -564,8 +572,17 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
         caps = cached["data"]
         if capability_name not in caps:
             raise HTTPException(status_code=404, detail=f"Unknown capability: {capability_name}")
+        old_status = caps[capability_name].get("status", "unknown")
         caps[capability_name]["status"] = "archived"
-        await hub.cache.set("capabilities", caps)
+        await hub.set_cache("capabilities", caps)
+        if hub.audit_logger:
+            await hub.audit_logger.log(
+                event_type="capability_status_change",
+                source="api",
+                action="archive",
+                subject=capability_name,
+                detail={"from_status": old_status, "to_status": "archived"},
+            )
         return {"capability": capability_name, "status": "archived"}
 
     @router.get("/api/settings/discovery")
@@ -1157,6 +1174,7 @@ def _register_config_routes(router: APIRouter, hub: IntelligenceHub, ws_manager:
         """Update a configuration parameter value."""
         try:
             config = await hub.cache.set_config(key, body.value, changed_by=body.changed_by)
+            await hub.publish("config_updated", {"key": key, "value": body.value})
             await ws_manager.broadcast({"type": "config_updated", "data": {"key": key}})
             return config
         except ValueError as e:

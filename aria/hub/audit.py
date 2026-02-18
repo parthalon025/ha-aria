@@ -152,6 +152,8 @@ class AuditLogger:
         severity: str = "info",
     ) -> None:
         """Buffer an audit event for batch insertion."""
+        if self._queue is None:
+            return
         timestamp = datetime.now(UTC).isoformat()
         checksum = _compute_checksum(timestamp, event_type, source, action, detail)
         detail_json = json.dumps(detail) if detail is not None else None

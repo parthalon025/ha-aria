@@ -12,6 +12,7 @@ import contextlib
 import json
 import logging
 import os
+import random
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
@@ -379,7 +380,9 @@ class PresenceModule(Module):
             except Exception as e:
                 self._mqtt_connected = False
                 self.logger.warning(f"MQTT connection failed: {e}, retrying in {retry_delay}s")
-                await asyncio.sleep(retry_delay)
+                jitter = retry_delay * random.uniform(-0.25, 0.25)
+                actual_delay = retry_delay + jitter
+                await asyncio.sleep(actual_delay)
                 retry_delay = min(retry_delay * 2, 60)
 
     async def _handle_mqtt_message(self, topic: str, payload: dict):
@@ -495,7 +498,9 @@ class PresenceModule(Module):
                     auth_resp = await ws.receive_json()
                     if auth_resp.get("type") != "auth_ok":
                         self.logger.error(f"WS auth failed: {auth_resp}")
-                        await asyncio.sleep(retry_delay)
+                        jitter = retry_delay * random.uniform(-0.25, 0.25)
+                        actual_delay = retry_delay + jitter
+                        await asyncio.sleep(actual_delay)
                         continue
 
                     # Subscribe to state_changed events
@@ -528,7 +533,9 @@ class PresenceModule(Module):
 
             except Exception as e:
                 self.logger.warning(f"Presence WS error: {e}, retrying in {retry_delay}s")
-                await asyncio.sleep(retry_delay)
+                jitter = retry_delay * random.uniform(-0.25, 0.25)
+                actual_delay = retry_delay + jitter
+                await asyncio.sleep(actual_delay)
                 retry_delay = min(retry_delay * 2, 60)
 
     def _handle_person_state(self, entity_id: str, state: str, now: datetime):

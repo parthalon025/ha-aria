@@ -5,6 +5,7 @@ mock in tests or swap backends (e.g., SQLite) in the future.
 """
 
 import contextlib
+import fcntl
 import json
 import logging
 import os
@@ -18,17 +19,28 @@ logger = logging.getLogger(__name__)
 
 
 def _atomic_write_json(path, data, **kwargs):
-    """Write JSON atomically using temp file + rename."""
+    """Write JSON atomically using temp file + rename with cross-process locking."""
     path = Path(path)
-    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(data, f, **kwargs)
-        os.replace(tmp_path, path)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp_path)
-        raise
+
+    # Acquire exclusive lock on final path to prevent concurrent writes
+    lock_path = str(path) + ".lock"
+    with open(lock_path, "w") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+
+        # Now write atomically
+        fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, **kwargs)
+            os.replace(tmp_path, path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+            raise
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            with contextlib.suppress(OSError):
+                os.unlink(lock_path)
 
 
 class DataStore:

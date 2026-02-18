@@ -13,7 +13,7 @@
 | Hub core / module registry | `aria/hub/core.py` | `tests/hub/test_hub.py` |
 | Cache (SQLite) | `aria/hub/cache.py` | `tests/hub/test_cache.py` |
 | API routes (FastAPI) | `aria/hub/api.py` | `tests/hub/test_api.py` |
-| Audit logging | `aria/hub/audit_logger.py`, `aria/hub/audit.py` | `tests/hub/test_audit_logger.py` |
+| Audit logging | `aria/hub/audit.py` | `tests/hub/test_audit.py`, `tests/hub/test_audit_middleware.py`, `tests/integration/test_audit_pipeline.py` |
 | Config defaults | `aria/hub/config_defaults.py` | `tests/hub/test_config_defaults.py` |
 | Validation runner | `aria/hub/validation_runner.py` | `tests/hub/test_validation_runner.py` |
 | Discovery (HA scan) | `aria/modules/discovery.py`, `bin/discover.py` | `tests/hub/test_discovery.py` |

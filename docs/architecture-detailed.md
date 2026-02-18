@@ -11,7 +11,7 @@ aria/
 ├── hub/                    # Real-time hub core
 │   ├── core.py             # IntelligenceHub — module registry, task scheduler, event bus
 │   ├── cache.py            # SQLite-backed cache (hub.db) with category-based get/set
-│   ├── audit_logger.py     # AuditLogger — dedicated audit.db, async write-behind buffer, tamper-evident checksums
+│   ├── audit.py            # AuditLogger — dedicated audit.db, async write-behind buffer, tamper-evident checksums
 │   ├── constants.py        # Shared cache key constants
 │   ├── api.py              # FastAPI routes + WebSocket server
 │   ├── validation_runner.py # Subprocess pytest runner for on-demand validation
@@ -71,7 +71,7 @@ aria/
 | `intelligence` | `aria/modules/intelligence.py` | Assembles daily/intraday snapshots, baselines, predictions, ML scores into unified cache. Reads engine outputs (entity correlations, sequence anomalies, power profiles, automation suggestions). Sends Telegram digest on new insights. |
 | `activity_monitor` | `aria/modules/activity_monitor.py` | WebSocket listener for state_changed events, 15-min windowed activity log, adaptive snapshot triggering, prediction analytics. Emits filtered events to hub event bus for shadow engine. |
 | `presence` | `aria/modules/presence.py` | Subscribes to Frigate MQTT (person/face detection) and HA WebSocket (motion sensors, lights, dimmers, device trackers, door sensors). Feeds signals into BayesianOccupancy for per-room presence estimation. |
-| `audit_logger` | `aria/hub/audit_logger.py` | Dedicated `audit.db` separate from the cache DB. Async write-behind buffer minimizes latency on hot paths. Tamper-evident SHA-256 checksums on each event batch. Streams events to WebSocket subscribers via `/ws/audit`. Bridges to watchdog for alerting on high-severity events. |
+| `audit_logger` | `aria/hub/audit.py` | Dedicated `audit.db` separate from the cache DB. Async write-behind buffer minimizes latency on hot paths. Tamper-evident SHA-256 checksums on each event batch. Streams events to WebSocket subscribers via `/ws/audit`. Bridges to watchdog for alerting on high-severity events. |
 
 Each module declares its capabilities via a `CAPABILITIES` class attribute (see `aria/capabilities.py` for the `Capability` dataclass). The `CapabilityRegistry.collect_from_modules()` method harvests all declarations for validation and CLI/API exposure.
 

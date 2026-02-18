@@ -31,7 +31,7 @@ Implementation details and less-frequently-encountered gotchas. The top-level CL
 ## Activity Labeler
 
 - **Activity labeler Ollama dependency** — Uses ollama-queue (port 7683) for LLM predictions every 15 min. May queue-stack with organic discovery on Sundays.
-- **Activity labeler feature vector is 10 features** — presence_probability and occupied_room_count added to the original 8. Cached classifiers auto-invalidate on feature count mismatch. If adding features, update `_context_to_features()` in `aria/engine/activity_labeler/feature_config.py`.
+- **Activity labeler feature vector is 10 features** — presence_probability and occupied_room_count added to the original 8. Cached classifiers auto-invalidate on feature count mismatch. If adding features, update `_context_to_features()` in `aria/modules/activity_labeler.py`.
 - **Intelligence features default to 0** — If intelligence cache is empty or engine hasn't run, correlated_entities_active, anomaly_nearby, active_appliance_count default to 0. Safe but means early predictions use only base 5 sensor features.
 
 ## Presence

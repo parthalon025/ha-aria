@@ -31,10 +31,10 @@ class PatternRecognition(Module):
 
     CAPABILITIES = [
         Capability(
-            id="pattern_recognition",
+            id="patterns",
             name="Pattern Recognition",
             description="Detects recurring event sequences using hierarchical clustering and association rules.",
-            module="pattern_recognition",
+            module="patterns",
             layer="hub",
             config_keys=[],
             test_paths=["tests/hub/test_patterns.py"],
@@ -62,7 +62,7 @@ class PatternRecognition(Module):
             min_support: Minimum support for association rules (0-1)
             min_confidence: Minimum confidence for association rules (0-1)
         """
-        super().__init__("pattern_recognition", hub)
+        super().__init__("patterns", hub)
         self.log_dir = Path(log_dir)
         self.min_pattern_frequency = min_pattern_frequency
         self.min_support = min_support

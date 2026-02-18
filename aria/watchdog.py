@@ -553,7 +553,24 @@ def send_alert(message: str, level: str, alert_key: str, logger: logging.Logger)
                 logger.error(f"Telegram API error: {result}")
                 return False
     except Exception as e:
-        logger.error(f"Telegram send failed: {e}")
+        logger.error(f"Telegram send failed: {e} — writing to fallback log")
+        # Fallback: write to file so alert isn't silently dropped
+        try:
+            import datetime as dt_module
+
+            fallback_path = Path("/tmp/aria-missed-alerts.jsonl")
+            fallback_entry = {
+                "timestamp": dt_module.datetime.now(dt_module.UTC).isoformat(),
+                "level": level,
+                "alert_key": alert_key,
+                "message": message,
+                "error": str(e),
+            }
+            with open(fallback_path, "a") as f:
+                f.write(json.dumps(fallback_entry) + "\n")
+            logger.info(f"Fallback alert logged to {fallback_path}")
+        except Exception as fallback_error:
+            logger.error(f"Fallback alert log also failed: {fallback_error}")
         return False
 
 

@@ -15,6 +15,7 @@ from typing import Any
 import aiohttp
 
 from aria.capabilities import Capability
+from aria.engine.schema import validate_snapshot_schema
 from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
 from aria.hub.core import IntelligenceHub, Module
 
@@ -323,6 +324,11 @@ class IntelligenceModule(Module):
         for f in daily_files[-30:]:  # last 30 days max
             try:
                 raw = json.loads(f.read_text())
+                # Validate snapshot schema — fail loudly on mismatch
+                schema_errors = validate_snapshot_schema(raw)
+                if schema_errors:
+                    self.logger.warning(f"Snapshot schema mismatch in {f.name}: {schema_errors}")
+                    continue
                 entry = {"date": f.stem}
                 for key, extractor in METRIC_PATHS.items():
                     val = extractor(raw)
@@ -345,6 +351,11 @@ class IntelligenceModule(Module):
         for f in sorted(intraday_dir.glob("*.json")):
             try:
                 raw = json.loads(f.read_text())
+                # Validate snapshot schema — fail loudly on mismatch
+                schema_errors = validate_snapshot_schema(raw)
+                if schema_errors:
+                    self.logger.warning(f"Snapshot schema mismatch in {f.name}: {schema_errors}")
+                    continue
                 hour = raw.get("hour", int(f.stem))
                 entry = {"hour": hour}
                 for key, extractor in METRIC_PATHS.items():
@@ -545,10 +556,10 @@ class IntelligenceModule(Module):
             return  # already sent
 
         # New insight — format and send digest
-        self._last_digest_date = insight_date
         try:
             message = self._format_digest(data)
             await self._send_telegram(message)
+            self._last_digest_date = insight_date  # mark sent only after successful send
             self.logger.info(f"Daily digest sent for {insight_date}")
         except Exception as e:
             self.logger.warning(f"Failed to send daily digest: {e}")
