@@ -935,13 +935,16 @@ def _audit(args):
         await al.initialize(audit_db)
         try:
             await _dispatch_audit(al, args)
+        except Exception as e:
+            print(f"Audit query failed: {e}")
+            sys.exit(1)
         finally:
             await al.shutdown()
 
     asyncio.run(run())
 
 
-async def _dispatch_audit(al, args):
+async def _dispatch_audit(al, args):  # noqa: PLR0915
     """Route audit subcommands to query methods."""
     import json
 
@@ -983,11 +986,11 @@ async def _dispatch_audit(al, args):
 
     elif cmd == "startups":
         results = await al.query_startups(limit=args.limit)
-        _print_audit_results(results, json_output=True)
+        _print_audit_results(results, json_output=True)  # JSON-only: nested modules/config fields
 
     elif cmd == "curation":
         results = await al.query_curation(args.entity_id, limit=args.limit)
-        _print_audit_results(results, json_output=True)
+        _print_audit_results(results, json_output=True)  # JSON-only: mixed field types
 
     elif cmd == "verify":
         result = await al.verify_integrity(since=getattr(args, "since", None))
@@ -996,7 +999,9 @@ async def _dispatch_audit(al, args):
         if invalid:
             print(f"INTEGRITY CHECK FAILED: {invalid}/{total} events with invalid checksums")
             for e in result.get("details", []):
-                print(f"  ID {e.get('id', '?')}: expected {e['expected'][:12]}... actual {e['actual'][:12]}...")
+                exp = e.get("expected", "?")[:12]
+                act = e.get("actual", "?")[:12]
+                print(f"  ID {e.get('id', '?')}: expected {exp}... actual {act}...")
         else:
             print(f"Integrity OK: {total} events verified")
 
@@ -1004,7 +1009,8 @@ async def _dispatch_audit(al, args):
         from datetime import UTC, datetime
 
         try:
-            before_dt = datetime.fromisoformat(args.before).replace(tzinfo=UTC)
+            parsed = datetime.fromisoformat(args.before)
+            before_dt = parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
         except ValueError:
             print(f"Invalid date format for --before: {args.before!r}. Use ISO format, e.g. 2026-01-01T00:00:00")
             sys.exit(1)
