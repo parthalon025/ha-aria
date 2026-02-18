@@ -2197,5 +2197,35 @@ class TestSetCachePredictions:
         assert "category" not in kwargs, f"'category' passed as kwarg conflicts with positional arg: {kwargs}"
 
 
+class TestTrajectoryEncoding:
+    """Verify trajectory encoding derives from canonical TRAJECTORY_CLASSES."""
+
+    def test_encoding_matches_trajectory_classes(self):
+        """_TRAJECTORY_ENCODING must contain all TRAJECTORY_CLASSES values."""
+        from aria.engine.sequence import TRAJECTORY_CLASSES
+        from aria.modules.ml_engine import MLEngine
+
+        for cls in TRAJECTORY_CLASSES:
+            assert cls in MLEngine._TRAJECTORY_ENCODING, (
+                f"TRAJECTORY_CLASSES has '{cls}' but _TRAJECTORY_ENCODING is missing it"
+            )
+
+    def test_encoding_has_no_extra_keys(self):
+        """_TRAJECTORY_ENCODING should not have keys absent from TRAJECTORY_CLASSES."""
+        from aria.engine.sequence import TRAJECTORY_CLASSES
+        from aria.modules.ml_engine import MLEngine
+
+        for key in MLEngine._TRAJECTORY_ENCODING:
+            assert key in TRAJECTORY_CLASSES, f"_TRAJECTORY_ENCODING has '{key}' but TRAJECTORY_CLASSES does not"
+
+    def test_encoding_preserves_index_order(self):
+        """Encoding values must match TRAJECTORY_CLASSES list index."""
+        from aria.engine.sequence import TRAJECTORY_CLASSES
+        from aria.modules.ml_engine import MLEngine
+
+        for i, cls in enumerate(TRAJECTORY_CLASSES):
+            assert MLEngine._TRAJECTORY_ENCODING[cls] == i
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

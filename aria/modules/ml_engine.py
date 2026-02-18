@@ -42,6 +42,7 @@ from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG as _ENGIN
 from aria.engine.features.vector_builder import build_feature_vector as _engine_build_feature_vector  # noqa: E402
 from aria.engine.hardware import recommend_tier, scan_hardware  # noqa: E402
 from aria.engine.models.registry import TieredModelRegistry  # noqa: E402
+from aria.engine.sequence import TRAJECTORY_CLASSES  # noqa: E402
 from aria.engine.validation import validate_snapshot_batch  # noqa: E402
 from aria.hub.core import IntelligenceHub, Module  # noqa: E402
 
@@ -1129,13 +1130,8 @@ class MLEngine(Module):
         feature_vector = [features.get(name, 0) for name in feature_names]
         return np.array([feature_vector], dtype=float), feature_names
 
-    # Trajectory class encoding (Phase 3)
-    _TRAJECTORY_ENCODING = {
-        "stable": 0,
-        "ramping_up": 1,
-        "winding_down": 2,
-        "anomalous_transition": 3,
-    }
+    # Trajectory class encoding — derived from canonical source (Phase 3)
+    _TRAJECTORY_ENCODING = {cls: i for i, cls in enumerate(TRAJECTORY_CLASSES)}
 
     def _encode_trajectory(self, trajectory: str) -> int:
         """Encode trajectory class string to integer."""
