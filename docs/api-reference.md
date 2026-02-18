@@ -187,3 +187,48 @@ curl -s http://127.0.0.1:8001/api/config | python3 -m json.tool
 # Entity curation summary (tier/status counts)
 curl -s http://127.0.0.1:8001/api/curation/summary | python3 -m json.tool
 ```
+
+## Audit Logger
+
+Audit data lives in a dedicated `audit.db`, separate from `hub.db`. All endpoints are read-only except `/api/audit/export`.
+
+```bash
+# Query audit events — filter by type, severity, source, subject, time range, or request ID
+curl -s 'http://127.0.0.1:8001/api/audit/events?type=cache.write&severity=error&limit=10' | python3 -m json.tool
+
+# Query HTTP request log
+curl -s 'http://127.0.0.1:8001/api/audit/requests?method=POST&limit=20' | python3 -m json.tool
+
+# Chronological event history for a single subject
+curl -s 'http://127.0.0.1:8001/api/audit/timeline/sensor.living_room_motion?since=2026-01-01' | python3 -m json.tool
+
+# Aggregate counts, error rates, and top event types
+curl -s http://127.0.0.1:8001/api/audit/stats | python3 -m json.tool
+
+# Recent hub startup records
+curl -s 'http://127.0.0.1:8001/api/audit/startups?limit=5' | python3 -m json.tool
+
+# Curation change history for one entity
+curl -s http://127.0.0.1:8001/api/audit/curation/sensor.living_room_motion | python3 -m json.tool
+
+# Verify tamper-evident checksums — returns list of any integrity violations
+curl -s http://127.0.0.1:8001/api/audit/integrity | python3 -m json.tool
+
+# Archive events older than a cutoff date (returns path to exported file)
+curl -s -X POST http://127.0.0.1:8001/api/audit/export \
+  -H 'Content-Type: application/json' \
+  -d '{"before_date": "2026-01-01", "format": "jsonl"}' | python3 -m json.tool
+```
+
+### Audit WebSocket
+
+Subscribe to a live stream of audit events:
+
+```
+WebSocket: ws://127.0.0.1:8001/ws/audit
+```
+
+Each message is a JSON audit event. Optional query params:
+
+- `?types=cache.write,api.request` — filter to specific event types (comma-separated)
+- `?severity_min=warning` — minimum severity level (`debug`, `info`, `warning`, `error`, `critical`)

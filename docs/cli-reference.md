@@ -26,6 +26,49 @@ Reference doc for CLAUDE.md. All commands route through the unified `aria` entry
 | `aria capabilities verify` | Validate all capabilities against tests/config/deps |
 | `aria capabilities export` | Export capability registry as JSON |
 
+## aria audit
+
+Query, stream, and export the audit log (stored in `audit.db`, separate from `hub.db`).
+
+| Subcommand | What it does |
+|------------|-------------|
+| `aria audit events` | Query audit events with optional filters |
+| `aria audit requests` | Query HTTP request log |
+| `aria audit timeline SUBJECT` | Chronological event history for a single subject |
+| `aria audit stats` | Aggregate counts and error rates |
+| `aria audit startups` | List recent hub startup records |
+| `aria audit curation ENTITY_ID` | Curation change history for one entity |
+| `aria audit verify` | Verify tamper-evident checksums across stored events |
+| `aria audit export` | Archive events to disk before a cutoff date |
+| `aria audit tail` | Live-stream new audit events (WebSocket-backed) |
+
+### Flags
+
+```
+aria audit events [--type TYPE] [--source SOURCE] [--subject SUBJECT]
+                  [--severity SEVERITY] [--since ISO] [--until ISO]
+                  [--request-id ID] [--limit N] [--json]
+
+aria audit requests [--path PATH] [--method METHOD] [--status CODE]
+                    [--since ISO] [--limit N] [--json]
+
+aria audit timeline SUBJECT [--since ISO] [--json]
+
+aria audit stats [--since ISO]
+
+aria audit startups [--limit N]
+
+aria audit curation ENTITY_ID [--limit N]
+
+aria audit verify [--since ISO]
+
+aria audit export --before ISO [--output DIR]
+
+aria audit tail [--types TYPES] [--severity-min LEVEL]
+```
+
+`--json` on any query subcommand outputs newline-delimited JSON for piping.
+
 ## Support Scripts
 
 | Script | What it does |
