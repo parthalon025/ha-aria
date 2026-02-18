@@ -174,6 +174,8 @@ class AuditLogger:
         error: str | None = None,
     ) -> None:
         """Write API request directly (not buffered)."""
+        if self._db is None:
+            return
         timestamp = datetime.now(UTC).isoformat()
         await self._db.execute(
             "INSERT INTO audit_requests "
@@ -190,6 +192,8 @@ class AuditLogger:
         duration_ms: float | None = None,
     ) -> None:
         """Write startup snapshot directly. Auto-collects python_version, system_memory_mb, pid."""
+        if self._db is None:
+            return
         timestamp = datetime.now(UTC).isoformat()
         python_version = sys.version
         system_memory_mb = _get_system_memory_mb()
@@ -222,6 +226,8 @@ class AuditLogger:
         changed_by: str = "auto",
     ) -> None:
         """Write entity curation change directly."""
+        if self._db is None:
+            return
         timestamp = datetime.now(UTC).isoformat()
         await self._db.execute(
             "INSERT INTO audit_curation_history "
@@ -430,7 +436,7 @@ class AuditLogger:
         cutoff = (datetime.now(UTC) - timedelta(days=retention_days)).isoformat()
         total = 0
 
-        for table in ("audit_events", "audit_requests"):
+        for table in ("audit_events", "audit_requests", "audit_startups", "audit_curation_history"):
             cursor = await self._db.execute(f"DELETE FROM {table} WHERE timestamp < ?", (cutoff,))
             total += cursor.rowcount
         await self._db.commit()
@@ -519,6 +525,8 @@ class AuditLogger:
                     await self.flush()
             except asyncio.CancelledError:
                 return
+            except Exception:
+                logger.exception("Audit flush loop error — will retry")
 
     async def _batch_insert(self, items: list[tuple]) -> None:
         """Batch INSERT in single transaction."""
