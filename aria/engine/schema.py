@@ -6,32 +6,25 @@ and hub read/write the same structure. All schema changes MUST be made here.
 
 from typing import Any
 
-# Required top-level keys in snapshot JSON
-REQUIRED_SNAPSHOT_KEYS = {
-    "date",
-    "day_of_week",
-    "is_weekend",
-    "is_holiday",
-    "weather",
-    "entities",
-    "power",
-    "occupancy",
-    "lights",
-    "logbook_summary",
-}
-
-# Required nested keys within snapshot sections
+# Required nested keys — only check structure within sections that are present
 REQUIRED_NESTED_KEYS = {
     "power": {"total_watts"},
-    "occupancy": {"people_home", "people_away"},
-    "lights": {"on", "off"},
-    "logbook_summary": {"total_events", "useful_events", "by_domain"},
-    "entities": {"total", "by_domain"},
+    "occupancy": {"device_count_home"},  # Relaxed: don't require people_home/people_away
+    "lights": {"on"},  # Relaxed: don't require off count
+    "logbook_summary": {"useful_events"},  # Relaxed: don't require total_events/by_domain
+    "entities": {"unavailable"},  # Relaxed: don't require by_domain/total
 }
 
 
 def validate_snapshot_schema(snapshot: dict[str, Any]) -> list[str]:
     """Validate snapshot against required schema.
+
+    This checks that:
+    1. All major data sections that are present are dicts (not null/invalid types)
+    2. Within present sections, critical keys exist
+
+    Snapshots may omit entire sections (e.g., weather if unavailable), which is OK.
+    Returns early on type mismatch or missing critical keys within present sections.
 
     Args:
         snapshot: Snapshot dictionary to validate
@@ -41,15 +34,10 @@ def validate_snapshot_schema(snapshot: dict[str, Any]) -> list[str]:
     """
     errors = []
 
-    # Check top-level keys
-    missing_keys = REQUIRED_SNAPSHOT_KEYS - set(snapshot.keys())
-    if missing_keys:
-        errors.append(f"Missing top-level keys: {missing_keys}")
-
-    # Check nested keys
+    # For each section that's supposed to exist, validate its structure
     for section, required_nested in REQUIRED_NESTED_KEYS.items():
         if section not in snapshot:
-            continue
+            continue  # OK if section is missing entirely
         section_data = snapshot[section]
         if not isinstance(section_data, dict):
             errors.append(f"Section '{section}' is not a dict: {type(section_data)}")

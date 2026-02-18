@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from aria.capabilities import CapabilityRegistry
 from aria.hub.api import create_api
 
 
@@ -18,6 +19,13 @@ def client():
     mock_hub.subscribe = MagicMock()
     mock_hub._request_count = 0
     mock_hub.get_uptime_seconds = MagicMock(return_value=0)
+    mock_hub._audit_logger = None  # Disable audit logger in tests
+
+    # Set up capability registry
+    registry = CapabilityRegistry()
+    registry.collect_from_modules()
+    mock_hub.get_capability_registry = MagicMock(return_value=registry)
+
     app = create_api(mock_hub)
     return TestClient(app)
 
