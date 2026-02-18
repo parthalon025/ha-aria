@@ -466,7 +466,60 @@ Events propagate through **two channels**: explicit `hub.subscribe()` callbacks 
 
 ---
 
-## Part B2 — Startup Sequence & Error Propagation
+## Part B2 — Dashboard SPA → API Mapping
+
+Which page components call which API endpoints. All pages also receive real-time updates via the WebSocket `/ws` connection (`store.js:connectWebSocket`).
+
+### Cache-Driven Pages (via `useCache()` hook → `GET /api/cache/{category}` + WebSocket push)
+
+| Page | File | Cache Categories | Additional API Calls |
+|------|------|-----------------|---------------------|
+| Home | `pages/Home.jsx` | `intelligence`, `activity_summary`, `entities` | `/api/shadow/accuracy`, `/api/pipeline`, `/api/curation/summary`, `/api/activity/current` |
+| Intelligence | `pages/Intelligence.jsx` | `intelligence` | `/api/shadow/accuracy`, `/api/pipeline`, `/api/ml/drift`, `/api/ml/anomalies`, `/api/ml/shap` |
+| Discovery | `pages/Discovery.jsx` | `entities`, `devices`, `areas`, `capabilities` | — |
+| Capabilities | `pages/Capabilities.jsx` | `capabilities` | `/api/capabilities/registry`, `PUT /api/capabilities/{name}/can-predict` |
+| Presence | `pages/Presence.jsx` | `presence` | `/api/frigate/thumbnail/{event_id}` |
+| Automations | `pages/Automations.jsx` | `automation_suggestions` | `POST /api/cache/automation_suggestions` (delete) |
+| Patterns | `pages/Patterns.jsx` | `patterns` | — |
+| Predictions | `pages/Predictions.jsx` | `ml_predictions` | — |
+
+### Direct-Fetch Pages (no `useCache()` — fetch on mount or user action)
+
+| Page | File | API Calls | Write Actions |
+|------|------|-----------|--------------|
+| Shadow | `pages/Shadow.jsx` | `/api/pipeline`, `/api/shadow/accuracy`, `/api/shadow/predictions`, `/api/shadow/disagreements`, `/api/shadow/propagation` | `POST /api/pipeline/advance`, `POST /api/pipeline/retreat` |
+| ML Engine | `pages/MLEngine.jsx` | `/api/ml/features`, `/api/ml/models`, `/api/ml/drift`, `/api/ml/pipeline` | — |
+| Data Curation | `pages/DataCuration.jsx` | `/api/curation`, `/api/curation/summary` | `PUT /api/curation/{entity_id}`, `POST /api/curation/bulk` |
+| Settings | `pages/Settings.jsx` | `/api/config` | `PUT /api/config/{key}`, `POST /api/config/reset/{key}` |
+| Validation | `pages/Validation.jsx` | `/api/validation/latest` | `POST /api/validation/run` |
+| Guide | `pages/Guide.jsx` | — | — (static content) |
+
+### Shared Components with API Calls
+
+| Component | File | API Calls |
+|-----------|------|-----------|
+| PresenceCard | `components/PresenceCard.jsx` | `useCache('presence')` |
+| CapabilityDetail | `components/CapabilityDetail.jsx` | `PUT /api/capabilities/{name}/promote`, `PUT /api/capabilities/{name}/archive` |
+| DiscoverySettings | `components/DiscoverySettings.jsx` | `/api/settings/discovery`, `PUT /api/settings/discovery`, `POST /api/discovery/run` |
+| Sidebar | `components/Sidebar.jsx` | WebSocket status indicator only |
+
+### Data Flow: Cache Update → Dashboard Render
+
+```
+Module writes cache (hub.set_cache)
+    → hub.publish("cache_updated", {category, version})
+    → api.py: broadcast_cache_update() [subscribe callback]
+        → WebSocketManager.broadcast({type: "cache_updated", data: ...})
+            → store.js: ws.onmessage handler
+                → updates signal for that cache category
+                    → useCache(name) re-renders subscribed components
+```
+
+**Latency:** Sub-second from cache write to dashboard re-render (WebSocket push, no polling).
+
+**Gap:** Direct-fetch pages (Shadow, ML Engine, Data Curation, Settings, Validation) do NOT get real-time updates. They fetch on mount and require manual refresh or page navigation to see new data.
+
+## Part B2b — Startup Sequence & Error Propagation
 
 ### Module Registration Order (`cli.py:_register_modules`)
 
