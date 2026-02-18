@@ -221,7 +221,7 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
         await hub.initialize()
 
         # Seed config defaults
-        _seed_config(hub, logger)
+        await _seed_config(hub, logger)
 
         # HA credentials
         ha_url = os.environ.get("HA_URL")
