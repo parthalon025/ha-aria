@@ -503,7 +503,7 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
         if capability_name not in caps:
             raise HTTPException(status_code=404, detail=f"Unknown capability: {capability_name}")
         caps[capability_name]["status"] = "promoted"
-        caps[capability_name]["promoted_at"] = datetime.utcnow().strftime("%Y-%m-%d")
+        caps[capability_name]["promoted_at"] = datetime.now().strftime("%Y-%m-%d")
         await hub.cache.set("capabilities", caps)
         return {"capability": capability_name, "status": "promoted"}
 
@@ -686,7 +686,7 @@ def _register_feedback_routes(router: APIRouter, hub: IntelligenceHub) -> None:
         feedback_data["suggestions"][suggestion_id] = {
             "capability_source": capability_source,
             "user_action": user_action,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now().isoformat(),
         }
 
         # Update per-capability counters
