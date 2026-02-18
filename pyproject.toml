@@ -98,6 +98,8 @@ max-complexity = 10
 "aria/hub/api.py" = ["C901", "PLR0915"]
 # Audit log/query methods inherently accept many filter parameters — not refactorable
 "aria/hub/audit.py" = ["PLR0913"]
+# CLI dispatch functions grow linearly with subcommands — structurally identical to api.py route registration
+"aria/cli.py" = ["C901", "PLR0912"]
 
 [tool.ruff.lint.pylint]
 max-args = 5

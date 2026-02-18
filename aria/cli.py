@@ -45,6 +45,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     _add_watchdog_parser(subparsers)
     _add_capabilities_parser(subparsers)
+    _add_audit_parser(subparsers)
 
     return parser
 
@@ -98,6 +99,59 @@ def _add_capabilities_parser(subparsers):
     cap_sub.add_parser("export", help="Export capabilities as JSON")
 
 
+def _add_audit_parser(subparsers):
+    """Add audit subcommand group parser."""
+    import os
+
+    audit_parser = subparsers.add_parser("audit", help="Query audit log")
+    audit_sub = audit_parser.add_subparsers(dest="audit_command")
+
+    ev_parser = audit_sub.add_parser("events", help="Query audit events")
+    ev_parser.add_argument("--type", dest="event_type")
+    ev_parser.add_argument("--source")
+    ev_parser.add_argument("--subject")
+    ev_parser.add_argument("--severity")
+    ev_parser.add_argument("--since")
+    ev_parser.add_argument("--until", dest="until_date")
+    ev_parser.add_argument("--request-id")
+    ev_parser.add_argument("--limit", type=int, default=50)
+    ev_parser.add_argument("--json", action="store_true", dest="json_output")
+
+    req_parser = audit_sub.add_parser("requests", help="Query API request log")
+    req_parser.add_argument("--path")
+    req_parser.add_argument("--method")
+    req_parser.add_argument("--status", type=int, dest="status_min")
+    req_parser.add_argument("--since")
+    req_parser.add_argument("--limit", type=int, default=50)
+    req_parser.add_argument("--json", action="store_true", dest="json_output")
+
+    tl_parser = audit_sub.add_parser("timeline", help="Timeline for a subject")
+    tl_parser.add_argument("subject")
+    tl_parser.add_argument("--since")
+    tl_parser.add_argument("--json", action="store_true", dest="json_output")
+
+    stats_parser = audit_sub.add_parser("stats", help="Audit statistics")
+    stats_parser.add_argument("--since")
+
+    startups_parser = audit_sub.add_parser("startups", help="Recent hub startups")
+    startups_parser.add_argument("--limit", type=int, default=10)
+
+    cur_parser = audit_sub.add_parser("curation", help="Entity curation history")
+    cur_parser.add_argument("entity_id")
+    cur_parser.add_argument("--limit", type=int, default=50)
+
+    verify_parser = audit_sub.add_parser("verify", help="Integrity check")
+    verify_parser.add_argument("--since")
+
+    export_parser = audit_sub.add_parser("export", help="Export archive")
+    export_parser.add_argument("--before", required=True)
+    export_parser.add_argument("--output", default=os.path.expanduser("~/ha-logs/intelligence/audit-archive"))
+
+    tail_parser = audit_sub.add_parser("tail", help="Live tail audit events")
+    tail_parser.add_argument("--types")
+    tail_parser.add_argument("--severity-min", default="info")
+
+
 def main():
     parser = _build_parser()
     args = parser.parse_args()
@@ -147,6 +201,8 @@ def _dispatch(args):
         _capabilities(args)
     elif args.command == "watchdog":
         _watchdog(args)
+    elif args.command == "audit":
+        _audit(args)
     else:
         print(f"Unknown command: {args.command}")
         sys.exit(1)
@@ -860,6 +916,139 @@ def _capabilities_export(registry):
         "by_status": dict(by_status),
     }
     print(json.dumps(output, indent=2))
+
+
+def _audit(args):
+    """Handle audit subcommands — open audit DB read-only and query."""
+    import asyncio
+    import os
+
+    from aria.hub.audit import AuditLogger
+
+    audit_db = os.path.expanduser("~/ha-logs/intelligence/cache/audit.db")
+    if not os.path.exists(audit_db):
+        print("No audit database found. Start the hub first to initialize audit logging.")
+        sys.exit(1)
+
+    async def run():
+        al = AuditLogger()
+        await al.initialize(audit_db)
+        try:
+            await _dispatch_audit(al, args)
+        finally:
+            await al.shutdown()
+
+    asyncio.run(run())
+
+
+async def _dispatch_audit(al, args):
+    """Route audit subcommands to query methods."""
+    import json
+
+    cmd = getattr(args, "audit_command", None)
+
+    if cmd == "events":
+        results = await al.query_events(
+            event_type=getattr(args, "event_type", None),
+            source=getattr(args, "source", None),
+            subject=getattr(args, "subject", None),
+            severity=getattr(args, "severity", None),
+            since=getattr(args, "since", None),
+            until=getattr(args, "until_date", None),
+            request_id=getattr(args, "request_id", None),
+            limit=args.limit,
+        )
+        _print_audit_results(results, getattr(args, "json_output", False))
+
+    elif cmd == "requests":
+        results = await al.query_requests(
+            path=getattr(args, "path", None),
+            method=getattr(args, "method", None),
+            status_min=getattr(args, "status_min", None),
+            since=getattr(args, "since", None),
+            limit=args.limit,
+        )
+        _print_audit_results(results, getattr(args, "json_output", False))
+
+    elif cmd == "timeline":
+        results = await al.query_timeline(
+            args.subject,
+            since=getattr(args, "since", None),
+        )
+        _print_audit_results(results, getattr(args, "json_output", False))
+
+    elif cmd == "stats":
+        result = await al.get_stats(since=getattr(args, "since", None))
+        print(json.dumps(result, indent=2))
+
+    elif cmd == "startups":
+        results = await al.query_startups(limit=args.limit)
+        _print_audit_results(results, json_output=True)
+
+    elif cmd == "curation":
+        results = await al.query_curation(args.entity_id, limit=args.limit)
+        _print_audit_results(results, json_output=True)
+
+    elif cmd == "verify":
+        result = await al.verify_integrity(since=getattr(args, "since", None))
+        total = result["total"]
+        invalid = result["invalid"]
+        if invalid:
+            print(f"INTEGRITY CHECK FAILED: {invalid}/{total} events with invalid checksums")
+            for e in result.get("details", []):
+                print(f"  ID {e.get('id', '?')}: expected {e['expected'][:12]}... actual {e['actual'][:12]}...")
+        else:
+            print(f"Integrity OK: {total} events verified")
+
+    elif cmd == "export":
+        from datetime import UTC, datetime
+
+        try:
+            before_dt = datetime.fromisoformat(args.before).replace(tzinfo=UTC)
+        except ValueError:
+            print(f"Invalid date format for --before: {args.before!r}. Use ISO format, e.g. 2026-01-01T00:00:00")
+            sys.exit(1)
+
+        import os
+
+        output_dir = args.output
+        os.makedirs(output_dir, exist_ok=True)
+        files = await al.export_archive(before_dt, output_dir)
+        print(f"Exported {len(files)} file(s) to {output_dir}")
+        for f in files:
+            print(f"  {f}")
+
+    elif cmd == "tail":
+        print("Live tail requires the hub to be running. Use the WebSocket endpoint instead.")
+        print("  ws://127.0.0.1:8001/ws/audit")
+
+    else:
+        print("Usage: aria audit {events|requests|timeline|stats|startups|curation|verify|export|tail}")
+        sys.exit(1)
+
+
+def _print_audit_results(results, json_output: bool = False):
+    """Print audit query results as JSON or simple table."""
+    import json
+
+    if json_output or not results:
+        print(json.dumps(results, indent=2, default=str))
+        return
+
+    keys = list(results[0].keys())
+    # Print header (up to first 5 columns)
+    header = " | ".join(f"{k:<20}" for k in keys[:5])
+    print(header)
+    print("-" * len(header))
+    for row in results:
+        vals = []
+        for k in keys[:5]:
+            v = row.get(k, "")
+            s = str(v)[:20]
+            vals.append(f"{s:<20}")
+        print(" | ".join(vals))
+    if len(keys) > 5:
+        print(f"\n({len(keys) - 5} more columns not shown. Use --json for full output.)")
 
 
 if __name__ == "__main__":
