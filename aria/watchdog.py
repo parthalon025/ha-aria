@@ -351,13 +351,14 @@ def _check_timer_last_run(unit: str, results: list):
         pass  # Non-fatal per-timer check
 
 
-def check_audit_alerts(
+def check_audit_alerts(  # noqa: PLR0911
     audit_db_path: str,
     threshold: int = 10,
     window_minutes: int = 5,
 ) -> WatchdogResult:
     """Check audit.db for recent error-severity events."""
     import sqlite3
+    from contextlib import closing
     from datetime import timedelta
 
     if not os.path.exists(audit_db_path):
@@ -369,13 +370,23 @@ def check_audit_alerts(
 
     cutoff = (datetime.now(UTC) - timedelta(minutes=window_minutes)).isoformat()
     try:
-        conn = sqlite3.connect(audit_db_path)
-        cursor = conn.execute(
-            "SELECT COUNT(*) FROM audit_events WHERE severity = 'error' AND timestamp >= ?",
-            (cutoff,),
+        with closing(sqlite3.connect(audit_db_path)) as conn:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM audit_events WHERE severity = 'error' AND timestamp >= ?",
+                (cutoff,),
+            ).fetchone()[0]
+    except sqlite3.OperationalError as e:
+        if "no such table" in str(e):
+            return WatchdogResult(
+                check_name="audit_alerts",
+                level="OK",
+                message="Audit schema not yet initialized — skipping",
+            )
+        return WatchdogResult(
+            check_name="audit_alerts",
+            level="WARNING",
+            message=f"Failed to read audit.db: {e}",
         )
-        count = cursor.fetchone()[0]
-        conn.close()
     except Exception as e:
         return WatchdogResult(
             check_name="audit_alerts",

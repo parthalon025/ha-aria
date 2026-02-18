@@ -480,7 +480,7 @@ class TestAuditAlerts:
             threshold=10,
             window_minutes=60,
         )
-        assert result.level in ("WARNING", "CRITICAL")
+        assert result.level == "CRITICAL"
         assert result.check_name == "audit_alerts"
 
     def test_check_audit_alerts_details_populated(self, tmp_path):
