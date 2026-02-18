@@ -56,6 +56,7 @@ class IntelligenceHub:
         self._running = False
         self._start_time: datetime | None = None
         self._request_count: int = 0
+        self._audit_logger = None
         self.logger = logging.getLogger("hub")
 
     async def initialize(self):
@@ -74,6 +75,32 @@ class IntelligenceHub:
 
         self._start_time = datetime.now()
         self.logger.info("Hub initialized successfully")
+
+    def set_audit_logger(self, audit_logger):
+        """Attach audit logger to hub."""
+        self._audit_logger = audit_logger
+
+    async def emit_audit(  # noqa: PLR0913
+        self,
+        event_type: str,
+        source: str,
+        action: str = "decision",
+        subject: str | None = None,
+        detail: dict | None = None,
+        request_id: str | None = None,
+        severity: str = "info",
+    ) -> None:
+        """Emit a custom audit event. No-op if audit logger not attached."""
+        if self._audit_logger:
+            await self._audit_logger.log(
+                event_type=event_type,
+                source=source,
+                action=action,
+                subject=subject,
+                detail=detail,
+                request_id=request_id,
+                severity=severity,
+            )
 
     async def shutdown(self):
         """Shutdown hub and all modules."""
@@ -108,6 +135,20 @@ class IntelligenceHub:
             module: Module instance to register
         """
         if module.module_id in self.modules:
+            if self._audit_logger:
+                asyncio.create_task(
+                    self._audit_logger.log(
+                        event_type="module.collision",
+                        source="hub",
+                        action="attempt",
+                        subject=module.module_id,
+                        detail={
+                            "existing_class": type(self.modules[module.module_id]).__name__,
+                            "new_class": type(module).__name__,
+                        },
+                        severity="warning",
+                    )
+                )
             raise ValueError(f"Module {module.module_id} already registered")
 
         self.modules[module.module_id] = module
@@ -118,6 +159,17 @@ class IntelligenceHub:
         asyncio.create_task(
             self.cache.log_event(event_type="module_registered", metadata={"module_id": module.module_id})
         )
+
+        if self._audit_logger:
+            asyncio.create_task(
+                self._audit_logger.log(
+                    event_type="module.register",
+                    source="hub",
+                    action="register",
+                    subject=module.module_id,
+                    detail={"class": type(module).__name__},
+                )
+            )
 
     def unregister_module(self, module_id: str) -> bool:
         """Unregister a module from the hub.
@@ -282,6 +334,15 @@ class IntelligenceHub:
             New version number
         """
         version = await self.cache.set(category, data, metadata)
+
+        if self._audit_logger:
+            await self._audit_logger.log(
+                event_type="cache.write",
+                source="hub",
+                action="set",
+                subject=category,
+                detail={"version": version, "data_keys": list(data.keys()) if isinstance(data, dict) else None},
+            )
 
         # Publish cache update event
         await self.publish(
