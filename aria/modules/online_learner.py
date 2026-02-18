@@ -7,6 +7,7 @@ from typing import Any
 
 from aria.engine.hardware import recommend_tier, scan_hardware
 from aria.engine.online import OnlineModelWrapper
+from aria.hub.core import Module
 
 logger = logging.getLogger(__name__)
 
@@ -14,14 +15,13 @@ PREDICTION_TARGETS = ["power_watts", "lights_on", "devices_home", "unavailable",
 MIN_TIER = 3  # Online learning only at Tier 3+
 
 
-class OnlineLearnerModule:
+class OnlineLearnerModule(Module):
     """Hub module that maintains per-target online models."""
 
     def __init__(self, hub):
-        self.hub = hub
+        super().__init__("online_learner", hub)
         self.models: dict[str, OnlineModelWrapper] = {}
         self._active = False
-        self.logger = logger
 
     async def initialize(self) -> None:
         hw_profile = scan_hardware()

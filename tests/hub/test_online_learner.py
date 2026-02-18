@@ -1,6 +1,6 @@
 """Tests for online learner hub module."""
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -23,6 +23,28 @@ def mock_hub():
 @pytest.fixture
 def online_learner(mock_hub):
     return OnlineLearnerModule(mock_hub)
+
+
+class TestOnlineLearnerModuleContract:
+    def test_has_module_id(self):
+        """Module must have a module_id attribute."""
+        hub = MagicMock()
+        hub.subscribe = MagicMock()
+        with patch("aria.modules.online_learner.scan_hardware") as mock_hw:
+            mock_hw.return_value = MagicMock(ram_gb=4, cpu_cores=2, gpu_available=False)
+            module = OnlineLearnerModule(hub)
+        assert hasattr(module, "module_id")
+        assert module.module_id == "online_learner"
+
+    def test_is_instance_of_module(self):
+        """OnlineLearnerModule must extend the Module base class."""
+        from aria.hub.core import Module
+
+        hub = MagicMock()
+        with patch("aria.modules.online_learner.scan_hardware") as mock_hw:
+            mock_hw.return_value = MagicMock(ram_gb=4, cpu_cores=2, gpu_available=False)
+            module = OnlineLearnerModule(hub)
+        assert isinstance(module, Module)
 
 
 class TestOnlineLearnerModule:
