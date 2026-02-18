@@ -564,7 +564,7 @@ class AuditLogger:
                 "subject": row[4],
                 "severity": row[7],
             }
-            for sub in self._subscribers:
+            for sub in list(self._subscribers):  # snapshot — safe against concurrent add/remove
                 with contextlib.suppress(asyncio.QueueFull):
                     sub.put_nowait(event_dict)
 

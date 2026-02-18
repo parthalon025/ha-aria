@@ -1560,7 +1560,12 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                     event = await asyncio.wait_for(queue.get(), timeout=30)
                     await websocket.send_json({"type": "audit_event", "data": event})
                 except TimeoutError:
-                    await websocket.send_json({"type": "ping"})
+                    try:
+                        await websocket.send_json({"type": "ping"})
+                    except Exception:
+                        break
+                except Exception:
+                    break
         except WebSocketDisconnect:
             pass
         finally:
