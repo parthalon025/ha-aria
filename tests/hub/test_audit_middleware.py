@@ -83,3 +83,22 @@ class TestHubAuditMethod:
         # Should not raise even without audit logger
         await hub.emit_audit("test.event", "hub", "test")
         await hub.shutdown()
+
+
+class TestStartupAudit:
+    @pytest.mark.asyncio
+    async def test_startup_snapshot_logged(self, tmp_path):
+        from aria.hub.audit import AuditLogger
+
+        audit = AuditLogger()
+        await audit.initialize(str(tmp_path / "audit.db"))
+        await audit.log_startup(
+            modules={"activity": "running"},
+            config_snapshot={"key": "value"},
+            duration_ms=500.0,
+        )
+        startups = await audit.query_startups(limit=1)
+        assert len(startups) == 1
+        assert startups[0]["duration_ms"] == 500.0
+        assert startups[0]["modules_loaded"]["activity"] == "running"
+        await audit.shutdown()

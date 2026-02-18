@@ -204,6 +204,8 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
     from aria.hub.core import IntelligenceHub
 
     async def start():
+        import time as _time
+
         # Setup cache
         cache_dir = Path(os.path.expanduser("~/ha-logs/intelligence/cache"))
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -217,17 +219,23 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
         logger.info(f"WebSocket: ws://{host}:{port}/ws")
         logger.info("=" * 70)
 
+        _start_time = _time.monotonic()
+
         hub = IntelligenceHub(cache_path)
         await hub.initialize()
 
         # Seed config defaults
         await _seed_config(hub, logger)
 
+        # Audit logger
+        audit_logger = await _init_audit_logger(hub, cache_dir, logger)
+
         # HA credentials
         ha_url = os.environ.get("HA_URL")
         ha_token = os.environ.get("HA_TOKEN")
         if not ha_url or not ha_token:
             logger.error("HA_URL and HA_TOKEN environment variables required")
+            await audit_logger.shutdown()
             await hub.shutdown()
             return
 
@@ -236,6 +244,10 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
 
         # Module load summary
         _log_module_summary(hub, logger)
+
+        # Log startup snapshot and schedule pruning
+        await _log_startup_snapshot(hub, audit_logger, _start_time)
+        await _schedule_audit_pruning(hub, audit_logger, logger)
 
         app = create_api(hub)
 
@@ -251,10 +263,61 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
         try:
             await server.serve()
         finally:
+            if audit_logger:
+                await audit_logger.shutdown()
             if hub.is_running():
                 await hub.shutdown()
 
     asyncio.run(start())
+
+
+async def _init_audit_logger(hub, cache_dir, logger):
+    """Initialize AuditLogger, attach to hub, and return it."""
+    from aria.hub.audit import AuditLogger
+
+    audit_logger = AuditLogger()
+    audit_db_path = str(cache_dir / "audit.db")
+    await audit_logger.initialize(audit_db_path)
+    hub.set_audit_logger(audit_logger)
+    logger.info(f"Audit: {audit_db_path}")
+    return audit_logger
+
+
+async def _log_startup_snapshot(hub, audit_logger, start_time: float) -> None:
+    """Log a startup snapshot with modules, config, and elapsed duration."""
+    import time as _time
+
+    startup_duration = (_time.monotonic() - start_time) * 1000
+    config_snapshot = {}
+    try:
+        all_config = await hub.cache.get_all_config()
+        config_snapshot = {c["key"]: c["value"] for c in all_config}
+    except Exception:
+        pass
+    await audit_logger.log_startup(
+        modules=hub.module_status,
+        config_snapshot=config_snapshot,
+        duration_ms=startup_duration,
+    )
+
+
+async def _schedule_audit_pruning(hub, audit_logger, logger) -> None:
+    """Register a 24h audit pruning task on the hub scheduler."""
+    from datetime import timedelta
+
+    async def _prune_audit():
+        retention = 90
+        try:
+            config_val = await hub.cache.get_config_value("audit.retention_days")
+            if config_val is not None:
+                retention = int(config_val)
+        except Exception:
+            pass
+        deleted = await audit_logger.prune(retention)
+        if deleted:
+            logger.info(f"Audit pruning: {deleted} records removed")
+
+    await hub.schedule_task("prune_audit", _prune_audit, interval=timedelta(hours=24))
 
 
 async def _seed_config(hub, logger):
