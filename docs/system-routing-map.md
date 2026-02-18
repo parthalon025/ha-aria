@@ -466,7 +466,82 @@ Events propagate through **two channels**: explicit `hub.subscribe()` callbacks 
 
 ---
 
-## Part B2 — Fallback Routing
+## Part B2 — Startup Sequence & Error Propagation
+
+### Module Registration Order (`cli.py:_register_modules`)
+
+Modules initialize **sequentially** in this exact order. Each module's `initialize()` runs before the next is registered. Modules in `try/except` blocks are **non-critical** — failure skips them but doesn't stop the hub.
+
+| # | Module | Critical? | Init Starts | On Failure |
+|---|--------|-----------|------------|------------|
+| 1 | `discovery` | **Yes** | WebSocket listener, initial HA scan | Hub starts but entities cache empty — downstream modules degraded |
+| 2 | `ml_engine` | **Yes** | Loads models, schedules periodic training | No predictions available |
+| 3 | `patterns` | **Yes** | Reads logbook data | No pattern detection |
+| 4 | `orchestrator` | **Yes** | Reads patterns cache | No automation suggestions |
+| 5 | `shadow_engine` | No | Subscribes to state_changed | No shadow predictions, online learner starved |
+| 6 | `data_quality` | No | Reads entities, classifies, writes curation | Activity monitor falls back to domain filtering |
+| 7 | `organic_discovery` | No | Loads settings, schedules periodic run | No new capability proposals |
+| 8 | `intelligence` | **Yes** | Reads engine JSON files, schedules 15min check | Intelligence cache stale, no Telegram digest |
+| 9 | `online_learner` | No | Subscribes to shadow_resolved (Tier 3+) | No online model updates |
+| 10 | `pattern_recognition` | No | Subscribes to shadow_resolved (Tier 3+) | No trajectory classification |
+| 11 | `transfer_engine` | No | Subscribes to organic_discovery_complete (Tier 3+) | No cross-domain transfer |
+| 12 | `activity_monitor` | No | WebSocket listener, 15min summary | No activity data, shadow engine starved |
+| 13 | `activity_labeler` | No | Loads classifier, schedules prediction | No activity labels |
+| 14 | `presence` | No | MQTT + WebSocket listeners | No presence data, snapshots get zero features |
+
+**Cold-start ordering risks:**
+- `data_quality` (#6) reads `entities` cache written by `discovery` (#1) — if discovery's initial scan hasn't finished by the time data_quality runs, it gets empty data. Self-corrects on next 24h cycle.
+- `activity_monitor` (#12) fires `state_changed` events that `shadow_engine` (#5) subscribes to — ordering is correct here (shadow subscribes first).
+- `intelligence` (#8) reads engine JSON files — if batch timers haven't run yet (fresh install), intelligence cache is empty for 24h.
+
+### Error Propagation Paths
+
+When something fails, how does the failure surface?
+
+| Failure | Detection Path | User Visibility | Latency |
+|---------|---------------|----------------|---------|
+| Module init failure | `hub.mark_module_failed()` → `/health` endpoint shows "failed" | Dashboard health indicator | Immediate |
+| Module init failure | Watchdog checks module status every 5min | Telegram alert (if enabled) | Up to 5min |
+| HA WebSocket disconnect | Module logs warning → exponential backoff reconnect | No user visibility unless watchdog detects stale data | Silent until next watchdog |
+| MQTT disconnect | Presence module logs warning → backoff reconnect | Presence data goes stale → dashboard shows old presence | Silent |
+| Engine batch timer failure | Watchdog checks `systemctl --user` timer status | Telegram alert | Up to 5min |
+| Cache write failure | SQLite error propagates → module logs error | No user visibility (module continues) | Silent |
+| Telegram send failure | `intelligence.py` / `watchdog.py` log error | **No visibility** — the alerting channel itself fails silently | Silent |
+| Ollama queue timeout | Module logs warning, produces no output | Feature degrades (no labels, no LLM naming) | Silent |
+
+**Key gap:** There is no "alert about alert failure" mechanism. If Telegram sending fails, the only evidence is in journalctl logs.
+
+### Telegram Alerting Paths
+
+Two independent Telegram senders with no shared state:
+
+| Sender | Location | Triggers | Cooldown |
+|--------|----------|----------|----------|
+| Watchdog | `aria/watchdog.py:519` | Timer failures, hub health failures, recovery | Per-alert-key cooldown (watchdog internal) |
+| Intelligence digest | `aria/modules/intelligence.py:531` | New daily intelligence data assembled | None (fires once per digest cycle) |
+
+**Both** read `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from environment. Neither checks if the other has sent recently. On a bad day (multiple failures + daily digest), the user could receive a burst of messages.
+
+### Config Change Propagation
+
+When config is updated via `PUT /api/config/{key}`:
+
+1. Value written to `config` cache category
+2. `cache_updated` event published with `category="config"`
+3. **No module explicitly subscribes to config changes**
+
+Modules read config **on their own schedule** (e.g., shadow engine reads `min_confidence` on each prediction, ml_engine reads `feature_config` on each training run). Config changes take effect:
+
+| Config Area | Effective After |
+|-------------|----------------|
+| Shadow engine thresholds | Next prediction (seconds) |
+| ML training parameters | Next training run (hours to days) |
+| Discovery intervals | Next scheduled run (hours) |
+| Presence flush interval | **Never** — hardcoded constant, not read from config |
+
+**Gap:** No immediate "reload config" mechanism. Some config changes appear effective immediately (shadow engine reads per-prediction), others require a restart or next scheduled cycle.
+
+## Part B3 — Fallback Routing
 
 What happens when the primary path fails. Every module with external dependencies has a fallback strategy — or doesn't.
 
@@ -508,7 +583,7 @@ Three modules maintain persistent WebSocket/MQTT connections with identical retr
 | Watchdog | `systemctl --user` availability | Watchdog reports all timers as failed |
 | Audit logger | `audit.db` SQLite | Audit events lost (async buffer, no retry) |
 
-## Part B3 — Multi-Module Task Coordination
+## Part B4 — Multi-Module Task Coordination
 
 How multiple modules collaborate on shared workflows, and where synchronization exists (or is missing).
 
@@ -697,6 +772,33 @@ Integration boundaries where bugs hide. Ordered by estimated risk (silent corrup
 - **Test coverage:** **None** — no automated check that Sankey matches module registry
 - **Failure mode:** **Visual** — dashboard shows outdated pipeline visualization
 - **Suggested mitigation:** Automated test that compares Sankey node list against registered module IDs
+
+### RISK-11: Telegram Alert Failure is Silent
+
+- **Boundary:** `watchdog.py` and `intelligence.py` both send Telegram messages independently
+- **What crosses:** HTTP POST to Telegram Bot API
+- **What can go wrong:** Token revoked, rate limit hit, network down — the alerting channel itself fails
+- **Test coverage:** **Mocked** — all tests mock HTTP calls
+- **Failure mode:** **Silent** — logged to journalctl only, no secondary notification channel
+- **Suggested mitigation:** Watchdog should verify Telegram connectivity on startup and log a prominent warning if unreachable. Consider a local fallback (write alert to a file that `ttyd` or dashboard can display)
+
+### RISK-12: Config Changes Not Propagated Immediately
+
+- **Boundary:** `PUT /api/config/{key}` writes to cache, but modules read config on their own schedule
+- **What crosses:** Config values (thresholds, intervals, feature flags)
+- **What can go wrong:** User changes config expecting immediate effect, but module reads on next cycle (could be hours/days)
+- **Test coverage:** **None** — no test verifies config propagation timing
+- **Failure mode:** **Confusing** — config appears saved (API confirms), but behavior unchanged until next cycle
+- **Suggested mitigation:** Either publish a dedicated `config_changed` event that modules can react to, or document expected propagation delay per config key in the API
+
+### RISK-13: Cold-Start Module Ordering — data_quality Reads Empty Discovery
+
+- **Boundary:** `data_quality` (#6) runs `_reclassify_all()` on startup, reading `entities` cache written by `discovery` (#1)
+- **What crosses:** Entity list from cache
+- **What can go wrong:** Discovery's initial scan is async (WebSocket + REST) — if it hasn't completed by the time data_quality's startup task runs, entities cache is empty or stale from last session
+- **Test coverage:** **None** — tests provide pre-populated cache, never test empty-cache startup
+- **Failure mode:** **Silent** — data_quality classifies nothing, activity_monitor falls back to domain filtering. Self-corrects on next 24h cycle, but first-boot quality is degraded
+- **Suggested mitigation:** `data_quality.initialize()` could check if entities cache is empty and defer first run, or discovery could emit a `discovery_initial_complete` event that data_quality waits for
 
 ---
 
