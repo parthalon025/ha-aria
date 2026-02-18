@@ -211,13 +211,7 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
         cache_dir.mkdir(parents=True, exist_ok=True)
         cache_path = str(cache_dir / "hub.db")
 
-        logger.info("=" * 70)
-        logger.info("ARIA — Adaptive Residence Intelligence Architecture")
-        logger.info("=" * 70)
-        logger.info(f"Cache: {cache_path}")
-        logger.info(f"Server: http://{host}:{port}")
-        logger.info(f"WebSocket: ws://{host}:{port}/ws")
-        logger.info("=" * 70)
+        _log_startup_banner(logger, cache_path, host, port)
 
         _start_time = _time.monotonic()
 
@@ -235,7 +229,8 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
         ha_token = os.environ.get("HA_TOKEN")
         if not ha_url or not ha_token:
             logger.error("HA_URL and HA_TOKEN environment variables required")
-            await audit_logger.shutdown()
+            if audit_logger:
+                await audit_logger.shutdown()
             await hub.shutdown()
             return
 
@@ -246,8 +241,9 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
         _log_module_summary(hub, logger)
 
         # Log startup snapshot and schedule pruning
-        await _log_startup_snapshot(hub, audit_logger, _start_time)
-        await _schedule_audit_pruning(hub, audit_logger, logger)
+        if audit_logger:
+            await _log_startup_snapshot(hub, audit_logger, _start_time, logger)
+            await _schedule_audit_pruning(hub, audit_logger, logger)
 
         app = create_api(hub)
 
@@ -271,19 +267,34 @@ def _serve(host: str, port: int, log_level: str = "INFO"):
     asyncio.run(start())
 
 
+def _log_startup_banner(logger, cache_path: str, host: str, port: int) -> None:
+    """Log the ARIA startup banner."""
+    logger.info("=" * 70)
+    logger.info("ARIA — Adaptive Residence Intelligence Architecture")
+    logger.info("=" * 70)
+    logger.info(f"Cache: {cache_path}")
+    logger.info(f"Server: http://{host}:{port}")
+    logger.info(f"WebSocket: ws://{host}:{port}/ws")
+    logger.info("=" * 70)
+
+
 async def _init_audit_logger(hub, cache_dir, logger):
-    """Initialize AuditLogger, attach to hub, and return it."""
+    """Initialize AuditLogger, attach to hub, and return it (non-fatal)."""
     from aria.hub.audit import AuditLogger
 
     audit_logger = AuditLogger()
     audit_db_path = str(cache_dir / "audit.db")
-    await audit_logger.initialize(audit_db_path)
-    hub.set_audit_logger(audit_logger)
-    logger.info(f"Audit: {audit_db_path}")
+    try:
+        await audit_logger.initialize(audit_db_path)
+        hub.set_audit_logger(audit_logger)
+        logger.info(f"Audit: {audit_db_path}")
+    except Exception as e:
+        logger.warning(f"Audit logger failed to initialize (non-fatal): {e}")
+        return None
     return audit_logger
 
 
-async def _log_startup_snapshot(hub, audit_logger, start_time: float) -> None:
+async def _log_startup_snapshot(hub, audit_logger, start_time: float, logger) -> None:
     """Log a startup snapshot with modules, config, and elapsed duration."""
     import time as _time
 
@@ -292,8 +303,8 @@ async def _log_startup_snapshot(hub, audit_logger, start_time: float) -> None:
     try:
         all_config = await hub.cache.get_all_config()
         config_snapshot = {c["key"]: c["value"] for c in all_config}
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not collect config snapshot for startup audit: {e}")
     await audit_logger.log_startup(
         modules=hub.module_status,
         config_snapshot=config_snapshot,
