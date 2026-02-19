@@ -627,6 +627,11 @@ class PresenceModule(Module):
                 self._add_signal(room, "dimmer_press", 0.95, f"{entity_id} pressed", now)
         elif entity_id.startswith("binary_sensor.") and device_class == "door" and state in ("on", "off"):
             self._add_signal(room, "door", 0.7, f"{entity_id} {'opened' if state == 'on' else 'closed'}", now)
+        elif entity_id.startswith("media_player."):
+            if state in ("playing", "paused", "idle", "buffering"):
+                self._add_signal(room, "media_active", 0.85, f"{entity_id} is {state}", now)
+            elif state in ("off", "standby"):
+                self._add_signal(room, "media_inactive", 0.15, f"{entity_id} turned {state}", now)
 
     async def _handle_ha_state_change(self, data: dict):
         """Process a state_changed event for presence-relevant entities."""
