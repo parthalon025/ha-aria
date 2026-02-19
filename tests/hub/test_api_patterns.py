@@ -22,7 +22,7 @@ class TestPatternsEndpoint:
         }
 
         def mock_get_module(name):
-            if name == "pattern_recognition":
+            if name == "trajectory_classifier":
                 return pattern_mod
             return None
 

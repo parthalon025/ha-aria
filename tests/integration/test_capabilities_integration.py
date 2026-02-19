@@ -13,9 +13,9 @@ class TestCapabilityRegistryIntegration:
         stable = registry.list_by_status("stable")
         assert len(stable) >= 18, f"Only {len(stable)} stable capabilities"
 
-        # Should have all 8 hub modules represented (reduced after lean audit)
+        # Should have all 9 hub modules represented (lean audit: 14 → 10, patterns + trajectory_classifier both count)
         hub_modules = {c.module for c in registry.list_by_layer("hub")}
-        assert len(hub_modules) >= 8, f"Only {len(hub_modules)} hub modules"
+        assert len(hub_modules) >= 9, f"Only {len(hub_modules)} hub modules"
 
         # Should have at least 10 engine capabilities
         engine_caps = registry.list_by_layer("engine")

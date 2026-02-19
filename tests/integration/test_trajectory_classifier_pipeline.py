@@ -16,7 +16,7 @@ from sklearn.ensemble import IsolationForest
 from aria.engine.anomaly_explainer import AnomalyExplainer
 from aria.engine.pattern_scale import PatternScale
 from aria.engine.sequence import SequenceClassifier
-from aria.modules.pattern_recognition import PatternRecognitionModule
+from aria.modules.trajectory_classifier import TrajectoryClassifier
 
 
 @pytest.fixture
@@ -36,13 +36,13 @@ def mock_hub():
 class TestPatternRecognitionPipeline:
     """End-to-end pattern recognition tests."""
 
-    @patch("aria.modules.pattern_recognition.recommend_tier", return_value=3)
-    @patch("aria.modules.pattern_recognition.scan_hardware")
+    @patch("aria.modules.trajectory_classifier.recommend_tier", return_value=3)
+    @patch("aria.modules.trajectory_classifier.scan_hardware")
     async def test_full_pipeline(self, mock_scan, mock_tier, mock_hub):
         """Shadow events -> trajectory classification -> cache update."""
         mock_scan.return_value = MagicMock(ram_gb=16, cpu_cores=4)
 
-        module = PatternRecognitionModule(mock_hub)
+        module = TrajectoryClassifier(mock_hub)
         await module.initialize()
         assert module.active is True
 
@@ -86,13 +86,13 @@ class TestPatternRecognitionPipeline:
         top_features = [e["feature"] for e in explanations]
         assert "power" in top_features
 
-    @patch("aria.modules.pattern_recognition.recommend_tier", return_value=2)
-    @patch("aria.modules.pattern_recognition.scan_hardware")
+    @patch("aria.modules.trajectory_classifier.recommend_tier", return_value=2)
+    @patch("aria.modules.trajectory_classifier.scan_hardware")
     async def test_tier_2_gates_out(self, mock_scan, mock_tier, mock_hub):
         """Tier 2 hardware disables pattern recognition."""
         mock_scan.return_value = MagicMock(ram_gb=4, cpu_cores=2)
 
-        module = PatternRecognitionModule(mock_hub)
+        module = TrajectoryClassifier(mock_hub)
         await module.initialize()
         assert module.active is False
 

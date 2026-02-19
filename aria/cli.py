@@ -491,15 +491,15 @@ async def _register_analysis_modules(hub, intelligence_dir, _init, logger):
 
 async def _register_ml_modules(hub, _init, logger):
     """Register ML modules (Tier 3+ — each self-gates on hardware tier)."""
-    # pattern_recognition
+    # trajectory_classifier
     try:
-        from aria.modules.pattern_recognition import PatternRecognitionModule
+        from aria.modules.trajectory_classifier import TrajectoryClassifier
 
-        pattern_recognition = PatternRecognitionModule(hub)
-        hub.register_module(pattern_recognition)
-        await _init(pattern_recognition, "pattern_recognition")()
+        trajectory_classifier = TrajectoryClassifier(hub)
+        hub.register_module(trajectory_classifier)
+        await _init(trajectory_classifier, "trajectory_classifier")()
     except Exception as e:
-        logger.warning(f"Pattern recognition module failed (non-fatal): {e}")
+        logger.warning(f"Trajectory classifier module failed (non-fatal): {e}")
 
 
 async def _register_monitor_modules(hub, ha_url, ha_token, _init, logger):

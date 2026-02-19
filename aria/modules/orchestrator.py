@@ -37,7 +37,7 @@ class OrchestratorModule(Module):
             systemd_units=["aria-hub.service"],
             status="stable",
             added_version="1.0.0",
-            depends_on=["pattern_recognition"],
+            depends_on=["trajectory_classifier"],
         ),
     ]
 

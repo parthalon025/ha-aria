@@ -1168,7 +1168,7 @@ class MLEngine(Module):
                 self.logger.info(f"Anomaly explanations: {', '.join(e['feature'] for e in explanations)}")
 
                 # Forward to pattern recognition module if available
-                pattern_mod = getattr(self.hub, "modules", {}).get("pattern_recognition")
+                pattern_mod = getattr(self.hub, "modules", {}).get("trajectory_classifier")
                 if pattern_mod is not None:
                     pattern_mod.store_anomaly_explanations(explanations)
 

@@ -334,6 +334,7 @@ class TestCollectFromModules:
             "discovery",
             "ml_engine",
             "pattern_recognition",
+            "trajectory_classifier",
             "orchestrator",
             "shadow_engine",
             "intelligence",

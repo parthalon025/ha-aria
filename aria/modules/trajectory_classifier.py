@@ -1,4 +1,4 @@
-"""Pattern recognition hub module.
+"""Trajectory classifier hub module.
 
 Orchestrates sequence classification, pattern scale tagging, and anomaly
 explanation. Subscribes to shadow_resolved events to maintain a sliding
@@ -29,20 +29,20 @@ _DEFAULT_MIN_TIER = 3
 _DEFAULT_WINDOW_SIZE = 6
 
 
-class PatternRecognitionModule(Module):
+class TrajectoryClassifier(Module):
     """Hub module for trajectory classification and pattern analysis."""
 
     CAPABILITIES = [
         Capability(
-            id="pattern_recognition",
-            name="Pattern Recognition",
+            id="trajectory_classifier",
+            name="Trajectory Classifier",
             description=(
                 "Trajectory classification, pattern scale tagging, and anomaly explanation from shadow engine events."
             ),
-            module="pattern_recognition",
+            module="trajectory_classifier",
             layer="hub",
             config_keys=["pattern.min_tier", "pattern.sequence_window_size"],
-            test_paths=["tests/hub/test_pattern_recognition.py"],
+            test_paths=["tests/hub/test_trajectory_classifier.py"],
             runtime_deps=["numpy"],
             pipeline_stage="shadow",
             status="stable",
@@ -51,7 +51,7 @@ class PatternRecognitionModule(Module):
     ]
 
     def __init__(self, hub):
-        super().__init__("pattern_recognition", hub)
+        super().__init__("trajectory_classifier", hub)
         self.active = False
         # Classifier and window size are set in initialize() after reading config
         self.sequence_classifier = SequenceClassifier(window_size=_DEFAULT_WINDOW_SIZE)

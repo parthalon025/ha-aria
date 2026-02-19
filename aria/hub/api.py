@@ -446,7 +446,7 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     async def get_patterns():
         """Pattern recognition state — trajectory, anomaly explanations, stats."""
         try:
-            pattern_mod = hub.get_module("pattern_recognition")
+            pattern_mod = hub.get_module("trajectory_classifier")
             if pattern_mod is None:
                 return {
                     "trajectory": None,
@@ -495,7 +495,7 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     async def get_anomaly_explanations():
         """Combined anomaly explanations — path tracing + attention."""
         try:
-            pattern_mod = hub.get_module("pattern_recognition")
+            pattern_mod = hub.get_module("trajectory_classifier")
             if pattern_mod is None:
                 return {"path_tracing": [], "attention": None}
 

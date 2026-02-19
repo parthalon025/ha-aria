@@ -231,16 +231,16 @@ class CapabilityRegistry:
         from aria.modules.intelligence import IntelligenceModule
         from aria.modules.ml_engine import MLEngine
         from aria.modules.orchestrator import OrchestratorModule
-        from aria.modules.pattern_recognition import PatternRecognitionModule
         from aria.modules.patterns import PatternRecognition
         from aria.modules.presence import PresenceModule
         from aria.modules.shadow_engine import ShadowEngine
+        from aria.modules.trajectory_classifier import TrajectoryClassifier
 
         hub_modules = [
             DiscoveryModule,
             MLEngine,
             PatternRecognition,
-            PatternRecognitionModule,
+            TrajectoryClassifier,
             OrchestratorModule,
             ShadowEngine,
             IntelligenceModule,

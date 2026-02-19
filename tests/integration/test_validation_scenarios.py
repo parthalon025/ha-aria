@@ -161,7 +161,7 @@ class TestModuleCoverage:
     MODULE_DOMAINS = {
         "activity_monitor": {"light", "switch", "binary_sensor", "media_player", "fan"},
         "shadow_engine": {"light", "switch", "lock", "cover", "climate", "fan"},
-        "pattern_recognition": {"light", "binary_sensor", "lock", "media_player"},
+        "trajectory_classifier": {"light", "binary_sensor", "lock", "media_player"},
         "presence": {"binary_sensor", "person", "device_tracker"},
         "discovery": {"light", "switch", "binary_sensor", "lock", "climate", "sensor"},
     }
