@@ -1535,6 +1535,15 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         """Detailed health check with module status and uptime."""
         try:
             health_data = await hub.health_check()
+
+            # Include Telegram connectivity from watchdog probe
+            try:
+                from aria.watchdog import last_telegram_ok
+
+                health_data["telegram_ok"] = last_telegram_ok
+            except ImportError:
+                health_data["telegram_ok"] = False
+
             return JSONResponse(content=health_data)
         except Exception:
             logger.exception("Health check failed")

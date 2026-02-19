@@ -113,6 +113,50 @@ def _http_get(path: str, timeout: int = HTTP_TIMEOUT) -> tuple:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Telegram startup probe
+# ---------------------------------------------------------------------------
+
+# Module-level state for Telegram connectivity (set by verify_telegram_connectivity)
+last_telegram_ok: bool = False
+
+
+def verify_telegram_connectivity() -> bool:
+    """Verify Telegram bot token works by calling the getMe API.
+
+    Updates the module-level last_telegram_ok flag. Returns True if the
+    bot token is valid and the API responds, False otherwise.
+    Does not raise — failures are logged and stored silently.
+    """
+    global last_telegram_ok
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        logging.getLogger("aria.watchdog").warning("TELEGRAM_BOT_TOKEN not set — Telegram probe skipped")
+        last_telegram_ok = False
+        return False
+
+    url = f"https://api.telegram.org/bot{token}/getMe"
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read())
+            if body.get("ok"):
+                last_telegram_ok = True
+                logging.getLogger("aria.watchdog").info(
+                    "Telegram probe OK (bot: %s)", body.get("result", {}).get("username", "?")
+                )
+                return True
+            else:
+                last_telegram_ok = False
+                logging.getLogger("aria.watchdog").warning("Telegram probe failed: API returned ok=false")
+                return False
+    except Exception as e:
+        last_telegram_ok = False
+        logging.getLogger("aria.watchdog").warning("Telegram probe failed: %s", e)
+        return False
+
+
 def check_hub_health() -> list:
     """Check hub /health endpoint — liveness + module health."""
     results = []
@@ -666,6 +710,10 @@ def _send_alerts(logger, summary, restart_result):
 def run_watchdog(quiet: bool = False, no_alert: bool = False, json_output: bool = False) -> int:
     """Run all watchdog checks. Returns 0 if all pass, 1 if any fail."""
     logger = setup_logging()
+
+    # Verify Telegram connectivity at startup (non-blocking — warn, don't fail)
+    verify_telegram_connectivity()
+
     all_results = _collect_results()
 
     # Summarize

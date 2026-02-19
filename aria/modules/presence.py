@@ -21,7 +21,7 @@ import aiohttp
 
 from aria.capabilities import Capability
 from aria.engine.analysis.occupancy import SENSOR_CONFIG, BayesianOccupancy
-from aria.hub.constants import CACHE_PRESENCE
+from aria.hub.constants import CACHE_PRESENCE, RECONNECT_STAGGER
 from aria.hub.core import IntelligenceHub, Module
 
 logger = logging.getLogger(__name__)
@@ -381,7 +381,9 @@ class PresenceModule(Module):
             self.logger.error("aiomqtt not installed. Run: pip install aiomqtt")
             return
 
+        stagger = RECONNECT_STAGGER.get("presence_mqtt", 4)
         retry_delay = 5
+        first_connect = True
 
         while self.hub.is_running():
             try:
@@ -394,6 +396,7 @@ class PresenceModule(Module):
                     self._mqtt_connected = True
                     self.logger.info(f"MQTT connected to {self.mqtt_host}:{self.mqtt_port}")
                     retry_delay = 5
+                    first_connect = False
 
                     # Subscribe to Frigate event topics
                     await client.subscribe("frigate/events")
@@ -412,8 +415,13 @@ class PresenceModule(Module):
             except Exception as e:
                 self._mqtt_connected = False
                 self.logger.warning(f"MQTT connection failed: {e}, retrying in {retry_delay}s")
-                jitter = retry_delay * random.uniform(-0.25, 0.25)
-                actual_delay = retry_delay + jitter
+
+                # Apply stagger on first reconnect attempt to avoid thundering herd
+                base_delay = retry_delay + (stagger if first_connect else 0)
+                first_connect = False
+
+                jitter = base_delay * random.uniform(-0.25, 0.25)
+                actual_delay = base_delay + jitter
                 await asyncio.sleep(actual_delay)
                 retry_delay = min(retry_delay * 2, 60)
 
@@ -512,7 +520,9 @@ class PresenceModule(Module):
     async def _ws_listen_loop(self):
         """Connect to HA WebSocket and listen for presence-relevant events."""
         ws_url = self.ha_url.replace("http", "ws", 1) + "/api/websocket"
+        stagger = RECONNECT_STAGGER.get("presence_ws", 6)
         retry_delay = 5
+        first_connect = True
 
         while self.hub.is_running():
             try:
@@ -547,6 +557,7 @@ class PresenceModule(Module):
 
                     self.logger.info("Presence WS connected — listening for sensor events")
                     retry_delay = 5
+                    first_connect = False
 
                     async for msg in ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
@@ -565,8 +576,13 @@ class PresenceModule(Module):
 
             except Exception as e:
                 self.logger.warning(f"Presence WS error: {e}, retrying in {retry_delay}s")
-                jitter = retry_delay * random.uniform(-0.25, 0.25)
-                actual_delay = retry_delay + jitter
+
+                # Apply stagger on first reconnect attempt to avoid thundering herd
+                base_delay = retry_delay + (stagger if first_connect else 0)
+                first_connect = False
+
+                jitter = base_delay * random.uniform(-0.25, 0.25)
+                actual_delay = base_delay + jitter
                 await asyncio.sleep(actual_delay)
                 retry_delay = min(retry_delay * 2, 60)
 

@@ -18,6 +18,7 @@ from aria.capabilities import Capability
 from aria.engine.schema import validate_snapshot_schema
 from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
 from aria.hub.core import IntelligenceHub, Module
+from aria.schemas import validate_intelligence_payload
 
 logger = logging.getLogger(__name__)
 
@@ -283,7 +284,7 @@ class IntelligenceModule(Module):
         insights_dir = self.intel_dir / "insights"
         maturity, daily_files = self._build_data_maturity()
 
-        return {
+        data = {
             "data_maturity": maturity,
             "predictions": self._read_json(self.intel_dir / "predictions.json"),
             "baselines": self._read_json(self.intel_dir / "baselines.json"),
@@ -307,6 +308,13 @@ class IntelligenceModule(Module):
             "autoencoder_status": self._read_json(self.intel_dir / "models" / "autoencoder_status.json"),
             "isolation_forest_status": self._read_json(self.intel_dir / "models" / "isolation_forest_status.json"),
         }
+
+        # Validate schema contract — warn on missing keys, don't crash
+        missing = validate_intelligence_payload(data)
+        if missing:
+            self.logger.warning(f"Intelligence payload missing required keys: {missing}")
+
+        return data
 
     def _determine_phase(self, days: int, ml_active: bool, meta_active: bool) -> tuple:
         """Return (phase_name, next_milestone_text)."""

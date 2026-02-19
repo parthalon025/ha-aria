@@ -20,7 +20,7 @@ from typing import Any
 import aiohttp
 
 from aria.capabilities import Capability
-from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
+from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, RECONNECT_STAGGER
 from aria.hub.core import IntelligenceHub, Module
 
 logger = logging.getLogger(__name__)
@@ -251,7 +251,9 @@ class ActivityMonitor(Module):
     async def _ws_listen_loop(self):
         """Connect to HA WebSocket and listen for state_changed events."""
         ws_url = self.ha_url.replace("http", "ws", 1) + "/api/websocket"
+        stagger = RECONNECT_STAGGER.get("activity_monitor", 2)
         retry_delay = 5
+        first_connect = True
 
         while self.hub.is_running():
             try:
@@ -311,9 +313,13 @@ class ActivityMonitor(Module):
 
             self._track_ws_disconnect()
 
-            # Backoff: 5s → 10s → 20s → 60s max, with ±25% jitter to prevent thundering herd
-            jitter = retry_delay * random.uniform(-0.25, 0.25)
-            actual_delay = retry_delay + jitter
+            # Apply stagger on first reconnect attempt to avoid thundering herd
+            base_delay = retry_delay + (stagger if first_connect else 0)
+            first_connect = False
+
+            # Backoff: 5s → 10s → 20s → 60s max, with ±25% jitter
+            jitter = base_delay * random.uniform(-0.25, 0.25)
+            actual_delay = base_delay + jitter
             await asyncio.sleep(actual_delay)
             retry_delay = min(retry_delay * 2, 60)
 
