@@ -1,5 +1,5 @@
 /**
- * ARIA pipeline graph definition — 49 nodes, 5 columns, all links.
+ * ARIA pipeline graph definition — lean audit (2026-02-19).
  * This is the single source of truth for the Sankey topology.
  * When modules are added/removed, update HERE (not the JSX).
  */
@@ -13,7 +13,6 @@ export const SOURCES = [
   { id: 'mqtt_frigate', column: 0, label: 'MQTT frigate/events', metricKey: 'mqtt_status' },
   { id: 'logbook_json', column: 0, label: 'Logbook JSON', metricKey: null },
   { id: 'snapshot_json', column: 0, label: 'Snapshot JSON', metricKey: 'snapshot_count' },
-  { id: 'ollama_queue', column: 0, label: 'Ollama Queue', metricKey: null },
 ];
 
 // --- Column 1: Intake Modules ---
@@ -29,17 +28,12 @@ export const PROCESSING = [
   { id: 'intelligence', column: 2, label: 'Intelligence', metricKey: 'day_count' },
   { id: 'ml_engine', column: 2, label: 'ML Engine', metricKey: 'mean_r2' },
   { id: 'shadow_engine', column: 2, label: 'Shadow Engine', metricKey: 'accuracy' },
-  { id: 'pattern_recognition', column: 2, label: 'Patterns', metricKey: 'sequence_count' },
-  { id: 'data_quality', column: 2, label: 'Data Quality', metricKey: 'included_count' },
+  { id: 'trajectory_classifier', column: 2, label: 'Trajectory Classifier', metricKey: 'sequence_count' },
 ];
 
 // --- Column 3: Enrichment Modules ---
 export const ENRICHMENT = [
   { id: 'orchestrator', column: 3, label: 'Orchestrator', metricKey: 'suggestion_count' },
-  { id: 'organic_discovery', column: 3, label: 'Organic Discovery', metricKey: 'organic_count' },
-  { id: 'activity_labeler', column: 3, label: 'Activity Labeler', metricKey: 'current_activity' },
-  { id: 'transfer_engine', column: 3, label: 'Transfer Engine', metricKey: null },
-  { id: 'online_learner', column: 3, label: 'Online Learner', metricKey: null },
 ];
 
 // --- Column 4: API Outputs ---
@@ -52,15 +46,12 @@ export const OUTPUTS = [
   { id: 'out_shadow_preds', column: 4, label: 'Shadow Predictions', metricKey: null, page: '/shadow' },
   { id: 'out_shadow_accuracy', column: 4, label: 'Shadow Accuracy', metricKey: null, page: '/shadow' },
   { id: 'out_pipeline_stage', column: 4, label: 'Pipeline Stage', metricKey: null, page: '/' },
-  { id: 'out_activity_labels', column: 4, label: 'Activity Labels', metricKey: null, page: '/intelligence' },
   { id: 'out_patterns', column: 4, label: 'Patterns', metricKey: null, page: '/patterns' },
   { id: 'out_intelligence', column: 4, label: 'Intelligence', metricKey: null, page: '/intelligence' },
   { id: 'out_presence', column: 4, label: 'Presence Map', metricKey: null, page: '/presence' },
   { id: 'out_curation', column: 4, label: 'Entity Curation', metricKey: null, page: '/data-curation' },
   { id: 'out_capabilities', column: 4, label: 'Capabilities', metricKey: null, page: '/capabilities' },
   { id: 'out_validation', column: 4, label: 'Validation', metricKey: null, page: '/validation' },
-  { id: 'out_transfer', column: 4, label: 'Transfer Candidates', metricKey: null, page: '/transfer' },
-  { id: 'out_online_stats', column: 4, label: 'Online Metrics', metricKey: null, page: '/online-learning' },
 ];
 
 export const ALL_NODES = [...SOURCES, ...INTAKE, ...PROCESSING, ...ENRICHMENT, ...OUTPUTS];
@@ -77,26 +68,19 @@ export const LINKS = [
   { source: 'ws_state_changed', target: 'presence', value: 3, type: 'data' },
   { source: 'mqtt_frigate', target: 'presence', value: 4, type: 'data' },
   { source: 'logbook_json', target: 'engine', value: 5, type: 'data' },
-  { source: 'logbook_json', target: 'pattern_recognition', value: 5, type: 'data' },
+  { source: 'logbook_json', target: 'trajectory_classifier', value: 5, type: 'data' },
   { source: 'snapshot_json', target: 'engine', value: 4, type: 'data' },
   { source: 'snapshot_json', target: 'ml_engine', value: 4, type: 'data' },
-  { source: 'ollama_queue', target: 'organic_discovery', value: 2, type: 'data' },
-  { source: 'ollama_queue', target: 'activity_labeler', value: 2, type: 'data' },
 
   // Intake → Processing (through cache)
-  { source: 'discovery', target: 'data_quality', value: 6, type: 'cache' },
-  { source: 'discovery', target: 'organic_discovery', value: 4, type: 'cache' },
   { source: 'discovery', target: 'ml_engine', value: 3, type: 'cache' },
   { source: 'activity_monitor', target: 'intelligence', value: 5, type: 'cache' },
   { source: 'activity_monitor', target: 'shadow_engine', value: 5, type: 'cache' },
   { source: 'activity_monitor', target: 'ml_engine', value: 3, type: 'cache' },
-  { source: 'activity_monitor', target: 'activity_labeler', value: 3, type: 'cache' },
-  { source: 'presence', target: 'activity_labeler', value: 3, type: 'cache' },
   { source: 'engine', target: 'intelligence', value: 6, type: 'cache' },
 
   // Processing → Enrichment
-  { source: 'intelligence', target: 'activity_labeler', value: 3, type: 'cache' },
-  { source: 'pattern_recognition', target: 'orchestrator', value: 5, type: 'cache' },
+  { source: 'trajectory_classifier', target: 'orchestrator', value: 5, type: 'cache' },
   { source: 'shadow_engine', target: 'orchestrator', value: 2, type: 'cache' },
 
   // Enrichment → Outputs
@@ -108,20 +92,11 @@ export const LINKS = [
   { source: 'shadow_engine', target: 'out_shadow_preds', value: 3, type: 'cache' },
   { source: 'shadow_engine', target: 'out_shadow_accuracy', value: 2, type: 'cache' },
   { source: 'shadow_engine', target: 'out_pipeline_stage', value: 2, type: 'cache' },
-  { source: 'activity_labeler', target: 'out_activity_labels', value: 3, type: 'cache' },
-  { source: 'pattern_recognition', target: 'out_patterns', value: 3, type: 'cache' },
+  { source: 'trajectory_classifier', target: 'out_patterns', value: 3, type: 'cache' },
   { source: 'intelligence', target: 'out_intelligence', value: 4, type: 'cache' },
   { source: 'presence', target: 'out_presence', value: 3, type: 'cache' },
-  { source: 'data_quality', target: 'out_curation', value: 3, type: 'cache' },
+  { source: 'discovery', target: 'out_curation', value: 3, type: 'cache' },
   { source: 'discovery', target: 'out_capabilities', value: 3, type: 'cache' },
-  { source: 'organic_discovery', target: 'out_capabilities', value: 2, type: 'cache' },
-
-  // Transfer Engine + Online Learner
-  { source: 'organic_discovery', target: 'transfer_engine', value: 2, type: 'cache' },
-  { source: 'shadow_engine', target: 'transfer_engine', value: 2, type: 'cache' },
-  { source: 'transfer_engine', target: 'out_transfer', value: 2, type: 'cache' },
-  { source: 'shadow_engine', target: 'online_learner', value: 3, type: 'cache' },
-  { source: 'online_learner', target: 'out_online_stats', value: 2, type: 'cache' },
 
   // Feedback loops (reverse direction, amber)
   { source: 'ml_engine', target: 'discovery', value: 2, type: 'feedback' },
@@ -158,22 +133,17 @@ export const NODE_DETAIL = {
   logbook_json: {
     protocol: 'Disk files (ha-log-sync timer, every 15m)',
     reads: 'Logbook JSON files',
-    writes: 'Consumed by Engine + Pattern Recognition',
+    writes: 'Consumed by Engine + Trajectory Classifier',
   },
   snapshot_json: {
     protocol: 'Disk files (engine timers)',
     reads: 'Daily snapshot JSON files',
     writes: 'Consumed by Engine + ML Engine',
   },
-  ollama_queue: {
-    protocol: 'HTTP POST to Ollama Queue',
-    reads: 'LLM inference requests',
-    writes: 'Consumed by Organic Discovery + Activity Labeler',
-  },
   discovery: {
     protocol: 'REST registries + WS registry_updated',
     reads: 'Entity/device/area registries from HA',
-    writes: 'entities, devices, areas, capabilities (seed), discovery_metadata',
+    writes: 'entities, devices, areas, capabilities (seed), discovery_metadata, entity_curation',
   },
   activity_monitor: {
     protocol: 'WS state_changed (real-time)',
@@ -205,40 +175,15 @@ export const NODE_DETAIL = {
     reads: 'Entity state changes, activity context',
     writes: 'predictions table, pipeline_state, capabilities (hit_rate feedback)',
   },
-  pattern_recognition: {
-    protocol: 'Reads logbook JSON files',
-    reads: 'Logbook JSON files, intraday snapshots',
-    writes: 'patterns (temporal sequences per area)',
-  },
-  data_quality: {
-    protocol: 'Classifies entities into tiers 1/2/3',
-    reads: 'entities, activity_log (event rates)',
-    writes: 'entity_curation table (included/excluded/tier)',
+  trajectory_classifier: {
+    protocol: 'Subscribes to shadow_resolved events',
+    reads: 'Shadow resolution outcomes, feature snapshots',
+    writes: 'trajectory classification, anomaly explanations',
   },
   orchestrator: {
     protocol: 'Can call HA /api/automation/trigger',
     reads: 'patterns cache',
     writes: 'automation_suggestions, pending_automations, created_automations',
-  },
-  organic_discovery: {
-    protocol: 'Weekly timer + Ollama queue (LLM naming)',
-    reads: 'entities, devices, areas, activity_log, discovery_history',
-    writes: 'capabilities (organic), discovery_settings, discovery_history',
-  },
-  activity_labeler: {
-    protocol: 'Ollama queue for LLM fallback',
-    reads: 'Sensor context: power, lights, motion, occupancy, time',
-    writes: 'activity_labels (predictions + corrections + classifier)',
-  },
-  transfer_engine: {
-    protocol: 'Subscribes to organic_discovery_complete + shadow_resolved',
-    reads: 'Organic capabilities, shadow resolution outcomes',
-    writes: 'transfer_candidates (cross-domain pattern transfer)',
-  },
-  online_learner: {
-    protocol: 'Subscribes to shadow_resolved events',
-    reads: 'Shadow resolution outcomes, feature snapshots',
-    writes: 'Online model stats (per-target River models)',
   },
 };
 
@@ -247,7 +192,6 @@ export function getNodeMetric(cacheData, nodeId) {
   const caps = cacheData?.capabilities?.data || {};
   const pipeline = cacheData?.pipeline || {};
   const shadow = cacheData?.shadow_accuracy || {};
-  const activity = cacheData?.activity_labels?.data || {};
   const intelligence = cacheData?.intelligence?.data || {};
   const curation = cacheData?.curation || {};
   const mlPipeline = cacheData?.ml_pipeline || {};
@@ -283,18 +227,10 @@ export function getNodeMetric(cacheData, nodeId) {
       return `R\u00B2: ${avgR2.toFixed(2)}`;
     }
     case 'shadow_engine': return shadow?.overall_accuracy ? `${(shadow.overall_accuracy * 100).toFixed(0)}%` : '\u2014';
-    case 'pattern_recognition': return '\u2014';
-    case 'data_quality': return curation?.included ? `${curation.included} incl.` : pipeline?.included_entities ? `${pipeline.included_entities} incl.` : '\u2014';
+    case 'trajectory_classifier': return '\u2014';
 
     // Enrichment
     case 'orchestrator': return '\u2014';
-    case 'organic_discovery': {
-      const organic = Object.values(caps).filter((e) => e?.source === 'organic').length;
-      return organic ? `${organic} organic` : '\u2014';
-    }
-    case 'activity_labeler': return activity?.current_activity?.predicted || '\u2014';
-    case 'transfer_engine': return '\u2014';
-    case 'online_learner': return '\u2014';
 
     // Outputs (show page name)
     default: return '\u2014';
@@ -320,12 +256,6 @@ export const ACTION_CONDITIONS = [
     test: (d) => (d.shadow_accuracy?.disagreement_count || 0) > 5,
     text: (d) => `Review ${d.shadow_accuracy.disagreement_count} high-confidence disagreements \u2192`,
     href: '#/shadow',
-  },
-  {
-    id: 'organic_candidates',
-    test: (d) => (d.candidates?.length || 0) > 0,
-    text: (d) => `Review ${d.candidates.length} discovered capabilities \u2192`,
-    href: '#/discovery',
   },
   {
     id: 'automation_suggestions',
