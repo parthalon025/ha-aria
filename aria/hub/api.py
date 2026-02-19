@@ -21,7 +21,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -1517,8 +1517,24 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
 
     hub.subscribe("cache_updated", broadcast_cache_update)
 
-    # Mount SPA dashboard (serves index.html for all unmatched /ui/ paths)
+    # Mount SPA dashboard — static files + catch-all for client-side routing
     spa_dist = Path(__file__).parent.parent / "dashboard" / "spa" / "dist"
+    spa_index = spa_dist / "index.html"
+
+    @app.get("/ui/{path:path}")
+    async def spa_catchall(path: str):
+        """Serve index.html for all SPA routes (client-side routing).
+
+        Real static files (bundle.js, bundle.css) are served by the mount below.
+        This catch-all only fires for paths that don't match a real file.
+        """
+        # Serve real files directly (JS, CSS, etc.)
+        real_file = spa_dist / path
+        if real_file.is_file():
+            return FileResponse(real_file)
+        # Everything else gets index.html for the client-side router
+        return FileResponse(spa_index)
+
     app.mount("/ui", StaticFiles(directory=str(spa_dist), html=True), name="spa")
 
     # Authenticated router — all /api/* routes require API key when configured
