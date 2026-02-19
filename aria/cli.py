@@ -447,7 +447,7 @@ async def _register_modules(hub, ha_url, ha_token, intelligence_dir, logger):
     ml_engine = MLEngine(hub, models_dir, training_data_dir)
     hub.register_module(ml_engine)
 
-    log_dir = Path(intelligence_dir)
+    log_dir = Path(intelligence_dir).parent  # ~/ha-logs (not intelligence subdir)
     patterns = PatternRecognition(hub, log_dir)
     hub.register_module(patterns)
 
