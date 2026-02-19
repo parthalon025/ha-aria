@@ -19,9 +19,8 @@ This roadmap tracks the 5-phase engineering process to achieve those outputs rel
 | Phase | Name | Status | Deliverable |
 |-------|------|--------|-------------|
 | **1** | Module Triage | **Done** | 14 → 10 modules, 4 archived, 1 merged, 1 renamed |
-| **2** | Known-Answer Test Harness | **Planned** | 11 known-answer tests + golden snapshots |
-| **3** | Issue Triage & GitHub Roadmap | Queued | GitHub project board with milestones |
-| **4** | Fix & Optimize | Queued | Security, reliability, performance fixes |
+| **2** | Known-Answer Test Harness | **Done** | 37 known-answer tests + golden snapshots |
+| **3+4** | Issue Triage & Fix | **Done** | 37 issues fixed, 18 remain open |
 | **5** | UI — Decision Tool | Queued | OODA-based dashboard redesign |
 
 ---
@@ -65,75 +64,72 @@ This roadmap tracks the 5-phase engineering process to achieve those outputs rel
 
 ---
 
-## Phase 2: Known-Answer Test Harness (Current)
+## Phase 2: Known-Answer Test Harness (Done)
 
+**Completed:** 2026-02-19
 **Plan:** `2026-02-19-known-answer-test-harness.md`
 **Design:** `2026-02-19-known-answer-test-harness-design.md`
-**Target:** 16 tasks
+**Branch:** `feature/known-answer-tests` (merged to main)
 
-### Scope
+### Results
 
-1. **Test infrastructure** — `tests/integration/known_answer/` with `golden_compare()` utility and `--update-golden` flag
-2. **10 per-module known-answer tests** — behavioral assertions (hard pass/fail) + golden snapshot comparison (warn on drift)
-3. **1 full pipeline test** — engine → hub → recommendations + anomalies end-to-end
-4. **Dashboard greyed-out modules** — Tier-gated modules show as greyed out, not hidden
-5. **CLAUDE.md update** — Reflect 10-module architecture
-
-### Testing Approach
-
-- **Behavioral assertions:** Structural properties ("finds >= 2 patterns", "produces >= 1 recommendation"). Resilient to algorithm changes.
-- **Golden snapshots:** Full output stored as JSON reference files. Drift produces warnings, not failures. Re-baseline with `--update-golden`.
-- **Fixture strategy:** Simulator-based for realistic data (seed=42), hand-crafted JSON for edge cases, mocked services for external dependencies.
+| Metric | Target | Actual |
+|--------|--------|--------|
+| Module KA tests | 10 | 10 |
+| Full pipeline test | 1 | 1 |
+| Golden snapshots | 11 | 11 |
+| Total KA tests | ~11 | 37 |
 
 ### Success Criteria
 
-- [ ] All 10 modules have known-answer tests passing
-- [ ] Full pipeline test passes end-to-end
-- [ ] Golden snapshots committed for all modules
-- [ ] Dashboard shows greyed-out tier-gated modules
-- [ ] CLAUDE.md reflects Phase 1 changes
-- [ ] No regressions in existing 1,416 tests
+- [x] All 10 modules have known-answer tests passing
+- [x] Full pipeline test passes end-to-end
+- [x] Golden snapshots committed for all modules
+- [x] Dashboard shows greyed-out tier-gated modules
+- [x] CLAUDE.md reflects Phase 1 changes
+- [x] No regressions in existing 1,416 tests
 
 ---
 
-## Phase 3: Issue Triage & GitHub Roadmap (Queued)
+## Phase 3+4: Issue Triage & Fix (Done)
 
-**Prerequisite:** Phase 2 complete (known-answer tests provide baseline for evaluating issue impact)
+**Completed:** 2026-02-19
+**Plan:** `2026-02-19-issue-triage-fix-plan.md`
+**Branch:** `feature/phase3-4-fixes`
 
-### Scope
+### Triage Results
 
-1. **Audit all open GitHub issues** against leaner architecture
-2. **Close issues** targeting archived modules with "archived" label
-3. **Close issues** that dissolved due to simplification
-4. **Re-prioritize** surviving issues with Phase 1 context
-5. **File new issues** discovered during audit
-6. **Create GitHub milestones** for Phases 4 and 5
-7. **Create GitHub project board** for tracking
+- 8 issues closed (already-fixed or archived module)
+- 10 issues annotated with Phase 1 context
+- 32 issues re-labeled with priority + category
+- Milestones created: Phase 4, Phase 5
+- Open issues reduced from 63 → 55
 
-### Expected Outcome
+### Fix Results
 
-- Open issue count reduced by ~50%
-- Surviving issues prioritized by: security > reliability > performance > architecture
-- Milestones created for Phase 4 (Fix) and Phase 5 (UI)
+| Category | Issues Fixed | Key Changes |
+|----------|-------------|-------------|
+| Security | 4 (#43, #44, #64, #65) | Config redaction, CORS, auth gate, input validation |
+| Reliability Critical | 3 (#19, #20, #21) | Schema contracts, reconnect stagger, Telegram health |
+| Reliability High | 5 (#22-25, #27) | Race conditions, cold-start, config propagation |
+| Reliability Medium | 4 (#45-47, #56) | Silent failures, typed errors, retry logic, bounds |
+| Performance | 6 (#51-55, #58) | Async I/O, batch queries, parallel init, sessions |
+| Architecture | 6 (#29, #30, #42, #59, #60, #62) | Config wiring, auto-discovery, shared constants |
+| Remaining | 9 (#9, #36-38, #41, #48-50, #57) | Timezone, pruning, data quality, watchdog, model status |
 
----
+### Metrics
 
-## Phase 4: Fix & Optimize (Queued)
+| Metric | Before | After |
+|--------|--------|-------|
+| Open issues | 63 | 18 |
+| Test count | 1,416 | 1,543 |
+| Issues fixed | — | 37 |
+| Reduction | — | 71% |
 
-**Prerequisite:** Phase 3 complete (prioritized issue list)
-
-### Priority Order
-
-1. **Security** — API auth, CORS, credential handling, input validation
-2. **Reliability** — Silent failure logging, unbounded collection guards, graceful degradation
-3. **Performance** — Blocking I/O elimination, N+1 query optimization, cache efficiency
-4. **Architecture** — Loose coupling, config-driven registration, interface contracts
-
-### Approach
-
-- Each fix gets a known-answer test (from Phase 2 infrastructure)
-- Fixes are incremental — one issue per PR
-- Known-answer test regressions block merges
+### Follow-up Issues Filed
+- #74: cache.py naive timestamps
+- #75: snapshot pruning string comparison
+- #76: presence C901 complexity
 
 ---
 
@@ -174,8 +170,8 @@ Phase 2's known-answer test harness is the key enabler: it proves the intelligen
 ## Success Criteria (Overall)
 
 - [x] Module count reduced to < 10 active modules *(Phase 1: 14 → 10)*
-- [ ] Every surviving module has a known-answer integration test *(Phase 2)*
-- [ ] Full pipeline known-answer test passes *(Phase 2)*
-- [ ] Open issue count reduced by 50%+ *(Phase 3)*
+- [x] Every surviving module has a known-answer integration test *(Phase 2: 10/10 modules)*
+- [x] Full pipeline known-answer test passes *(Phase 2: engine → hub → output)*
+- [x] Open issue count reduced by 50%+ *(Phase 3+4: 63 → 18, 71% reduction)*
 - [ ] UI surfaces recommendations and anomalies as primary views *(Phase 5)*
-- [ ] GitHub roadmap with milestones covers remaining work *(Phase 3)*
+- [x] GitHub roadmap with milestones covers remaining work *(Phase 3: milestones created)*
