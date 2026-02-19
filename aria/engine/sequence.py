@@ -13,9 +13,9 @@ import logging
 
 import numpy as np
 
-logger = logging.getLogger(__name__)
+from aria.shared.constants import TRAJECTORY_CLASSES  # noqa: F401
 
-TRAJECTORY_CLASSES = ["stable", "ramping_up", "winding_down", "anomalous_transition"]
+logger = logging.getLogger(__name__)
 
 # Thresholds for heuristic labeling
 _CHANGE_THRESHOLD = 0.20  # 20% change = directional

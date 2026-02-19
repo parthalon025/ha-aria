@@ -464,7 +464,7 @@ class IntelligenceHub:
             from aria.capabilities import CapabilityRegistry
 
             self._capability_registry = CapabilityRegistry()
-            self._capability_registry.collect_from_modules()
+            self._capability_registry.collect_from_modules(hub=self)
         return self._capability_registry
 
     def is_running(self) -> bool:

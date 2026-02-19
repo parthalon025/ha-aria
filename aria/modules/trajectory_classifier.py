@@ -77,9 +77,16 @@ class TrajectoryClassifier(Module):
             await self.hub.cache.get_config_value("pattern.sequence_window_size", _DEFAULT_WINDOW_SIZE)
             or _DEFAULT_WINDOW_SIZE
         )
+        dtw_neighbors = int(await self.hub.cache.get_config_value("pattern.dtw_neighbors", 3) or 3)
+        anomaly_top_n = int(await self.hub.cache.get_config_value("pattern.anomaly_top_n", 3) or 3)
+        trajectory_change_threshold = float(
+            await self.hub.cache.get_config_value("pattern.trajectory_change_threshold", 0.20) or 0.20
+        )
 
-        # Reinitialize classifier with config-driven window size
-        self.sequence_classifier = SequenceClassifier(window_size=window_size)
+        # Reinitialize classifier with config-driven values
+        self.sequence_classifier = SequenceClassifier(window_size=window_size, n_neighbors=dtw_neighbors)
+        self._anomaly_top_n = anomaly_top_n
+        self._trajectory_change_threshold = trajectory_change_threshold
         self._max_window = window_size * 2
 
         profile = scan_hardware()

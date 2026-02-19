@@ -109,6 +109,7 @@
 | `/api/pipeline` | GET | Pipeline stage + gate status |
 | `/api/pipeline/advance` | POST | Advance pipeline stage |
 | `/api/pipeline/retreat` | POST | Retreat pipeline stage |
+| `/api/pipeline/topology` | GET | Module topology for frontend Sankey (module IDs, statuses, layers) |
 | **Config** | | |
 | `/api/config` | GET | All editable config |
 | `/api/config/{key}` | GET | Single config key |
@@ -183,6 +184,8 @@ Test coverage: `tests/hub/test_core.py` (slow-subscriber warning, fast-callback 
 | `intelligence_digest` | `intelligence` (intelligence.py:204) | (none) | All modules receive |
 | `automation_created` | `orchestrator` (orchestrator.py:370) | (none) | All modules receive |
 | `automation_updated` | `orchestrator` (orchestrator.py:421) | (none) | All modules receive |
+| `automation_approved` | `orchestrator` (orchestrator.py:371) | (none) | All modules receive — emitted when a suggestion is approved and an HA automation created |
+| `automation_rejected` | `orchestrator` (orchestrator.py:422) | (none) | All modules receive — emitted when a suggestion is rejected |
 
 ### MQTT Topics
 
