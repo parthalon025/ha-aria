@@ -1,0 +1,41 @@
+{
+  "module_name": "ml_engine",
+  "models_loaded": 0,
+  "capability_predictions": {
+    "power_monitoring": [
+      "power_watts"
+    ],
+    "lighting": [
+      "lights_on",
+      "total_brightness"
+    ],
+    "occupancy": [
+      "people_home",
+      "devices_home"
+    ],
+    "motion": [
+      "motion_active_count"
+    ],
+    "climate": [
+      "temperature",
+      "humidity"
+    ]
+  },
+  "enabled_models": {
+    "gb": true,
+    "rf": true,
+    "lgbm": true
+  },
+  "model_weights": {
+    "gb": 0.35,
+    "rf": 0.25,
+    "lgbm": 0.4
+  },
+  "current_tier": 3,
+  "online_blend_weight": 0.3,
+  "capabilities_in_cache": [
+    "lighting",
+    "occupancy",
+    "power_monitoring"
+  ]
+}
