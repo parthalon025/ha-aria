@@ -1,0 +1,17 @@
+{
+  "window_count": 1,
+  "events_today": 6,
+  "window_event_count": 6,
+  "window_by_domain": {
+    "light": 3,
+    "binary_sensor": 2,
+    "switch": 1
+  },
+  "window_by_entity": {
+    "light.living_room": 2,
+    "binary_sensor.motion": 2,
+    "light.kitchen": 1,
+    "switch.smart_plug": 1
+  },
+  "window_occupancy": false
+}

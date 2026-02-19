@@ -1,0 +1,13 @@
+{
+  "occupancy_anyone_home": false,
+  "occupancy_people": [],
+  "recent_entity_ids": [
+    "binary_sensor.motion",
+    "light.kitchen",
+    "light.living_room",
+    "switch.smart_plug"
+  ],
+  "recent_activity_count": 6,
+  "snapshot_today_count": 0,
+  "websocket_connected": false
+}
