@@ -656,7 +656,7 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
             if not isinstance(value, bool):
                 raise HTTPException(status_code=400, detail="can_predict must be a boolean")
             caps[capability_name]["can_predict"] = value
-            await hub.cache.set("capabilities", caps)
+            await hub.set_cache("capabilities", caps)
             return {"capability": capability_name, "can_predict": value}
         except HTTPException:
             raise

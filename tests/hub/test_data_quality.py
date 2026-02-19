@@ -52,6 +52,10 @@ class MockHub:
     async def schedule_task(self, **kwargs):
         pass
 
+    def subscribe(self, event_type: str, callback):
+        """No-op subscribe for tests that don't need event dispatch."""
+        pass
+
     def register_module(self, mod):
         self.modules[mod.module_id] = mod
 

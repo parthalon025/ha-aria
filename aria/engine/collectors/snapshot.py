@@ -1,5 +1,6 @@
 """Snapshot construction — empty, intraday, daily, and aggregation."""
 
+import fcntl
 import json
 import logging
 import sqlite3
@@ -21,6 +22,28 @@ from aria.engine.config import AppConfig, HolidayConfig
 from aria.engine.storage.data_store import DataStore
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_presence(snapshot: dict) -> None:
+    """Detect all-zero presence features and set presence_valid flag.
+
+    If all numeric presence fields are zero, marks the snapshot with
+    presence_valid=False so downstream consumers can treat presence
+    data as unreliable (cold-start or hub unavailable).
+    """
+    presence = snapshot.get("presence", {})
+    if not presence:
+        snapshot["presence_valid"] = False
+        return
+
+    numeric_fields = [
+        presence.get("overall_probability", 0),
+        presence.get("occupied_room_count", 0),
+        presence.get("identified_person_count", 0),
+        presence.get("camera_signal_count", 0),
+    ]
+    all_zero = all(v == 0 for v in numeric_fields)
+    snapshot["presence_valid"] = not all_zero
 
 
 def _fetch_presence_cache():
@@ -108,7 +131,12 @@ def _enrich_intraday(snapshot, states):
 
 
 def build_intraday_snapshot(hour: int | None, date_str: str | None, config: AppConfig, store: DataStore) -> dict:
-    """Build an intra-day snapshot capturing current state with time features."""
+    """Build an intra-day snapshot capturing current state with time features.
+
+    Uses fcntl file locking to prevent concurrent builds for the same
+    hour-window (race condition fix — #22).  If another process already
+    holds the lock the caller blocks until it completes.
+    """
     now = datetime.now()
     if date_str is None:
         date_str = now.strftime("%Y-%m-%d")
@@ -116,39 +144,61 @@ def build_intraday_snapshot(hour: int | None, date_str: str | None, config: AppC
         hour = now.hour
     timestamp = now.strftime("%Y-%m-%dT%H:%M:%S")
 
-    # Start with the standard snapshot structure
-    snapshot = build_empty_snapshot(date_str, config.holidays)
-    snapshot["hour"] = hour
-    snapshot["timestamp"] = timestamp
+    # --- #22: File lock to prevent concurrent builds for the same hour ---
+    lock_dir = store.paths.intraday_dir / date_str
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_dir / f"{hour:02d}.lock"
 
-    # HA entities
-    states = fetch_ha_states(config.ha)
-    if states:
-        # Run all registered collectors
-        for name, collector_cls in CollectorRegistry.all().items():
-            if name == "presence":
-                continue  # Presence uses hub cache, not HA states — handled separately below
-            collector = collector_cls(safety_config=config.safety) if name == "entities_summary" else collector_cls()
-            collector.extract(snapshot, states)
+    with open(lock_path, "w") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
 
-        # Intraday-specific enrichments
-        _enrich_intraday(snapshot, states)
+        # Check if snapshot for this hour already exists (deduplication)
+        existing_path = lock_dir / f"{hour:02d}.json"
+        if existing_path.exists():
+            logger.info("Intraday snapshot already exists for %s hour %02d — skipping build", date_str, hour)
+            import json as _json
 
-    # Presence data (from hub cache, not HA states)
-    presence_cache = _fetch_presence_cache()
-    presence_collector = CollectorRegistry.get("presence")()
-    presence_collector.inject_presence(snapshot, presence_cache)
+            with open(existing_path) as f:
+                return _json.load(f)
 
-    # Note: time_features will be added by the features module when it's migrated.
-    # For now, snapshot["time_features"] is not set here.
+        # Start with the standard snapshot structure
+        snapshot = build_empty_snapshot(date_str, config.holidays)
+        snapshot["hour"] = hour
+        snapshot["timestamp"] = timestamp
 
-    # Weather
-    weather_raw = fetch_weather(config.weather)
-    snapshot["weather"] = parse_weather(weather_raw)
+        # HA entities
+        states = fetch_ha_states(config.ha)
+        if states:
+            # Run all registered collectors
+            for name, collector_cls in CollectorRegistry.all().items():
+                if name == "presence":
+                    continue  # Presence uses hub cache, not HA states — handled separately below
+                collector = (
+                    collector_cls(safety_config=config.safety) if name == "entities_summary" else collector_cls()
+                )
+                collector.extract(snapshot, states)
 
-    # Logbook summary
-    entries = store.load_logbook()
-    snapshot["logbook_summary"] = summarize_logbook(entries)
+            # Intraday-specific enrichments
+            _enrich_intraday(snapshot, states)
+
+        # Presence data (from hub cache, not HA states)
+        presence_cache = _fetch_presence_cache()
+        presence_collector = CollectorRegistry.get("presence")()
+        presence_collector.inject_presence(snapshot, presence_cache)
+
+        # #23: Validate presence data (cold-start detection)
+        _validate_presence(snapshot)
+
+        # Note: time_features will be added by the features module when it's migrated.
+        # For now, snapshot["time_features"] is not set here.
+
+        # Weather
+        weather_raw = fetch_weather(config.weather)
+        snapshot["weather"] = parse_weather(weather_raw)
+
+        # Logbook summary
+        entries = store.load_logbook()
+        snapshot["logbook_summary"] = summarize_logbook(entries)
 
     return snapshot
 
@@ -263,6 +313,9 @@ def build_snapshot(date_str: str | None, config: AppConfig, store: DataStore) ->
     presence_cache = _fetch_presence_cache()
     presence_collector = CollectorRegistry.get("presence")()
     presence_collector.inject_presence(snapshot, presence_cache)
+
+    # #23: Validate presence data (cold-start detection)
+    _validate_presence(snapshot)
 
     # Weather
     weather_raw = fetch_weather(config.weather)

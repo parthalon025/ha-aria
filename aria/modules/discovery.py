@@ -93,6 +93,7 @@ class DiscoveryModule(Module):
     async def initialize(self):
         """Initialize module - run initial discovery and schedule archive checks."""
         self.logger.info("Discovery module initializing...")
+        self._classification_deferred = True  # Track whether initial classification ran
 
         # Run initial discovery
         try:
@@ -116,11 +117,29 @@ class DiscoveryModule(Module):
             run_immediately=False,
         )
 
-        # Run entity classification (merged from data_quality module)
-        try:
-            await self.run_classification()
-        except Exception as e:
-            self.logger.warning(f"Initial entity classification failed: {e}")
+        # #25: Defer classification until entity data is available in cache.
+        # Subscribe to cache_updated for entities category instead of running
+        # classification immediately (cold-start fix).
+        async def _on_cache_updated(data: dict[str, Any]):
+            category = data.get("category", "")
+            if category == CACHE_ENTITIES and self._classification_deferred:
+                self._classification_deferred = False
+                self.logger.info("Entity cache populated — running deferred classification")
+                try:
+                    await self.run_classification()
+                except Exception as e:
+                    self.logger.warning(f"Deferred entity classification failed: {e}")
+
+        self.hub.subscribe("cache_updated", _on_cache_updated)
+
+        # Also check if entities are already in cache (discovery may have populated them above)
+        entities_entry = await self.hub.get_cache(CACHE_ENTITIES)
+        if entities_entry and entities_entry.get("data"):
+            self._classification_deferred = False
+            try:
+                await self.run_classification()
+            except Exception as e:
+                self.logger.warning(f"Initial entity classification failed: {e}")
 
         await self.hub.schedule_task(
             task_id="data_quality_reclassify",
@@ -335,6 +354,20 @@ class DiscoveryModule(Module):
     async def on_event(self, event_type: str, data: dict[str, Any]):
         """Handle hub events."""
         pass
+
+    async def on_config_updated(self, config: dict[str, Any]):
+        """Re-read classification thresholds when curation config changes (#24).
+
+        Triggers a reclassification if any curation.* config key is updated,
+        ensuring live config changes propagate without requiring a restart.
+        """
+        key = config.get("key", "")
+        if key.startswith("curation.") or key.startswith("discovery."):
+            self.logger.info("Config updated (%s) — scheduling reclassification", key)
+            try:
+                await self.run_classification()
+            except Exception as e:
+                self.logger.warning("Reclassification after config update failed: %s", e)
 
     # ------------------------------------------------------------------
     # Event-driven discovery via HA WebSocket
