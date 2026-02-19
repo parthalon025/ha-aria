@@ -784,14 +784,20 @@ Integration boundaries where bugs hide. Ordered by estimated risk (silent corrup
 - **Suggested mitigation:** Snapshot validation layer should check for all-zero presence features and warn
 - **Status: MITIGATED** — `PresenceModule._seed_presence_from_ha()` now queries `person.*` entity states from the HA REST API during `initialize()`, populating `_person_states` before listener loops start. Cold-start zeros eliminated. See `aria/modules/presence.py` and `tests/hub/test_presence.py` (3 seed tests). Remaining gap: hub-down fallback still reads potentially stale SQLite data.
 
-### RISK-05: Feature Vector Source of Truth — Dual Import
+### RISK-05: Feature Vector Source of Truth — Dual Import ✓ MITIGATED
 
 - **Boundary:** `aria/engine/features/vector_builder.py` is imported by both `engine/cli.py` (batch training) and `modules/ml_engine.py` (hub real-time training)
 - **What crosses:** Feature vector construction logic, feature names, feature ordering
-- **What can go wrong:** If `vector_builder` is updated, both paths should produce identical features. But `ml_engine.py` may pass different config or data shape
-- **Test coverage:** **Separate** — engine tests and hub tests each test feature building, but no test verifies both produce identical output for the same input
+- **Root cause (2026-02-18):** `ml_engine._get_feature_names()` was missing the `presence_features` section, so 4 presence features (`presence_probability`, `presence_occupied_rooms`, `presence_identified_persons`, `presence_camera_signals`) were built by `_engine_build_feature_vector()` but silently dropped from the name list used to assemble the numpy matrix. Predictions were trained on column N = one thing, scored on column N = another.
+- **Fix applied (2026-02-18):** Added `presence_features` collection to `ml_engine._get_feature_names()` in the correct position (after `interaction_features`, before rolling window features), matching the engine's `get_feature_names()` ordering. See `aria/modules/ml_engine.py`.
+- **Mitigation type:** **By test** (detection) — four contract tests added to `tests/integration/test_engine_hub_integration.py` (closes GitHub issue #26):
+  - `test_feature_names_engine_hub_base_identical` — asserts shared base feature lists are identical
+  - `test_feature_ordering_engine_hub_base_identical` — asserts column indices match (ordering, not just set equality)
+  - `test_hub_rolling_window_features_extend_engine_base` — asserts hub list starts with engine base as strict prefix
+  - `test_feature_vector_build_and_name_list_consistent` — asserts `build_feature_vector()` produces all keys named by `get_feature_names()` (excluding `trajectory_class` which is externally provided)
+- **Remaining intentional divergence:** The hub appends hub-only features AFTER the shared base: 12 rolling window stats (`rolling_{1,3,6}h_{event_count,domain_entropy,dominant_domain_pct,trend}`) from the live activity log, and `trajectory_class` from pattern cache. The engine zero-fills `trajectory_class` in `build_training_data()`. This divergence is by design — the hub has live data the batch engine does not.
 - **Failure mode:** **Silent** — model trained on features A, scored on features B → predictions are garbage but no error raised
-- **Suggested mitigation:** Integration test: build vector via engine path and hub path with identical input, assert equality
+- **Future protection:** Any future feature added to `vector_builder.get_feature_names()` or removed from `ml_engine._get_feature_names()` (or vice versa) will be caught by `test_feature_names_engine_hub_base_identical` at test time.
 
 ### RISK-06: Subprocess Exit Code Handling — Discovery
 

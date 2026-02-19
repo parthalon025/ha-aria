@@ -697,8 +697,12 @@ class MLEngine(Module):
         self._collect_dict_feature_names(config.get("home_features", {}), names)
         self._collect_dict_feature_names(config.get("lag_features", {}), names)
         self._collect_dict_feature_names(config.get("interaction_features", {}), names)
+        # Presence features — must appear here to match engine's get_feature_names() ordering.
+        # Both paths call build_feature_vector() which emits presence keys; this name list
+        # controls the column order used when assembling the numpy feature matrix.
+        self._collect_dict_feature_names(config.get("presence_features", {}), names)
 
-        # Rolling window features (always included)
+        # Rolling window features (hub-only: live activity log stats not available to engine)
         for hours in ROLLING_WINDOWS_HOURS:
             names.extend(
                 [
