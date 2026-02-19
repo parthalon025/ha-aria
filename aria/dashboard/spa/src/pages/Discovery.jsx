@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'preact/hooks';
+import { useState, useMemo, useEffect } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
+import { fetchJson, putJson } from '../api.js';
 import HeroCard from '../components/HeroCard.jsx';
 import PageBanner from '../components/PageBanner.jsx';
 import StatsGrid from '../components/StatsGrid.jsx';
@@ -9,6 +10,7 @@ import DomainChart from '../components/DomainChart.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
+import InlineSettings from '../components/InlineSettings.jsx';
 
 // Stable empty-object references to avoid useMemo recomputation during loading
 const EMPTY_OBJ = {};
@@ -33,6 +35,18 @@ export default function Discovery() {
   const [domainFilter, setDomainFilter] = useState('');
   const [stateFilter, setStateFilter] = useState('');
   const [areaFilter, setAreaFilter] = useState('');
+  const [hideUnavailable, setHideUnavailable] = useState(false);
+  const [savingIgnore, setSavingIgnore] = useState(false);
+
+  // Sync hideUnavailable toggle from backend config on mount
+  useEffect(() => {
+    fetchJson('/api/config/curation.unavailable_grace_hours')
+      .then((cfg) => {
+        const val = Number(cfg?.value ?? 0);
+        if (val > 0) setHideUnavailable(true);
+      })
+      .catch(() => {});
+  }, []);
 
   const cacheLoading = entities.loading || devices.loading || areas.loading || capabilities.loading;
   const cacheError = entities.error || devices.error || areas.error || capabilities.error;
@@ -129,6 +143,9 @@ export default function Discovery() {
   // Filtered entity data for table
   const filteredEntities = useMemo(() => {
     let arr = entityArray;
+    if (hideUnavailable) {
+      arr = arr.filter((e) => e.state !== 'unavailable');
+    }
     if (domainFilter) {
       arr = arr.filter((e) => (e.domain || e.entity_id?.split('.')[0]) === domainFilter);
     }
@@ -139,7 +156,7 @@ export default function Discovery() {
       arr = arr.filter((e) => getEffectiveArea(e, devicesDict) === areaFilter);
     }
     return arr;
-  }, [entityArray, domainFilter, stateFilter, areaFilter, devicesDict]);
+  }, [entityArray, hideUnavailable, domainFilter, stateFilter, areaFilter, devicesDict]);
 
   // Entity table columns
   const entityColumns = [
@@ -274,9 +291,36 @@ export default function Discovery() {
           <option key={a.id} value={a.id}>{a.name}</option>
         ))}
       </select>
-      {(domainFilter || stateFilter || areaFilter) && (
+      <button
+        onClick={async () => {
+          const next = !hideUnavailable;
+          setHideUnavailable(next);
+          setSavingIgnore(true);
+          try {
+            await putJson('/api/config/curation.unavailable_grace_hours', {
+              value: next ? '24' : '0',
+              changed_by: 'dashboard',
+            });
+          } catch (err) {
+            console.error('Failed to update unavailable_grace_hours:', err);
+          } finally {
+            setSavingIgnore(false);
+          }
+        }}
+        disabled={savingIgnore}
+        class="px-2 py-1.5 text-sm font-medium disabled:opacity-50"
+        style={hideUnavailable
+          ? "color: var(--bg-primary); background: var(--accent); border-radius: var(--radius);"
+          : "color: var(--text-tertiary); background: var(--bg-inset); border-radius: var(--radius);"}
+        title={hideUnavailable
+          ? 'Hiding unavailable entities (also excluded from backend analysis after 24h)'
+          : 'Click to hide unavailable entities from view and backend analysis'}
+      >
+        {hideUnavailable ? `Ignoring ${unavailableCount} unavailable` : `Ignore unavailable (${unavailableCount})`}
+      </button>
+      {(domainFilter || stateFilter || areaFilter || hideUnavailable) && (
         <button
-          onClick={() => { setDomainFilter(''); setStateFilter(''); setAreaFilter(''); }}
+          onClick={() => { setDomainFilter(''); setStateFilter(''); setAreaFilter(''); setHideUnavailable(false); }}
           class="px-2 py-1.5 text-sm"
           style="color: var(--accent);"
         >
@@ -390,6 +434,13 @@ export default function Discovery() {
           searchPlaceholder="Search devices..."
         />
       </section>
+
+      {/* Data Quality Settings */}
+      <InlineSettings
+        categories={['Data Quality']}
+        title="Data Quality"
+        subtitle="Control which entities are excluded from analysis. Excluded entities are hidden from ML pipelines, predictions, and pattern detection."
+      />
     </div>
   );
 }
