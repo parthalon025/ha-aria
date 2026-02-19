@@ -164,7 +164,6 @@ class TestModuleCoverage:
         "pattern_recognition": {"light", "binary_sensor", "lock", "media_player"},
         "presence": {"binary_sensor", "person", "device_tracker"},
         "discovery": {"light", "switch", "binary_sensor", "lock", "climate", "sensor"},
-        "activity_labeler": {"light", "binary_sensor", "sensor", "person"},
     }
 
     def test_module_coverage_report(self, all_scenario_results):

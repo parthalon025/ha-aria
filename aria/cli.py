@@ -526,16 +526,6 @@ async def _register_monitor_modules(hub, ha_url, ha_token, _init, logger):
     except Exception as e:
         logger.warning(f"Activity monitor failed (non-fatal): {e}")
 
-    # activity_labeler
-    try:
-        from aria.modules.activity_labeler import ActivityLabeler
-
-        activity_labeler = ActivityLabeler(hub)
-        hub.register_module(activity_labeler)
-        await _init(activity_labeler, "activity_labeler")()
-    except Exception as e:
-        logger.warning(f"Activity labeler module failed (non-fatal): {e}")
-
     # presence
     try:
         from aria.modules.presence import PresenceModule
