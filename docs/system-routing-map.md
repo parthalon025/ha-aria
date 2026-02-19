@@ -164,6 +164,23 @@
 
 Events propagate through **two channels**: explicit `hub.subscribe()` callbacks AND `module.on_event()` broadcast to ALL modules. Both fire on every `hub.publish()`.
 
+#### Dual Dispatch Pattern
+
+Every `hub.publish(event_type, data)` call triggers **both** paths unconditionally:
+
+1. **Dispatch path 1 — explicit subscribers:** Only callbacks registered via `hub.subscribe(event_type, cb)` for the matching `event_type` are called.
+2. **Dispatch path 2 — module broadcast:** `module.on_event(event_type, data)` is called on every registered module regardless of event type.
+
+A module that also registers an explicit `subscribe()` callback will receive the event **twice** — once via the callback, once via `on_event()`. This is intentional: `subscribe()` is for targeted routing (e.g. wiring `shadow_engine` to `state_changed`); `on_event()` lets any module observe all events without upfront subscription.
+
+#### Backpressure Monitoring (Issue #31 — mitigated)
+
+`publish()` measures wall-clock time for each subscriber callback and each module's `on_event()` call. If any single handler exceeds **100 ms**, a `logger.warning()` is emitted. The total dispatch time is also measured and warned if it exceeds 100 ms. This is observability only — there is no queue drop or back-pressure mechanism; a slow handler still delays subsequent publish() calls inline.
+
+Monitoring added in `aria/hub/core.py` (`publish()` method). Metrics tracked: `_event_count` (cumulative published events), per-callback timing, per-module timing, total dispatch timing.
+
+Test coverage: `tests/hub/test_core.py` (slow-subscriber warning, fast-callback no-warn, dual dispatch firing both paths).
+
 | Event | Emitter | `subscribe()` Listeners | `on_event()` Listeners |
 |-------|---------|------------------------|----------------------|
 | `config_updated` | `PUT /api/config/{key}` (api.py) | `IntelligenceHub.on_config_updated()` → all modules' `on_config_updated(config)` (core.py) | All modules receive via on_config_updated (no-op default in base class) |
@@ -597,6 +614,7 @@ Modules read config **on their own schedule** (e.g., shadow engine reads `min_co
 | Shadow engine thresholds | Next prediction (seconds) |
 | ML training parameters | Next training run (hours to days) |
 | Discovery intervals | Next scheduled run (hours) |
+| Pattern recognition (`pattern.min_tier`, `pattern.sequence_window_size`) | Next hub restart — read once in `initialize()` (issue #29 fixed) |
 | Presence flush interval | **Never** — hardcoded constant, not read from config |
 
 **Gap:** No immediate "reload config" mechanism. Some config changes appear effective immediately (shadow engine reads per-prediction), others require a restart or next scheduled cycle.
@@ -737,7 +755,7 @@ aria-snapshot.timer (daily 23:00) OR activity_monitor (adaptive)
 - **No distributed locks** — modules trust SQLite WAL for cache safety
 - **No message queue** — event bus is in-process `asyncio` only (no persistence, no replay)
 - **No transaction boundaries** — a module can read cache, compute, and write back without atomic guarantee that the source didn't change
-- **No backpressure** — if shadow_engine produces events faster than online_learner can consume, events queue in memory (asyncio task queue)
+- **No backpressure queue** — if shadow_engine produces events faster than online_learner can consume, events queue in memory (asyncio task queue); slow handlers block inline. Backpressure *monitoring* (100 ms warning threshold) was added in Issue #31 — see Event Bus Contract above.
 
 ## Part C — Seam Risk Catalog
 

@@ -698,6 +698,17 @@ CONFIG_DEFAULTS: list[dict[str, Any]] = [
     },
     # Phase 3: Pattern Recognition
     {
+        "key": "pattern.min_tier",
+        "default_value": "3",
+        "value_type": "number",
+        "label": "Pattern Recognition Min Tier",
+        "description": "Minimum hardware tier required to activate pattern recognition (1-4).",
+        "category": "pattern",
+        "min_value": 1,
+        "max_value": 4,
+        "step": 1,
+    },
+    {
         "key": "pattern.sequence_window_size",
         "default_value": "6",
         "value_type": "number",

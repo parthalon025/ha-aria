@@ -8,16 +8,34 @@ import pytest
 from aria.modules.pattern_recognition import PatternRecognitionModule
 
 
-@pytest.fixture
-def mock_hub():
+def _make_mock_hub(config_overrides: dict | None = None):
+    """Build a hub mock with a cache stub that serves config values."""
     hub = MagicMock()
     hub.subscribe = MagicMock()
     hub.get_cache = AsyncMock(return_value=None)
     hub.set_cache = AsyncMock()
     hub.publish = AsyncMock()
-    hub.get_config_value = MagicMock(return_value=None)
     hub.modules = {}
+
+    # Config values served from the cache layer (pattern used by all modules)
+    _config = {
+        "pattern.min_tier": 3,
+        "pattern.sequence_window_size": 6,
+    }
+    if config_overrides:
+        _config.update(config_overrides)
+
+    async def _get_config_value(key, fallback=None):
+        return _config.get(key, fallback)
+
+    hub.cache = MagicMock()
+    hub.cache.get_config_value = AsyncMock(side_effect=_get_config_value)
     return hub
+
+
+@pytest.fixture
+def mock_hub():
+    return _make_mock_hub()
 
 
 class TestPatternRecognitionInit:
@@ -119,12 +137,8 @@ class TestPatternRecognitionLifecycle:
 
     @pytest.fixture
     def mock_hub(self):
-        hub = MagicMock()
-        hub.subscribe = MagicMock()
+        hub = _make_mock_hub()
         hub.unsubscribe = MagicMock()
-        hub.set_cache = AsyncMock()
-        hub.get_cache = AsyncMock(return_value=None)
-        hub.get_config_value = AsyncMock(return_value=None)
         return hub
 
     def test_no_subscribe_in_init(self, mock_hub):
@@ -217,3 +231,68 @@ class TestModuleRegistration:
         mock_hub.register_module = MagicMock()
         mock_hub.register_module(module)
         mock_hub.register_module.assert_called_once_with(module)
+
+
+class TestConfigRead:
+    """Verify initialize() reads pattern.min_tier and pattern.sequence_window_size from config."""
+
+    @pytest.mark.asyncio
+    @patch("aria.modules.pattern_recognition.recommend_tier", return_value=3)
+    @patch("aria.modules.pattern_recognition.scan_hardware")
+    async def test_reads_window_size_from_config(self, mock_scan, mock_tier):
+        """sequence_classifier.window_size must reflect pattern.sequence_window_size config."""
+        mock_scan.return_value = MagicMock(ram_gb=16, cpu_cores=4, gpu_available=False)
+        hub = _make_mock_hub({"pattern.sequence_window_size": 10})
+        module = PatternRecognitionModule(hub)
+        await module.initialize()
+        assert module.sequence_classifier.window_size == 10
+        assert module._max_window == 20
+
+    @pytest.mark.asyncio
+    @patch("aria.modules.pattern_recognition.recommend_tier", return_value=2)
+    @patch("aria.modules.pattern_recognition.scan_hardware")
+    async def test_reads_min_tier_from_config_blocks_low_tier(self, mock_scan, mock_tier):
+        """Module respects pattern.min_tier from config — tier 2 blocked when min_tier=3."""
+        mock_scan.return_value = MagicMock(ram_gb=4, cpu_cores=2, gpu_available=False)
+        hub = _make_mock_hub({"pattern.min_tier": 3})
+        module = PatternRecognitionModule(hub)
+        await module.initialize()
+        assert module.active is False
+
+    @pytest.mark.asyncio
+    @patch("aria.modules.pattern_recognition.recommend_tier", return_value=2)
+    @patch("aria.modules.pattern_recognition.scan_hardware")
+    async def test_lower_min_tier_config_allows_activation(self, mock_scan, mock_tier):
+        """Setting pattern.min_tier=2 in config allows tier 2 hardware to activate."""
+        mock_scan.return_value = MagicMock(ram_gb=4, cpu_cores=2, gpu_available=False)
+        hub = _make_mock_hub({"pattern.min_tier": 2})
+        module = PatternRecognitionModule(hub)
+        await module.initialize()
+        assert module.active is True
+
+    @pytest.mark.asyncio
+    @patch("aria.modules.pattern_recognition.recommend_tier", return_value=3)
+    @patch("aria.modules.pattern_recognition.scan_hardware")
+    async def test_config_values_queried_on_initialize(self, mock_scan, mock_tier):
+        """initialize() must call get_config_value for both config keys."""
+        mock_scan.return_value = MagicMock(ram_gb=16, cpu_cores=4, gpu_available=False)
+        hub = _make_mock_hub()
+        module = PatternRecognitionModule(hub)
+        await module.initialize()
+        queried_keys = [call.args[0] for call in hub.cache.get_config_value.call_args_list]
+        assert "pattern.min_tier" in queried_keys
+        assert "pattern.sequence_window_size" in queried_keys
+
+    @pytest.mark.asyncio
+    @patch("aria.modules.pattern_recognition.recommend_tier", return_value=3)
+    @patch("aria.modules.pattern_recognition.scan_hardware")
+    async def test_fallback_defaults_when_config_unavailable(self, mock_scan, mock_tier):
+        """Module falls back to _DEFAULT_WINDOW_SIZE=6 when config returns None."""
+        mock_scan.return_value = MagicMock(ram_gb=16, cpu_cores=4, gpu_available=False)
+        hub = _make_mock_hub()
+        # Override to always return None (simulates cold DB with no defaults seeded)
+        hub.cache.get_config_value = AsyncMock(return_value=None)
+        module = PatternRecognitionModule(hub)
+        await module.initialize()
+        assert module.sequence_classifier.window_size == 6  # _DEFAULT_WINDOW_SIZE
+        assert module._max_window == 12

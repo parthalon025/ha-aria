@@ -24,8 +24,9 @@ from aria.hub.core import Module
 
 logger = logging.getLogger(__name__)
 
-MIN_TIER = 3
-DEFAULT_WINDOW_SIZE = 6
+# Fallback constants — used only when config is unavailable
+_DEFAULT_MIN_TIER = 3
+_DEFAULT_WINDOW_SIZE = 6
 
 
 class PatternRecognitionModule(Module):
@@ -40,7 +41,7 @@ class PatternRecognitionModule(Module):
             ),
             module="pattern_recognition",
             layer="hub",
-            config_keys=[],
+            config_keys=["pattern.min_tier", "pattern.sequence_window_size"],
             test_paths=["tests/hub/test_pattern_recognition.py"],
             runtime_deps=["numpy"],
             pipeline_stage="shadow",
@@ -52,13 +53,14 @@ class PatternRecognitionModule(Module):
     def __init__(self, hub):
         super().__init__("pattern_recognition", hub)
         self.active = False
-        self.sequence_classifier = SequenceClassifier(window_size=DEFAULT_WINDOW_SIZE)
+        # Classifier and window size are set in initialize() after reading config
+        self.sequence_classifier = SequenceClassifier(window_size=_DEFAULT_WINDOW_SIZE)
         self.anomaly_explainer = AnomalyExplainer()
         self.attention_explainer = None  # Tier 4 only
 
         # Sliding window of recent feature snapshots per target
         self._feature_windows: dict[str, deque] = {}
-        self._max_window = DEFAULT_WINDOW_SIZE * 2  # Keep extra for lag
+        self._max_window = _DEFAULT_WINDOW_SIZE * 2  # Keep extra for lag
 
         # Current state
         self.current_trajectory: str | None = None
@@ -67,12 +69,25 @@ class PatternRecognitionModule(Module):
 
     async def initialize(self):
         """Initialize — check hardware tier and activate if sufficient."""
+        # Read config values with fallbacks to module-level defaults
+        min_tier = int(
+            await self.hub.cache.get_config_value("pattern.min_tier", _DEFAULT_MIN_TIER) or _DEFAULT_MIN_TIER
+        )
+        window_size = int(
+            await self.hub.cache.get_config_value("pattern.sequence_window_size", _DEFAULT_WINDOW_SIZE)
+            or _DEFAULT_WINDOW_SIZE
+        )
+
+        # Reinitialize classifier with config-driven window size
+        self.sequence_classifier = SequenceClassifier(window_size=window_size)
+        self._max_window = window_size * 2
+
         profile = scan_hardware()
         tier = recommend_tier(profile)
 
-        if tier < MIN_TIER:
+        if tier < min_tier:
             logger.info(
-                f"Pattern recognition disabled: tier {tier} < {MIN_TIER} "
+                f"Pattern recognition disabled: tier {tier} < {min_tier} "
                 f"({profile.ram_gb:.1f}GB RAM, {profile.cpu_cores} cores)"
             )
             self.active = False
@@ -87,14 +102,14 @@ class PatternRecognitionModule(Module):
                 from aria.engine.attention_explainer import AttentionExplainer
 
                 self.attention_explainer = AttentionExplainer(
-                    n_features=DEFAULT_WINDOW_SIZE,
-                    sequence_length=DEFAULT_WINDOW_SIZE,
+                    n_features=window_size,
+                    sequence_length=window_size,
                 )
                 logger.info("Attention explainer initialized (Tier 4)")
             except Exception as e:
                 logger.warning(f"Attention explainer failed (non-fatal): {e}")
 
-        logger.info(f"Pattern recognition active at tier {tier}")
+        logger.info(f"Pattern recognition active at tier {tier} (min_tier={min_tier}, window_size={window_size})")
 
     async def shutdown(self):
         """Unsubscribe from events on shutdown."""
