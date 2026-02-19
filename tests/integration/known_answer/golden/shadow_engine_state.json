@@ -1,0 +1,17 @@
+{
+  "evening_home": {
+    "alpha": 1.805,
+    "beta": 3.6647,
+    "observations": 4
+  },
+  "morning_away": {
+    "alpha": 2.805,
+    "beta": 1.9,
+    "observations": 3
+  },
+  "morning_home": {
+    "alpha": 5.2146,
+    "beta": 1.7147,
+    "observations": 6
+  }
+}

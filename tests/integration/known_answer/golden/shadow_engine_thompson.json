@@ -1,0 +1,23 @@
+{
+  "bucket_count": 3,
+  "buckets": {
+    "evening_home": {
+      "alpha": 1.8,
+      "beta": 3.7,
+      "mean": 0.33,
+      "observations": 4
+    },
+    "morning_away": {
+      "alpha": 2.8,
+      "beta": 1.9,
+      "mean": 0.596,
+      "observations": 3
+    },
+    "morning_home": {
+      "alpha": 5.2,
+      "beta": 1.7,
+      "mean": 0.753,
+      "observations": 6
+    }
+  }
+}
