@@ -16,6 +16,21 @@ Reference for creating and modifying UI components. Read this before touching an
 
 **Philosophy:** Each page tells its story within the ARIA pipeline (Data Collection → Learning → Actions). Components should reinforce where the user is in that flow.
 
+### Thematic Influences: SUPERHOT
+
+The dashboard borrows visual motifs from SUPERHOT's aesthetic language — minimal geometry, stark contrast, and time-as-information.
+
+| SUPERHOT Motif | ARIA Application |
+|----------------|------------------|
+| **Crystalline red on white** | Anomalies and critical alerts use `--sh-threat` (crystalline red) against neutral surfaces — maximum contrast for maximum urgency |
+| **Time freeze** | Stale data dims and desaturates (`.sh-frozen`). Fresh data is crisp and vivid. The passage of time is always visible. |
+| **Shatter/fragment** | Dismissed alerts and resolved anomalies break apart via `.sh-shatter` transition before removal |
+| **Glitch corruption** | Error states and data gaps use `.sh-glitch` — horizontal offset + chromatic aberration on text |
+| **Typographic repetition** | Critical system states repeat their label (e.g., "OFFLINE OFFLINE OFFLINE") as background watermark via `.sh-mantra` |
+| **Geometric minimalism** | Data visualizations favor sharp angles and clean geometry over rounded or organic shapes |
+
+These motifs layer on top of the terminal aesthetic — SUPERHOT provides the emotional register (tension, urgency, time-awareness), the terminal provides the structural register (monospace, brackets, cursors).
+
 ## Science-Backed Visualization Framework
 
 All dashboard visual design must be grounded in peer-reviewed research. This is not optional — it applies to every chart, diagram, layout, and interaction. When in doubt, cite the principle.
@@ -98,6 +113,18 @@ All colors are CSS custom properties in `index.css`. NEVER hardcode hex values i
 | `--status-waiting` | Gray — pending, not yet started |
 
 Each status has a `--status-*-glow` variant (15% opacity) for background tints.
+
+### SUPERHOT Palette
+
+Dedicated tokens for SUPERHOT-influenced visual treatments. These supplement — not replace — the core palette.
+
+| Token | Light | Dark | Use |
+|-------|-------|------|-----|
+| `--sh-threat` | #DC2626 (crystalline red) | #EF4444 | Anomaly highlights, critical alerts, shatter fragments |
+| `--sh-threat-glow` | rgba(220,38,38,0.12) | rgba(239,68,68,0.15) | Background tint behind threat elements |
+| `--sh-frozen` | #94A3B8 (slate) | #475569 | Stale/frozen data overlay, desaturated state |
+| `--sh-glass` | rgba(255,255,255,0.85) | rgba(255,255,255,0.06) | Crystalline overlay on shatter fragments |
+| `--sh-void` | #0F172A | #020617 | Deep background for mantra watermarks |
 
 ## Typography
 
@@ -312,6 +339,30 @@ Rolling average line + volume bars sharing the same time axis. Use TimeChart wit
 
 Include gate threshold annotation below the chart.
 
+### SUPERHOT Data States
+
+Apply SUPERHOT treatments to communicate data freshness and anomaly status at a glance.
+
+**Freshness spectrum** (applies to any data-bearing component):
+
+| Age | Treatment | Class |
+|-----|-----------|-------|
+| < 5 min | Full color, crisp rendering | (default) |
+| 5-30 min | Slight desaturation (filter: saturate(0.7)) | `.sh-cooling` |
+| 30-60 min | Visible desaturation + reduced opacity | `.sh-frozen` |
+| > 60 min | Full grayscale + mantra watermark "STALE" | `.sh-frozen .sh-mantra` |
+
+**Anomaly detection** (applies to HeroCards, chart annotations, timeline events):
+
+| Severity | Treatment |
+|----------|-----------|
+| Info | Standard accent color, no SUPERHOT treatment |
+| Warning | `--sh-threat-glow` background tint |
+| Critical | `--sh-threat` border + `.sh-threat-pulse` + `.sh-glitch` on value text |
+| Resolved | `.sh-shatter` exit transition, then remove from DOM |
+
+**Time-awareness principle:** Borrowed directly from SUPERHOT's core mechanic — the visual intensity of every element should communicate its temporal relevance. Recent = vivid. Stale = frozen. This makes the dashboard self-documenting: you can assess system health from across the room.
+
 ### Visualization Rules
 
 1. **Every visualization MUST include:**
@@ -367,6 +418,23 @@ Classes: `t3-orange-pulse`, `t3-border-alert`, `t3-badge-appear`, `t3-counter-bu
 
 - Active on all screen sizes (phone: simplified)
 - Reduced motion: static color indicators only
+
+### SUPERHOT Effects (layered on tiers)
+
+These classes implement the SUPERHOT thematic motifs. They compose with the tier system — each effect has a tier-appropriate energy level.
+
+| Class | Tier | Effect | Use |
+|-------|------|--------|-----|
+| `.sh-frozen` | T1 | Desaturate to grayscale + 60% opacity, subtle frost overlay | Data older than staleness threshold |
+| `.sh-glitch` | T2 | 2-frame horizontal jitter + red/cyan chromatic split on text | Error states, data parse failures |
+| `.sh-shatter` | T2 | Element breaks into 4-6 triangular fragments that drift outward and fade | Dismissed alerts, resolved anomalies |
+| `.sh-mantra` | T1 | Repeating label text as faded watermark behind content | Critical persistent states (OFFLINE, STALE, ERROR) |
+| `.sh-threat-pulse` | T3 | `--sh-threat` border glow, 2-cycle pulse then static | New anomaly detection, threshold breach |
+
+**Responsive rules:**
+- Phone: `.sh-shatter` reduced to simple fade-out, `.sh-mantra` disabled
+- Tablet: `.sh-glitch` simplified to color shift only (no jitter)
+- Reduced motion: all effects replaced with instant state change (no animation)
 
 ## Responsive Breakpoints
 
