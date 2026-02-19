@@ -33,6 +33,7 @@ def _freeze_datetime(monkeypatch, target_dt):
     mock_dt = MagicMock(wraps=datetime)
     mock_dt.now.return_value = target_dt
     mock_dt.utcnow.return_value = target_dt
+    mock_dt.fromisoformat = datetime.fromisoformat  # preserve real parser
     mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
     monkeypatch.setattr("aria.modules.presence.datetime", mock_dt)
     return mock_dt

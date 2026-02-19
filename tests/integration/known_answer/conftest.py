@@ -63,16 +63,21 @@ def golden_compare(
     if actual != golden:
         import warnings
 
+        def _short(val, limit=120):
+            s = json.dumps(val, default=str) if isinstance(val, dict | list) else repr(val)
+            return s if len(s) <= limit else s[: limit - 3] + "..."
+
         diff_lines = []
         if isinstance(actual, dict) and isinstance(golden, dict):
-            all_keys = set(actual.keys()) | set(golden.keys())
-            for key in sorted(all_keys):
-                old_val = golden.get(key)
-                new_val = actual.get(key)
-                if old_val != new_val:
-                    old_repr = json.dumps(old_val, default=str) if isinstance(old_val, dict | list) else repr(old_val)
-                    new_repr = json.dumps(new_val, default=str) if isinstance(new_val, dict | list) else repr(new_val)
-                    diff_lines.append(f"  {key}: {old_repr} → {new_repr}")
+            added = sorted(set(actual) - set(golden))
+            removed = sorted(set(golden) - set(actual))
+            changed = sorted(k for k in set(actual) & set(golden) if actual[k] != golden[k])
+            for k in removed:
+                diff_lines.append(f"  - {k}: {_short(golden[k])}  (removed)")
+            for k in added:
+                diff_lines.append(f"  + {k}: {_short(actual[k])}  (added)")
+            for k in changed:
+                diff_lines.append(f"  ~ {k}: {_short(golden[k])} → {_short(actual[k])}")
         diff_detail = "\n".join(diff_lines) if diff_lines else "  (structure mismatch)"
         warnings.warn(
             f"Golden drift in {golden_name}:\n{diff_detail}\nRun with --update-golden to re-baseline.",
