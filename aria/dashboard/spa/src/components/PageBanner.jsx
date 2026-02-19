@@ -97,7 +97,7 @@ export default function PageBanner({ page, subtitle }) {
   }, [page]);
 
   return (
-    <div style="margin-bottom: 1.5rem">
+    <div class="page-banner-sh" style="margin-bottom: 1.5rem">
       <svg
         viewBox={`0 0 ${layout.totalWidth} ${5 * UNIT}`}
         style="height: 2rem; max-width: 100%; width: auto; display: block;"

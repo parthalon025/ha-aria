@@ -424,6 +424,52 @@ body {
   }
 }
 
+/* ── SUPERHOT page banner loop ── */
+
+@keyframes sh-banner-scan {
+  0%   { left: -20%; opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  100% { left: 120%; opacity: 0; }
+}
+
+@keyframes sh-banner-glow {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50%      { filter: drop-shadow(0 0 6px var(--accent)); }
+}
+
+.page-banner-sh {
+  position: relative;
+  overflow: hidden;
+}
+
+.page-banner-sh svg {
+  animation: sh-banner-glow 4s ease-in-out infinite;
+}
+
+.page-banner-sh::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -20%;
+  width: 8%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0;
+  pointer-events: none;
+  animation: sh-banner-scan 6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-banner-sh svg { animation: none; }
+  .page-banner-sh::after { animation: none; display: none; }
+}
+
+@media (max-width: 639px) {
+  .page-banner-sh::after { display: none; }
+  .page-banner-sh svg { animation: none; }
+}
+
 /* ── New ambient animations ── */
 
 @keyframes scan-sweep {
