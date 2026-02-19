@@ -1,0 +1,103 @@
+{
+  "feature": "Phase 3+4: Issue Triage & Fix",
+  "version": "1.0",
+  "created": "2026-02-19",
+  "tasks": [
+    {
+      "id": "T01",
+      "name": "Close already-fixed issues",
+      "acceptance": "gh issue list --state closed --json number -q '.[].number' | grep -q '8' && gh issue list --state closed --json number -q '.[].number' | grep -q '14' && gh issue list --state closed --json number -q '.[].number' | grep -q '15' && gh issue list --state closed --json number -q '.[].number' | grep -q '16' && gh issue list --state closed --json number -q '.[].number' | grep -q '17' && gh issue list --state closed --json number -q '.[].number' | grep -q '18' && gh issue list --state closed --json number -q '.[].number' | grep -q '39'",
+      "passes": false
+    },
+    {
+      "id": "T02",
+      "name": "Close archived-module issues",
+      "acceptance": "gh issue list --state closed --json number -q '.[].number' | grep -q '10'",
+      "passes": false
+    },
+    {
+      "id": "T03",
+      "name": "Annotate partial-archived issues",
+      "acceptance": "gh issue view 25 --json comments -q '.comments | length' | xargs test 1 -le",
+      "passes": false
+    },
+    {
+      "id": "T04",
+      "name": "Re-label unlabeled issues",
+      "acceptance": "gh issue view 43 --json labels -q '.labels[].name' | grep -q 'priority:critical'",
+      "passes": false
+    },
+    {
+      "id": "T05",
+      "name": "Create GitHub labels, milestones, project board",
+      "acceptance": "gh label list | grep -q 'archived' && gh label list | grep -q 'phase:4' && gh api repos/{owner}/{repo}/milestones -q '.[].title' | grep -q 'Phase 4'",
+      "passes": false
+    },
+    {
+      "id": "T06",
+      "name": "Security: Redact config secrets (#43)",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_api.py -k 'redact' --timeout=120 -x -q",
+      "passes": false
+    },
+    {
+      "id": "T07",
+      "name": "Security: Add CORS middleware (#44)",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && grep -q 'CORSMiddleware' aria/hub/api.py",
+      "passes": false
+    },
+    {
+      "id": "T08",
+      "name": "Security: Auth warning when ARIA_API_KEY unset (#64)",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && grep -q 'ARIA_API_KEY not set' aria/hub/api.py",
+      "passes": false
+    },
+    {
+      "id": "T09",
+      "name": "Security: Auth gate on /ws/audit (#65)",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && grep -A5 'ws/audit' aria/hub/api.py | grep -q '_ARIA_API_KEY'",
+      "passes": false
+    },
+    {
+      "id": "T10",
+      "name": "Reliability: Engine-Hub schema contract test (#19)",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/integration/test_schema_contract.py --timeout=120 -x -q",
+      "passes": false
+    },
+    {
+      "id": "T11",
+      "name": "Reliability: Stagger reconnect delays (#20)",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && grep -c 'retry_delay = [0-9]' aria/modules/discovery.py aria/modules/activity_monitor.py aria/modules/presence.py | grep -v ':0$' | wc -l | xargs test 3 -le",
+      "passes": false
+    },
+    {
+      "id": "T12",
+      "name": "Reliability: Telegram startup probe (#21)",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && grep -q 'verify_telegram\\|telegram.*probe\\|telegram.*connectivity' aria/watchdog.py",
+      "passes": false
+    },
+    {
+      "id": "T13",
+      "name": "Reliability: Snapshot write lock (#22)",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && grep -q 'flock\\|fcntl\\|already_exists\\|hour.window' aria/engine/collectors/snapshot.py",
+      "passes": false
+    },
+    {
+      "id": "T14",
+      "name": "Reliability: Presence cold-start validation (#23)",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && grep -q 'presence_valid\\|all.zero\\|presence.*cold' aria/engine/validation.py",
+      "passes": false
+    },
+    {
+      "id": "T15",
+      "name": "Performance: Async subprocess in discovery (#51)",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && grep -q 'create_subprocess_exec' aria/modules/discovery.py",
+      "passes": false
+    },
+    {
+      "id": "T16",
+      "name": "All tests pass after all fixes",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/ --timeout=120 -x -q",
+      "passes": false
+    }
+  ]
+}
