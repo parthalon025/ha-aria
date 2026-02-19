@@ -514,16 +514,6 @@ async def _register_analysis_modules(hub, intelligence_dir, _init, logger):
 
 async def _register_ml_modules(hub, _init, logger):
     """Register ML modules (Tier 3+ — each self-gates on hardware tier)."""
-    # online_learner
-    try:
-        from aria.modules.online_learner import OnlineLearnerModule
-
-        online_learner = OnlineLearnerModule(hub)
-        hub.register_module(online_learner)
-        await _init(online_learner, "online_learner")()
-    except Exception as e:
-        logger.warning(f"Online learner module failed (non-fatal): {e}")
-
     # pattern_recognition
     try:
         from aria.modules.pattern_recognition import PatternRecognitionModule

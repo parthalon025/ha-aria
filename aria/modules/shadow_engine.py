@@ -975,7 +975,7 @@ class ShadowEngine(Module):
                                 "timestamp": prediction.get("context", {}).get("timestamp", ""),
                             },
                         )
-                        # Emit per-target events for OnlineLearnerModule
+                        # Emit per-target resolved events
                         await self._emit_per_target_resolved(context_features, outcome)
                     except Exception as e:
                         self.logger.debug(f"Failed to publish shadow_resolved: {e}")
@@ -989,8 +989,7 @@ class ShadowEngine(Module):
         """Emit shadow_resolved events per ML target for online learning.
 
         Reads the latest intelligence cache to extract current metric values,
-        then publishes one event per target so OnlineLearnerModule can update
-        its River models with actual outcomes.
+        then publishes one event per target for downstream consumers.
         """
         intelligence = await self.hub.get_cache("intelligence")
         if not intelligence or not intelligence.get("data"):
