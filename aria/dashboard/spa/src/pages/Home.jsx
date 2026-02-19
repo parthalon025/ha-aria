@@ -84,7 +84,7 @@ export default function Home() {
         <div class="t-frame" data-label="aria">
           <AriaLogo className="w-24 mb-1" color="var(--text-primary)" />
           <p class="text-sm" style="color: var(--text-tertiary); font-family: var(--font-mono);">
-            OODA decision dashboard — anomalies, recommendations, and system health.
+            Your home at a glance — anomalies, automation suggestions, and prediction accuracy.
           </p>
         </div>
         <LoadingState type="full" />
@@ -95,7 +95,7 @@ export default function Home() {
   if (error) {
     return (
       <div class="space-y-6">
-        <PageBanner page="HOME" subtitle="OODA decision dashboard — anomalies, recommendations, and system health." />
+        <PageBanner page="HOME" subtitle="Your home at a glance — anomalies, automation suggestions, and prediction accuracy." />
         <ErrorState error={error} onRetry={intelligence.refetch} />
       </div>
     );
@@ -103,7 +103,7 @@ export default function Home() {
 
   return (
     <div class="space-y-6 animate-page-enter">
-      <PageBanner page="HOME" subtitle="OODA decision dashboard — anomalies, recommendations, and system health." />
+      <PageBanner page="HOME" subtitle="Your home at a glance — anomalies, automation suggestions, and prediction accuracy." />
 
       {/* Three hero cards */}
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">

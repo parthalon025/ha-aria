@@ -8,6 +8,7 @@ import PageBanner from '../components/PageBanner.jsx';
 import PresenceCard from '../components/PresenceCard.jsx';
 import { HomeRightNow } from './intelligence/HomeRightNow.jsx';
 import { ActivitySection } from './intelligence/ActivitySection.jsx';
+import InlineSettings from '../components/InlineSettings.jsx';
 
 export default function Observe() {
   const intelligence = useCache('intelligence');
@@ -29,7 +30,7 @@ export default function Observe() {
   if (loading && !intelligence.data) {
     return (
       <div class="space-y-6">
-        <PageBanner page="OBSERVE" subtitle="What's happening in your home right now." />
+        <PageBanner page="OBSERVE" subtitle="Live view of who's home, what devices are active, and how your home is behaving right now." />
         <LoadingState type="cards" />
       </div>
     );
@@ -38,7 +39,7 @@ export default function Observe() {
   if (error) {
     return (
       <div class="space-y-6">
-        <PageBanner page="OBSERVE" subtitle="What's happening in your home right now." />
+        <PageBanner page="OBSERVE" subtitle="Live view of who's home, what devices are active, and how your home is behaving right now." />
         <ErrorState error={error} onRetry={() => { intelligence.refetch(); activity.refetch(); }} />
       </div>
     );
@@ -58,7 +59,7 @@ export default function Observe() {
 
   return (
     <div class="space-y-6 animate-page-enter">
-      <PageBanner page="OBSERVE" subtitle="What's happening in your home right now." />
+      <PageBanner page="OBSERVE" subtitle="Live view of who's home, what devices are active, and how your home is behaving right now." />
 
       {/* Live metrics strip */}
       <div class="t-frame" data-label="live metrics">
@@ -96,6 +97,12 @@ export default function Observe() {
       {intel && (
         <ActivitySection activity={intel.activity} />
       )}
+
+      <InlineSettings
+        categories={['Activity Monitor']}
+        title="Observation Settings"
+        subtitle="Control how ARIA monitors your home — event rates, occupancy tracking, and WebSocket connection sensitivity."
+      />
     </div>
   );
 }

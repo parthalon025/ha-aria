@@ -108,7 +108,7 @@ export default function Decide() {
   if (loading && !data) {
     return (
       <div class="space-y-6">
-        <PageBanner page="DECIDE" subtitle="Recommendations ARIA has generated. Approve, reject, or defer." />
+        <PageBanner page="DECIDE" subtitle="Automation suggestions ARIA has generated based on patterns in your home. Review each one and choose to approve, reject, or defer." />
         <LoadingState type="cards" />
       </div>
     );
@@ -117,7 +117,7 @@ export default function Decide() {
   if (error) {
     return (
       <div class="space-y-6">
-        <PageBanner page="DECIDE" subtitle="Recommendations ARIA has generated. Approve, reject, or defer." />
+        <PageBanner page="DECIDE" subtitle="Automation suggestions ARIA has generated based on patterns in your home. Review each one and choose to approve, reject, or defer." />
         <ErrorState error={error} onRetry={refetch} />
       </div>
     );
@@ -125,7 +125,7 @@ export default function Decide() {
 
   return (
     <div class="space-y-6 animate-page-enter">
-      <PageBanner page="DECIDE" subtitle="Recommendations ARIA has generated. Approve, reject, or defer." />
+      <PageBanner page="DECIDE" subtitle="Automation suggestions ARIA has generated based on patterns in your home. Review each one and choose to approve, reject, or defer." />
 
       <HeroCard
         value={pending.length}

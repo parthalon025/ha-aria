@@ -5,6 +5,7 @@ import { fetchJson } from '../api.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import PageBanner from '../components/PageBanner.jsx';
+import InlineSettings from '../components/InlineSettings.jsx';
 import { Section, Callout } from './intelligence/utils.jsx';
 import { AnomalyAlerts } from './intelligence/AnomalyAlerts.jsx';
 import { PredictionsVsActuals } from './intelligence/PredictionsVsActuals.jsx';
@@ -110,7 +111,7 @@ export default function Understand() {
   if (loading && !intelligence.data) {
     return (
       <div class="space-y-6">
-        <PageBanner page="UNDERSTAND" subtitle="What's unusual, what's repeating, and why." />
+        <PageBanner page="UNDERSTAND" subtitle="Anomalies ARIA has found, patterns it's learned, and how accurate its predictions are — with the reasoning behind each." />
         <LoadingState type="cards" />
       </div>
     );
@@ -119,7 +120,7 @@ export default function Understand() {
   if (error) {
     return (
       <div class="space-y-6">
-        <PageBanner page="UNDERSTAND" subtitle="What's unusual, what's repeating, and why." />
+        <PageBanner page="UNDERSTAND" subtitle="Anomalies ARIA has found, patterns it's learned, and how accurate its predictions are — with the reasoning behind each." />
         <ErrorState error={error} onRetry={intelligence.refetch} />
       </div>
     );
@@ -127,7 +128,7 @@ export default function Understand() {
 
   return (
     <div class="space-y-8 animate-page-enter">
-      <PageBanner page="UNDERSTAND" subtitle="What's unusual, what's repeating, and why." />
+      <PageBanner page="UNDERSTAND" subtitle="Anomalies ARIA has found, patterns it's learned, and how accurate its predictions are — with the reasoning behind each." />
 
       <AnomalyAlerts anomalies={anomalies} />
       <PatternsList patterns={patterns} />
@@ -146,6 +147,12 @@ export default function Understand() {
       {intel && <Correlations correlations={intel.entity_correlations?.top_co_occurrences} />}
 
       <ShadowBrief accuracy={shadowAccuracy} />
+
+      <InlineSettings
+        categories={['Anomaly Detection', 'Shadow Engine', 'Drift Detection', 'Forecaster']}
+        title="Analysis Settings"
+        subtitle="Fine-tune how ARIA detects patterns, anomalies, and forecast accuracy. Most users won't need to change these."
+      />
     </div>
   );
 }
