@@ -38,6 +38,19 @@ class Module:
         """
         pass
 
+    async def on_config_updated(self, config: dict[str, Any]):
+        """Called when a config key is updated via the API.
+
+        Override in subclasses to react to live config changes.
+        The default implementation is a no-op so modules that do not
+        care about runtime config changes do not need to implement this.
+
+        Args:
+            config: Dict with at least ``key`` and ``value`` of the changed
+                    parameter (same payload published by PUT /api/config/{key}).
+        """
+        pass
+
 
 class IntelligenceHub:
     """Central hub for managing modules, cache, and WebSocket events."""
@@ -73,6 +86,12 @@ class IntelligenceHub:
             interval=timedelta(hours=24),
             run_immediately=True,
         )
+
+        # Propagate config changes to all modules that implement on_config_updated
+        async def _dispatch_config_updated(data: dict[str, Any]):
+            await self.on_config_updated(data)
+
+        self.subscribe("config_updated", _dispatch_config_updated)
 
         self._start_time = datetime.now()
         self.logger.info("Hub initialized successfully")
@@ -171,6 +190,31 @@ class IntelligenceHub:
                     detail={"class": type(module).__name__},
                 )
             )
+
+    async def on_config_updated(self, config: dict[str, Any]):
+        """Propagate a config_updated event to all registered modules.
+
+        Called automatically whenever ``config_updated`` is published on the
+        event bus (i.e. after every successful PUT /api/config/{key}).  Modules
+        that override ``Module.on_config_updated`` will receive the new config
+        payload; modules that do not override it will silently skip (no-op
+        default in base class).
+
+        Args:
+            config: Dict with ``key`` and ``value`` of the changed parameter.
+        """
+        key = config.get("key", "<unknown>")
+        self.logger.debug("Propagating config_updated (key=%s) to %d module(s)", key, len(self.modules))
+        for module_id, module in self.modules.items():
+            try:
+                await module.on_config_updated(config)
+            except Exception as exc:
+                self.logger.error(
+                    "Error in module %s on_config_updated (key=%s): %s",
+                    module_id,
+                    key,
+                    exc,
+                )
 
     def unregister_module(self, module_id: str) -> bool:
         """Unregister a module from the hub.

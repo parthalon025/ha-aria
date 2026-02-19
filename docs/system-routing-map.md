@@ -166,6 +166,7 @@ Events propagate through **two channels**: explicit `hub.subscribe()` callbacks 
 
 | Event | Emitter | `subscribe()` Listeners | `on_event()` Listeners |
 |-------|---------|------------------------|----------------------|
+| `config_updated` | `PUT /api/config/{key}` (api.py) | `IntelligenceHub.on_config_updated()` → all modules' `on_config_updated(config)` (core.py) | All modules receive via on_config_updated (no-op default in base class) |
 | `cache_updated` | `hub.set_cache()` (core.py:348) | `broadcast_cache_update` → WebSocket `/ws` (api.py:1464) | `orchestrator.on_event()` — watches for `category == "patterns"` |
 | `state_changed` | `activity_monitor` (activity_monitor.py:389) | `shadow_engine._on_state_changed` (shadow_engine.py:273) | All modules receive — most ignore |
 | `shadow_resolved` | `shadow_engine` (shadow_engine.py:968, 1018) | `online_learner._on_shadow_resolved` (online_learner.py:40), `pattern_recognition._on_shadow_resolved` (pattern_recognition.py:63), `transfer_engine._on_shadow_resolved` (transfer_engine.py:47) | All modules receive via on_event |
@@ -846,14 +847,14 @@ Integration boundaries where bugs hide. Ordered by estimated risk (silent corrup
 - **Failure mode:** **Silent** — logged to journalctl only, no secondary notification channel
 - **Suggested mitigation:** Watchdog should verify Telegram connectivity on startup and log a prominent warning if unreachable. Consider a local fallback (write alert to a file that `ttyd` or dashboard can display)
 
-### RISK-12: Config Changes Not Propagated Immediately
+### RISK-12: Config Changes Not Propagated Immediately — MITIGATED
 
-- **Boundary:** `PUT /api/config/{key}` writes to cache, but modules read config on their own schedule
+- **Boundary:** `PUT /api/config/{key}` writes to cache, then publishes `config_updated` on the event bus
 - **What crosses:** Config values (thresholds, intervals, feature flags)
-- **What can go wrong:** User changes config expecting immediate effect, but module reads on next cycle (could be hours/days)
-- **Test coverage:** **None** — no test verifies config propagation timing
-- **Failure mode:** **Confusing** — config appears saved (API confirms), but behavior unchanged until next cycle
-- **Suggested mitigation:** Either publish a dedicated `config_changed` event that modules can react to, or document expected propagation delay per config key in the API
+- **Mitigation (Issue #24):** `PUT /api/config/{key}` now publishes `config_updated` immediately after saving. `IntelligenceHub.initialize()` subscribes a dispatcher that calls `module.on_config_updated(config)` on every registered module. `Module` base class provides a no-op default so modules that do not need live reloading require no changes. Modules override `on_config_updated()` to react.
+- **Propagation path:** `PUT /api/config/{key}` → `hub.publish("config_updated", {key, value})` → `IntelligenceHub.on_config_updated()` → each `module.on_config_updated(config)`
+- **Test coverage:** `tests/hub/test_config_propagation.py` (13 tests: base class contract, hub dispatch, event bus integration, API layer)
+- **Remaining consideration:** Modules must explicitly override `on_config_updated()` to pick up the new value. The base no-op is intentional — not all config keys have runtime effect.
 
 ### RISK-13: Cold-Start Module Ordering — data_quality Reads Empty Discovery
 
