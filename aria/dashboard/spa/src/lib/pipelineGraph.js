@@ -27,6 +27,7 @@ export const INTAKE = [
 export const PROCESSING = [
   { id: 'intelligence', column: 2, label: 'Intelligence', metricKey: 'day_count' },
   { id: 'ml_engine', column: 2, label: 'ML Engine', metricKey: 'mean_r2' },
+  { id: 'patterns', column: 2, label: 'Patterns', metricKey: null },
   { id: 'shadow_engine', column: 2, label: 'Shadow Engine', metricKey: 'accuracy' },
   { id: 'trajectory_classifier', column: 2, label: 'Trajectory Classifier', metricKey: 'sequence_count', tierGated: 3 },
 ];
@@ -68,7 +69,7 @@ export const LINKS = [
   { source: 'ws_state_changed', target: 'presence', value: 3, type: 'data' },
   { source: 'mqtt_frigate', target: 'presence', value: 4, type: 'data' },
   { source: 'logbook_json', target: 'engine', value: 5, type: 'data' },
-  { source: 'logbook_json', target: 'trajectory_classifier', value: 5, type: 'data' },
+  { source: 'logbook_json', target: 'patterns', value: 5, type: 'data' },
   { source: 'snapshot_json', target: 'engine', value: 4, type: 'data' },
   { source: 'snapshot_json', target: 'ml_engine', value: 4, type: 'data' },
 
@@ -79,8 +80,11 @@ export const LINKS = [
   { source: 'activity_monitor', target: 'ml_engine', value: 3, type: 'cache' },
   { source: 'engine', target: 'intelligence', value: 6, type: 'cache' },
 
+  // Processing → Processing (internal)
+  { source: 'shadow_engine', target: 'trajectory_classifier', value: 3, type: 'cache' },
+
   // Processing → Enrichment
-  { source: 'trajectory_classifier', target: 'orchestrator', value: 5, type: 'cache' },
+  { source: 'patterns', target: 'orchestrator', value: 5, type: 'cache' },
   { source: 'shadow_engine', target: 'orchestrator', value: 2, type: 'cache' },
 
   // Enrichment → Outputs
@@ -92,7 +96,7 @@ export const LINKS = [
   { source: 'shadow_engine', target: 'out_shadow_preds', value: 3, type: 'cache' },
   { source: 'shadow_engine', target: 'out_shadow_accuracy', value: 2, type: 'cache' },
   { source: 'shadow_engine', target: 'out_pipeline_stage', value: 2, type: 'cache' },
-  { source: 'trajectory_classifier', target: 'out_patterns', value: 3, type: 'cache' },
+  { source: 'patterns', target: 'out_patterns', value: 3, type: 'cache' },
   { source: 'intelligence', target: 'out_intelligence', value: 4, type: 'cache' },
   { source: 'presence', target: 'out_presence', value: 3, type: 'cache' },
   { source: 'discovery', target: 'out_curation', value: 3, type: 'cache' },
@@ -181,6 +185,11 @@ export const NODE_DETAIL = {
     writes: 'trajectory classification, anomaly explanations',
     tierGated: 3,
   },
+  patterns: {
+    protocol: 'Reads logbook JSON files from disk',
+    reads: 'Logbook data, intraday snapshots',
+    writes: 'patterns cache (detected event patterns, association rules)',
+  },
   orchestrator: {
     protocol: 'Can call HA /api/automation/trigger',
     reads: 'patterns cache',
@@ -227,6 +236,7 @@ export function getNodeMetric(cacheData, nodeId) {
       const avgR2 = mlCaps.reduce((s, e) => s + (e.ml_accuracy.mean_r2 || 0), 0) / mlCaps.length;
       return `R\u00B2: ${avgR2.toFixed(2)}`;
     }
+    case 'patterns': return '\u2014';
     case 'shadow_engine': return shadow?.overall_accuracy ? `${(shadow.overall_accuracy * 100).toFixed(0)}%` : '\u2014';
     case 'trajectory_classifier': return '\u2014';
 

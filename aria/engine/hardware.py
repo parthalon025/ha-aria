@@ -58,8 +58,10 @@ def scan_hardware() -> HardwareProfile:
         elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             gpu_available = True
             gpu_name = "Apple MPS"
-    except (ImportError, Exception):
-        pass
+    except ImportError:
+        logger.warning("torch not installed — GPU detection skipped")
+    except Exception as e:
+        logger.warning("GPU detection failed: %s", e)
 
     profile = HardwareProfile(
         ram_gb=round(ram_gb, 1),

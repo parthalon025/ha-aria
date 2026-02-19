@@ -223,36 +223,52 @@ class CapabilityRegistry:
                 result[cap.id] = {"module_loaded": None, "module_status": "unknown"}
         return result
 
-    def collect_from_modules(self) -> None:
-        """Discover and register all capabilities from hub modules and engine."""
-        # Hub modules
-        from aria.modules.activity_monitor import ActivityMonitor
-        from aria.modules.discovery import DiscoveryModule
-        from aria.modules.intelligence import IntelligenceModule
-        from aria.modules.ml_engine import MLEngine
-        from aria.modules.orchestrator import OrchestratorModule
-        from aria.modules.patterns import PatternRecognition
-        from aria.modules.presence import PresenceModule
-        from aria.modules.shadow_engine import ShadowEngine
-        from aria.modules.trajectory_classifier import TrajectoryClassifier
+    def collect_from_modules(self, hub=None) -> None:
+        """Discover and register all capabilities from hub modules and engine.
 
-        hub_modules = [
-            DiscoveryModule,
-            MLEngine,
-            PatternRecognition,
-            TrajectoryClassifier,
-            OrchestratorModule,
-            ShadowEngine,
-            IntelligenceModule,
-            ActivityMonitor,
-            PresenceModule,
-        ]
-        for module_cls in hub_modules:
-            for cap in getattr(module_cls, "CAPABILITIES", []):
-                self.register(cap)
+        Args:
+            hub: Optional IntelligenceHub instance. When provided, capabilities
+                 are discovered dynamically from registered modules via
+                 ``hub.modules.values()`` instead of using hardcoded imports.
+                 Falls back to static imports when hub is None (e.g., during
+                 standalone validation).
+        """
+        if hub is not None:
+            # Dynamic discovery from registered modules
+            for module in hub.modules.values():
+                for cap in getattr(module, "CAPABILITIES", []):
+                    if cap.id not in self._caps:
+                        self.register(cap)
+        else:
+            # Static fallback — import module classes directly
+            from aria.modules.activity_monitor import ActivityMonitor
+            from aria.modules.discovery import DiscoveryModule
+            from aria.modules.intelligence import IntelligenceModule
+            from aria.modules.ml_engine import MLEngine
+            from aria.modules.orchestrator import OrchestratorModule
+            from aria.modules.patterns import PatternRecognition
+            from aria.modules.presence import PresenceModule
+            from aria.modules.shadow_engine import ShadowEngine
+            from aria.modules.trajectory_classifier import TrajectoryClassifier
 
-        # Engine capabilities
+            hub_modules = [
+                DiscoveryModule,
+                MLEngine,
+                PatternRecognition,
+                TrajectoryClassifier,
+                OrchestratorModule,
+                ShadowEngine,
+                IntelligenceModule,
+                ActivityMonitor,
+                PresenceModule,
+            ]
+            for module_cls in hub_modules:
+                for cap in getattr(module_cls, "CAPABILITIES", []):
+                    self.register(cap)
+
+        # Engine capabilities (always static — engine modules aren't in hub registry)
         from aria.engine.capabilities import ENGINE_CAPABILITIES
 
         for cap in ENGINE_CAPABILITIES:
-            self.register(cap)
+            if cap.id not in self._caps:
+                self.register(cap)

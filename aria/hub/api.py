@@ -34,6 +34,20 @@ logger = logging.getLogger(__name__)
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 _ARIA_API_KEY = os.environ.get("ARIA_API_KEY")
 
+if not _ARIA_API_KEY:
+    logger.warning(
+        "ARIA_API_KEY not set — API authentication disabled. Set ARIA_API_KEY env var to enable authentication."
+    )
+
+# --- Sensitive config key redaction (#43) ---
+_SENSITIVE_KEY_PATTERNS = {"password", "token", "secret", "credential", "api_key"}
+
+
+def _is_sensitive_key(key: str) -> bool:
+    """Check if a config key name contains a sensitive pattern."""
+    key_lower = key.lower()
+    return any(p in key_lower for p in _SENSITIVE_KEY_PATTERNS)
+
 
 async def verify_api_key(key: str = Security(_api_key_header)):
     """Verify API key if ARIA_API_KEY is configured, otherwise allow all."""
@@ -642,7 +656,7 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
             if not isinstance(value, bool):
                 raise HTTPException(status_code=400, detail="can_predict must be a boolean")
             caps[capability_name]["can_predict"] = value
-            await hub.cache.set("capabilities", caps)
+            await hub.set_cache("capabilities", caps)
             return {"capability": capability_name, "can_predict": value}
         except HTTPException:
             raise
@@ -1146,6 +1160,9 @@ def _register_config_routes(router: APIRouter, hub: IntelligenceHub, ws_manager:
         """Get all configuration parameters."""
         try:
             configs = await hub.cache.get_all_config()
+            for config in configs:
+                if _is_sensitive_key(config.get("key", "")):
+                    config["value"] = "***REDACTED***"
             return {"configs": configs}
         except Exception:
             logger.exception("Error getting all config")
@@ -1448,6 +1465,16 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         version=__version__,
     )
 
+    # --- CORS middleware (#44) ---
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://127.0.0.1:8001", "http://localhost:8001"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        allow_headers=["X-API-Key"],
+    )
+
     ws_manager = WebSocketManager()
 
     # --- Request timing + audit middleware ---
@@ -1508,6 +1535,15 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         """Detailed health check with module status and uptime."""
         try:
             health_data = await hub.health_check()
+
+            # Include Telegram connectivity from watchdog probe
+            try:
+                from aria.watchdog import last_telegram_ok
+
+                health_data["telegram_ok"] = last_telegram_ok
+            except ImportError:
+                health_data["telegram_ok"] = False
+
             return JSONResponse(content=health_data)
         except Exception:
             logger.exception("Health check failed")
@@ -1578,6 +1614,13 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
     @app.websocket("/ws/audit")
     async def audit_websocket(websocket: WebSocket):
         import asyncio
+
+        # Auth gate (#65): require valid token when ARIA_API_KEY is set
+        if _ARIA_API_KEY:
+            token = websocket.query_params.get("token")
+            if token != _ARIA_API_KEY:
+                await websocket.close(code=4003, reason="Invalid or missing token")
+                return
 
         await websocket.accept()
         await websocket.send_json({"type": "connected", "message": "Connected to ARIA Audit stream"})

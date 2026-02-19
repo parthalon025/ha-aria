@@ -23,6 +23,7 @@ def mock_hub():
     hub.set_cache = AsyncMock()
     hub.schedule_task = AsyncMock()
     hub.logger = Mock()
+    hub.hardware_profile = None  # MLEngine will fall back to scan_hardware()
     return hub
 
 

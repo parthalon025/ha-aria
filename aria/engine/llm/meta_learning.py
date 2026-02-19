@@ -12,9 +12,9 @@ import tempfile
 from datetime import datetime
 
 from aria.engine.config import AppConfig, OllamaConfig
-from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
 from aria.engine.llm.client import ollama_chat
 from aria.engine.storage.data_store import DataStore
+from aria.shared.constants import DEFAULT_FEATURE_CONFIG
 
 # --- Constants ---
 

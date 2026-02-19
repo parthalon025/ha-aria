@@ -1,10 +1,12 @@
 """ARIA Hub - Core orchestration and module management."""
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from aria.hub.cache import CacheManager
@@ -69,6 +71,7 @@ class IntelligenceHub:
         self.tasks: set[asyncio.Task] = set()
         self._running = False
         self._start_time: datetime | None = None
+        self.hardware_profile = None  # Set during initialize() via scan_hardware()
         self._request_count: int = 0
         self._event_count: int = 0
         self._audit_logger = None
@@ -80,6 +83,20 @@ class IntelligenceHub:
         self.logger.info("Initializing ARIA Hub...")
         await self.cache.initialize()
         self._running = True
+
+        # Compute hardware profile once at startup — modules read from hub.hardware_profile
+        try:
+            from aria.engine.hardware import scan_hardware
+
+            self.hardware_profile = scan_hardware()
+            self.logger.info(
+                "Hardware profile: %.1fGB RAM, %d cores, GPU=%s",
+                self.hardware_profile.ram_gb,
+                self.hardware_profile.cpu_cores,
+                "yes" if self.hardware_profile.gpu_available else "no",
+            )
+        except Exception as e:
+            self.logger.warning("Failed to scan hardware: %s — modules will scan individually", e)
 
         # Schedule daily retention pruning
         await self.schedule_task(
@@ -95,7 +112,7 @@ class IntelligenceHub:
 
         self.subscribe("config_updated", _dispatch_config_updated)
 
-        self._start_time = datetime.now()
+        self._start_time = datetime.now(tz=UTC)
         self.logger.info("Hub initialized successfully")
 
     def set_audit_logger(self, audit_logger):
@@ -374,11 +391,64 @@ class IntelligenceHub:
         self.logger.info(f"Scheduled task: {task_id}" + (f" (interval: {interval})" if interval else " (one-time)"))
 
     async def _prune_stale_data(self):
-        """Prune old events and resolved predictions."""
+        """Prune old events, resolved predictions, and snapshot log entries."""
         events_deleted = await self.cache.prune_events(retention_days=7)
         preds_deleted = await self.cache.prune_predictions(retention_days=30)
-        if events_deleted or preds_deleted:
-            self.logger.info(f"Retention pruning: {events_deleted} events, {preds_deleted} predictions deleted")
+        snapshot_log_pruned = await self._prune_snapshot_log(retention_days=90)
+        if events_deleted or preds_deleted or snapshot_log_pruned:
+            self.logger.info(
+                f"Retention pruning: {events_deleted} events, {preds_deleted} predictions deleted"
+                f", {snapshot_log_pruned} snapshot log entries pruned"
+            )
+
+    async def _prune_snapshot_log(self, retention_days: int = 90) -> int:
+        """Prune snapshot_log.jsonl entries older than retention_days.
+
+        Reads the JSONL file, filters out entries with a timestamp older
+        than the cutoff, and rewrites the file with only recent entries.
+
+        Returns:
+            Number of entries pruned.
+        """
+        log_path = Path.home() / "ha-logs" / "intelligence" / "snapshot_log.jsonl"
+        if not log_path.exists():
+            return 0
+
+        cutoff = (datetime.now(tz=UTC) - timedelta(days=retention_days)).isoformat()
+
+        def _prune_file() -> int:
+            try:
+                lines = log_path.read_text().splitlines()
+            except OSError as e:
+                logger.warning("Failed to read snapshot_log.jsonl: %s", e)
+                return 0
+
+            kept = []
+            pruned_count = 0
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    ts = entry.get("timestamp") or entry.get("date") or ""
+                    if ts and ts < cutoff:
+                        pruned_count += 1
+                        continue
+                except (json.JSONDecodeError, TypeError):
+                    pass  # Keep malformed lines (don't silently drop data)
+                kept.append(line)
+
+            if pruned_count > 0:
+                try:
+                    log_path.write_text("\n".join(kept) + "\n" if kept else "")
+                except OSError as e:
+                    logger.warning("Failed to write pruned snapshot_log.jsonl: %s", e)
+                    return 0
+
+            return pruned_count
+
+        return await asyncio.to_thread(_prune_file)
 
     async def get_cache(self, category: str) -> dict[str, Any] | None:
         """Get data from cache.
@@ -410,7 +480,7 @@ class IntelligenceHub:
         if entry and entry.get("last_updated"):
             try:
                 updated = datetime.fromisoformat(entry["last_updated"])
-                age = datetime.now() - updated
+                age = datetime.now(tz=UTC) - updated.replace(tzinfo=UTC)
                 if age > max_age:
                     who = f" ({caller})" if caller else ""
                     self.logger.warning(f"Stale cache: '{category}' is {age} old (max {max_age}){who}")
@@ -442,7 +512,7 @@ class IntelligenceHub:
 
         # Publish cache update event
         await self.publish(
-            "cache_updated", {"category": category, "version": version, "timestamp": datetime.now().isoformat()}
+            "cache_updated", {"category": category, "version": version, "timestamp": datetime.now(tz=UTC).isoformat()}
         )
 
         return version
@@ -464,7 +534,7 @@ class IntelligenceHub:
             from aria.capabilities import CapabilityRegistry
 
             self._capability_registry = CapabilityRegistry()
-            self._capability_registry.collect_from_modules()
+            self._capability_registry.collect_from_modules(hub=self)
         return self._capability_registry
 
     def is_running(self) -> bool:
@@ -487,7 +557,7 @@ class IntelligenceHub:
         """Get hub uptime in seconds."""
         if self._start_time is None:
             return 0.0
-        return (datetime.now() - self._start_time).total_seconds()
+        return (datetime.now(tz=UTC) - self._start_time).total_seconds()
 
     async def health_check(self) -> dict[str, Any]:
         """Perform health check on hub and modules.
@@ -500,5 +570,5 @@ class IntelligenceHub:
             "uptime_seconds": round(self.get_uptime_seconds()),
             "modules": {module_id: self.module_status.get(module_id, "unknown") for module_id in self.modules},
             "cache": {"categories": await self.cache.list_categories()},
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
         }

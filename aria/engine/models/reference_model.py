@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from aria.engine.config import PathConfig
-from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG
+from aria.shared.constants import DEFAULT_FEATURE_CONFIG
 
 
 class ReferenceModel:

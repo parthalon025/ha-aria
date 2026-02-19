@@ -13,9 +13,9 @@ import logging
 
 import numpy as np
 
-logger = logging.getLogger(__name__)
+from aria.shared.constants import TRAJECTORY_CLASSES  # noqa: F401
 
-TRAJECTORY_CLASSES = ["stable", "ramping_up", "winding_down", "anomalous_transition"]
+logger = logging.getLogger(__name__)
 
 # Thresholds for heuristic labeling
 _CHANGE_THRESHOLD = 0.20  # 20% change = directional
@@ -84,25 +84,25 @@ class SequenceClassifier:
             logger.error(f"Sequence classifier training failed: {e}")
             return False
 
-    def predict(self, window: np.ndarray) -> str:
+    def predict(self, window: np.ndarray) -> str | None:
         """Classify a single window.
 
         Args:
             window: Array of shape (window_size, n_features).
 
         Returns:
-            Trajectory class string. Defaults to "stable" if untrained
-            or tslearn unavailable.
+            Trajectory class string, or None if the model is untrained,
+            tslearn is unavailable, or prediction fails.
         """
         if self._model is None or not self._tslearn_available:
-            return "stable"
+            return None
 
         try:
             result = self._model.predict(window.reshape(1, *window.shape))
             return str(result[0])
         except Exception as e:
             logger.debug(f"Sequence prediction failed: {e}")
-            return "stable"
+            return None
 
     def get_stats(self) -> dict:
         """Return classifier statistics."""

@@ -16,7 +16,7 @@ import logging
 import math
 import random
 import uuid
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -256,7 +256,7 @@ class ShadowEngine(Module):
         self._thompson = ThompsonSampler()
 
         # Recently resolved predictions for feedback computation
-        self._recent_resolved: list[dict[str, Any]] = []
+        self._recent_resolved: deque[dict[str, Any]] = deque(maxlen=200)
 
         # Counter for resolution loop iterations (feedback every 10th)
         self._resolution_iteration_count: int = 0

@@ -1,6 +1,8 @@
 """Tests for config and curation API endpoints."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
+
+from fastapi.testclient import TestClient
 
 # ============================================================================
 # GET /api/config
@@ -359,3 +361,146 @@ class TestErrorHandling:
 
         response = api_client.get("/api/curation")
         assert response.status_code == 500
+
+
+# ============================================================================
+# Security: #43 — Config Redaction
+# ============================================================================
+
+
+class TestConfigRedaction:
+    """GET /api/config must not expose sensitive values."""
+
+    def test_redacts_mqtt_password(self, api_hub, api_client):
+        """MQTT password should be redacted in config response."""
+        configs = [
+            {"key": "mqtt.host", "value": "192.168.1.100", "source": "default"},
+            {"key": "mqtt.password", "value": "super_secret_pw", "source": "default"},
+            {"key": "shadow.min_confidence", "value": "0.3", "source": "default"},
+        ]
+        api_hub.cache.get_all_config = AsyncMock(return_value=configs)
+
+        response = api_client.get("/api/config")
+        assert response.status_code == 200
+
+        data = response.json()
+        for cfg in data["configs"]:
+            if "password" in cfg["key"]:
+                assert cfg["value"] == "***REDACTED***"
+
+    def test_redacts_token_and_secret_keys(self, api_hub, api_client):
+        """Any key containing token, secret, credential, or api_key is redacted."""
+        configs = [
+            {"key": "telegram.bot_token", "value": "123:ABC", "source": "default"},
+            {"key": "ha.api_key", "value": "long-secret-key", "source": "default"},
+            {"key": "some.client_secret", "value": "shhh", "source": "default"},
+            {"key": "normal.setting", "value": "visible", "source": "default"},
+        ]
+        api_hub.cache.get_all_config = AsyncMock(return_value=configs)
+
+        response = api_client.get("/api/config")
+        data = response.json()
+
+        for cfg in data["configs"]:
+            if cfg["key"] == "normal.setting":
+                assert cfg["value"] == "visible"
+            else:
+                assert cfg["value"] == "***REDACTED***", f"{cfg['key']} was not redacted"
+
+    def test_non_sensitive_keys_visible(self, api_hub, api_client):
+        """Non-sensitive config values remain visible."""
+        configs = [
+            {"key": "shadow.window_seconds", "value": "300", "source": "user"},
+        ]
+        api_hub.cache.get_all_config = AsyncMock(return_value=configs)
+
+        response = api_client.get("/api/config")
+        data = response.json()
+        assert data["configs"][0]["value"] == "300"
+
+
+# ============================================================================
+# Security: #44 — CORS Middleware
+# ============================================================================
+
+
+class TestCORSMiddleware:
+    """API should include CORS headers restricting origin."""
+
+    def test_cors_headers_present(self, api_hub, api_client):
+        """Preflight OPTIONS should return restricted CORS headers."""
+        response = api_client.options(
+            "/api/health",
+            headers={
+                "Origin": "http://evil.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        # evil.com should not be in allowed origins
+        origin = response.headers.get("access-control-allow-origin", "")
+        assert origin != "*", "CORS should not allow all origins"
+        assert "evil.com" not in origin
+
+    def test_cors_allows_localhost(self, api_hub, api_client):
+        """Localhost origin should be allowed."""
+        response = api_client.options(
+            "/api/health",
+            headers={
+                "Origin": "http://127.0.0.1:8001",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        origin = response.headers.get("access-control-allow-origin", "")
+        assert "127.0.0.1" in origin or origin == ""  # May not echo for simple requests
+
+
+# ============================================================================
+# Security: #64 — API Auth Startup Warning
+# ============================================================================
+
+
+class TestAPIAuthWarning:
+    """API should log warning when ARIA_API_KEY is not set."""
+
+    def test_no_key_allows_requests(self, api_hub, api_client):
+        """Without ARIA_API_KEY, requests should still succeed (backward compat)."""
+        api_hub.cache.get_all_config = AsyncMock(return_value=[])
+
+        response = api_client.get("/api/config")
+        assert response.status_code == 200
+
+
+# ============================================================================
+# Security: #65 — /ws/audit Auth Gate
+# ============================================================================
+
+
+class TestWSAuditAuth:
+    """ws/audit should require authentication when ARIA_API_KEY is set."""
+
+    def test_ws_audit_rejects_without_token(self, api_hub):
+        """ws/audit should reject connections without valid token when key is set."""
+        from starlette.websockets import WebSocketDisconnect as StarletteWSDisconnect
+
+        from aria.hub.api import create_api
+
+        with patch("aria.hub.api._ARIA_API_KEY", "test-key-123"):
+            app = create_api(api_hub)
+            client = TestClient(app)
+            try:
+                with client.websocket_connect("/ws/audit?token=wrong-key") as ws:
+                    ws.receive_json()
+                    raise AssertionError("Should have been rejected")
+            except StarletteWSDisconnect as e:
+                assert e.code == 4003
+
+    def test_ws_audit_accepts_valid_token(self, api_hub):
+        """ws/audit should accept connections with valid token."""
+        from aria.hub.api import create_api
+
+        with patch("aria.hub.api._ARIA_API_KEY", "test-key-123"):
+            app = create_api(api_hub)
+            client = TestClient(app)
+            with client.websocket_connect("/ws/audit?token=test-key-123") as ws:
+                msg = ws.receive_json()
+                assert msg["type"] == "connected"

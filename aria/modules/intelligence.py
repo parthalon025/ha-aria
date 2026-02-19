@@ -4,11 +4,12 @@ Assembles predictions, baselines, trends, insights, run history, and config
 from ~/ha-logs/intelligence/ into a single consolidated cache category.
 """
 
+import asyncio
 import json
 import logging
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from aria.capabilities import Capability
 from aria.engine.schema import validate_snapshot_schema
 from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY, CACHE_INTELLIGENCE
 from aria.hub.core import IntelligenceHub, Module
+from aria.schemas import validate_intelligence_payload
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +120,7 @@ class IntelligenceModule(Module):
         """Read all intelligence files and push to cache."""
         self.logger.info(f"Intelligence module initializing (dir: {self.intel_dir})")
         try:
-            data = self._read_intelligence_data()
+            data = await asyncio.to_thread(self._read_intelligence_data)
             data["activity"] = await self._read_activity_data()
             await self.hub.set_cache(
                 CACHE_INTELLIGENCE,
@@ -142,7 +144,7 @@ class IntelligenceModule(Module):
 
         async def refresh():
             try:
-                data = self._read_intelligence_data()
+                data = await asyncio.to_thread(self._read_intelligence_data)
                 data["activity"] = await self._read_activity_data()
                 await self.hub.set_cache(
                     CACHE_INTELLIGENCE,
@@ -283,7 +285,7 @@ class IntelligenceModule(Module):
         insights_dir = self.intel_dir / "insights"
         maturity, daily_files = self._build_data_maturity()
 
-        return {
+        data = {
             "data_maturity": maturity,
             "predictions": self._read_json(self.intel_dir / "predictions.json"),
             "baselines": self._read_json(self.intel_dir / "baselines.json"),
@@ -307,6 +309,13 @@ class IntelligenceModule(Module):
             "autoencoder_status": self._read_json(self.intel_dir / "models" / "autoencoder_status.json"),
             "isolation_forest_status": self._read_json(self.intel_dir / "models" / "isolation_forest_status.json"),
         }
+
+        # Validate schema contract — warn on missing keys, don't crash
+        missing = validate_intelligence_payload(data)
+        if missing:
+            self.logger.warning(f"Intelligence payload missing required keys: {missing}")
+
+        return data
 
     def _determine_phase(self, days: int, ml_active: bool, meta_active: bool) -> tuple:
         """Return (phase_name, next_milestone_text)."""
@@ -342,7 +351,7 @@ class IntelligenceModule(Module):
 
     def _extract_intraday_trend(self) -> list[dict[str, Any]]:
         """Extract today's intraday snapshots as compact trend entries."""
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         intraday_dir = self.intel_dir / "intraday" / today
         if not intraday_dir.exists():
             return []
@@ -433,7 +442,7 @@ class IntelligenceModule(Module):
             files = files[:limit]
         return [
             {
-                "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                "timestamp": datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat(),
                 "type": run_type,
                 "status": "ok",
             }
@@ -464,7 +473,7 @@ class IntelligenceModule(Module):
 
     def _build_run_log(self) -> list[dict[str, Any]]:
         """Build run history from file mtimes and log file."""
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         runs = []
         runs.extend(self._scan_dir_for_runs(self.intel_dir / "daily", "daily", limit=5))
         runs.extend(self._scan_dir_for_runs(self.intel_dir / "intraday" / today, "intraday"))

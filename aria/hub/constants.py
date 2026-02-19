@@ -27,3 +27,12 @@ CACHE_CONFIG_HISTORY = "config_history"
 
 # Presence tracking
 CACHE_PRESENCE = "presence"
+
+# Per-module reconnect stagger (seconds) to prevent thundering herd on HA restart.
+# Each module adds its stagger to the base initial retry delay.
+RECONNECT_STAGGER = {
+    "discovery": 0,
+    "activity_monitor": 2,
+    "presence_mqtt": 4,
+    "presence_ws": 6,
+}

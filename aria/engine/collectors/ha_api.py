@@ -1,9 +1,11 @@
 """HTTP API functions for fetching data from Home Assistant and external services."""
 
+import functools
 import json
 import logging
 import re
 import subprocess
+import time
 import urllib.error
 import urllib.request
 
@@ -12,29 +14,86 @@ from aria.engine.config import HAConfig, WeatherConfig
 logger = logging.getLogger(__name__)
 
 
+def retry_on_network_error(max_attempts: int = 3, backoff_factor: float = 1.5):
+    """Retry decorator for network calls.
+
+    Retries on urllib.error.URLError and TimeoutError only.
+    Uses exponential backoff: delay = backoff_factor ** (attempt - 1) seconds.
+
+    Args:
+        max_attempts: Maximum number of attempts (default 3).
+        backoff_factor: Multiplier for backoff delay (default 1.5).
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return func(*args, **kwargs)
+                except (urllib.error.URLError, TimeoutError) as e:
+                    last_exception = e
+                    if attempt < max_attempts:
+                        delay = backoff_factor ** (attempt - 1)
+                        logger.warning(
+                            "%s attempt %d/%d failed: %s — retrying in %.1fs",
+                            func.__name__,
+                            attempt,
+                            max_attempts,
+                            e,
+                            delay,
+                        )
+                        time.sleep(delay)
+                    else:
+                        logger.warning(
+                            "%s failed after %d attempts: %s",
+                            func.__name__,
+                            max_attempts,
+                            e,
+                        )
+            raise last_exception
+
+        return wrapper
+
+    return decorator
+
+
+@retry_on_network_error(max_attempts=3, backoff_factor=1.5)
+def _fetch_ha_states_raw(ha_config: HAConfig) -> list[dict]:
+    """Raw HTTP fetch for HA states — retried on network errors."""
+    req = urllib.request.Request(
+        f"{ha_config.url}/api/states",
+        headers={"Authorization": f"Bearer {ha_config.token}"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read())
+
+
 def fetch_ha_states(ha_config: HAConfig) -> list[dict]:
-    """Fetch all entity states from HA REST API."""
+    """Fetch all entity states from HA REST API with retry on network errors."""
     if not ha_config.token:
         return []
     try:
-        req = urllib.request.Request(
-            f"{ha_config.url}/api/states",
-            headers={"Authorization": f"Bearer {ha_config.token}"},
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read())
+        return _fetch_ha_states_raw(ha_config)
     except Exception as e:
         logger.warning("Failed to fetch HA states from %s: %s", ha_config.url, e)
         return []
 
 
+@retry_on_network_error(max_attempts=3, backoff_factor=1.5)
+def _fetch_weather_raw(weather_config: WeatherConfig) -> str:
+    """Raw HTTP fetch for weather — retried on network errors."""
+    url = f"https://wttr.in/{weather_config.location}?format=%C+%t+%h+%w"
+    req = urllib.request.Request(url)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return resp.read().decode("utf-8", errors="replace").strip()
+
+
 def fetch_weather(weather_config: WeatherConfig) -> str:
-    """Fetch weather from wttr.in, return raw string."""
+    """Fetch weather from wttr.in, return raw string. Retries on network errors."""
     try:
-        url = f"https://wttr.in/{weather_config.location}?format=%C+%t+%h+%w"
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.read().decode("utf-8", errors="replace").strip()
+        return _fetch_weather_raw(weather_config)
     except Exception as e:
         logger.warning("Failed to fetch weather from wttr.in: %s", e)
         return ""

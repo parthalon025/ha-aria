@@ -21,7 +21,7 @@ import aiohttp
 
 from aria.capabilities import Capability
 from aria.engine.analysis.occupancy import SENSOR_CONFIG, BayesianOccupancy
-from aria.hub.constants import CACHE_PRESENCE
+from aria.hub.constants import CACHE_PRESENCE, RECONNECT_STAGGER
 from aria.hub.core import IntelligenceHub, Module
 
 logger = logging.getLogger(__name__)
@@ -108,6 +108,9 @@ class PresenceModule(Module):
 
         # Bayesian estimator (shared with engine, but used in real-time here)
         self._occupancy = BayesianOccupancy()
+
+        # Shared aiohttp session (created in initialize, closed in shutdown)
+        self._http_session: aiohttp.ClientSession | None = None
 
         # MQTT client (lazy init)
         self._mqtt_client = None
@@ -217,7 +220,11 @@ class PresenceModule(Module):
             if not ha_url or not ha_token:
                 logger.warning("Cannot seed presence: HA_URL/HA_TOKEN not set")
                 return
-            async with aiohttp.ClientSession() as session:
+            session = self._http_session
+            if not session:
+                logger.warning("Cannot seed presence: HTTP session not initialized")
+                return
+            try:
                 headers = {"Authorization": f"Bearer {ha_token}"}
                 async with session.get(
                     f"{ha_url}/api/states", headers=headers, timeout=aiohttp.ClientTimeout(total=10)
@@ -233,12 +240,18 @@ class PresenceModule(Module):
                         logger.info("Seeded %d person states from HA", count)
                     else:
                         logger.warning("HA REST API returned %d during presence seeding", resp.status)
+            finally:
+                if not self._http_session:
+                    await session.close()
         except Exception as e:
             logger.warning("Failed to seed presence from HA: %s", e)
 
     async def initialize(self):
         """Start MQTT listener and HA WebSocket listener."""
         self.logger.info("Presence module initializing...")
+
+        # Create shared HTTP session for all outbound requests
+        self._http_session = aiohttp.ClientSession()
 
         await self._seed_presence_from_ha()
 
@@ -289,7 +302,11 @@ class PresenceModule(Module):
         self.logger.info("Presence module started")
 
     async def shutdown(self):
-        """Clean up MQTT connection."""
+        """Clean up MQTT connection and HTTP session."""
+        if self._http_session:
+            with contextlib.suppress(Exception):
+                await self._http_session.close()
+            self._http_session = None
         if self._mqtt_client:
             with contextlib.suppress(Exception):
                 self._mqtt_client.disconnect()
@@ -309,44 +326,44 @@ class PresenceModule(Module):
 
     async def _fetch_face_config(self):
         """Fetch face recognition config and labeled faces from Frigate."""
+        if not self._http_session:
+            return
         try:
-            async with aiohttp.ClientSession() as session:
-                # Fetch face recognition config
-                async with session.get(
-                    f"{self._frigate_url}/api/config", timeout=aiohttp.ClientTimeout(total=5)
-                ) as resp:
-                    if resp.status == 200:
-                        config = await resp.json()
-                        self._face_config = config.get("face_recognition", {})
-                        self._face_config_fetched = True
+            # Fetch face recognition config
+            async with self._http_session.get(
+                f"{self._frigate_url}/api/config", timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status == 200:
+                    config = await resp.json()
+                    self._face_config = config.get("face_recognition", {})
+                    self._face_config_fetched = True
 
-                        # Extract camera names for MQTT alias resolution
-                        cameras = config.get("cameras", {})
-                        if cameras:
-                            self._frigate_camera_names = set(cameras.keys())
+                    # Extract camera names for MQTT alias resolution
+                    cameras = config.get("cameras", {})
+                    if cameras:
+                        self._frigate_camera_names = set(cameras.keys())
 
-                # Fetch labeled faces (name -> list of face images)
-                async with session.get(
-                    f"{self._frigate_url}/api/faces", timeout=aiohttp.ClientTimeout(total=5)
-                ) as resp:
-                    if resp.status == 200:
-                        faces = await resp.json()
-                        self._labeled_faces = {
-                            name: len(images) if isinstance(images, list) else 0 for name, images in faces.items()
-                        }
+            # Fetch labeled faces (name -> list of face images)
+            async with self._http_session.get(
+                f"{self._frigate_url}/api/faces", timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status == 200:
+                    faces = await resp.json()
+                    self._labeled_faces = {
+                        name: len(images) if isinstance(images, list) else 0 for name, images in faces.items()
+                    }
         except Exception as e:
             self.logger.debug(f"Failed to fetch Frigate face config: {e}")
 
     async def get_frigate_thumbnail(self, event_id: str) -> bytes | None:
         """Proxy a Frigate event thumbnail. Returns JPEG bytes or None."""
+        if not self._http_session:
+            return None
         try:
-            async with (
-                aiohttp.ClientSession() as session,
-                session.get(
-                    f"{self._frigate_url}/api/events/{event_id}/thumbnail.jpg",
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp,
-            ):
+            async with self._http_session.get(
+                f"{self._frigate_url}/api/events/{event_id}/thumbnail.jpg",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
                 if resp.status == 200:
                     return await resp.read()
         except Exception:
@@ -355,14 +372,13 @@ class PresenceModule(Module):
 
     async def get_frigate_snapshot(self, event_id: str) -> bytes | None:
         """Proxy a Frigate event snapshot. Returns JPEG bytes or None."""
+        if not self._http_session:
+            return None
         try:
-            async with (
-                aiohttp.ClientSession() as session,
-                session.get(
-                    f"{self._frigate_url}/api/events/{event_id}/snapshot.jpg",
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp,
-            ):
+            async with self._http_session.get(
+                f"{self._frigate_url}/api/events/{event_id}/snapshot.jpg",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
                 if resp.status == 200:
                     return await resp.read()
         except Exception:
@@ -381,7 +397,9 @@ class PresenceModule(Module):
             self.logger.error("aiomqtt not installed. Run: pip install aiomqtt")
             return
 
+        stagger = RECONNECT_STAGGER.get("presence_mqtt", 4)
         retry_delay = 5
+        first_connect = True
 
         while self.hub.is_running():
             try:
@@ -394,6 +412,7 @@ class PresenceModule(Module):
                     self._mqtt_connected = True
                     self.logger.info(f"MQTT connected to {self.mqtt_host}:{self.mqtt_port}")
                     retry_delay = 5
+                    first_connect = False
 
                     # Subscribe to Frigate event topics
                     await client.subscribe("frigate/events")
@@ -412,8 +431,13 @@ class PresenceModule(Module):
             except Exception as e:
                 self._mqtt_connected = False
                 self.logger.warning(f"MQTT connection failed: {e}, retrying in {retry_delay}s")
-                jitter = retry_delay * random.uniform(-0.25, 0.25)
-                actual_delay = retry_delay + jitter
+
+                # Apply stagger on first reconnect attempt to avoid thundering herd
+                base_delay = retry_delay + (stagger if first_connect else 0)
+                first_connect = False
+
+                jitter = base_delay * random.uniform(-0.25, 0.25)
+                actual_delay = base_delay + jitter
                 await asyncio.sleep(actual_delay)
                 retry_delay = min(retry_delay * 2, 60)
 
@@ -509,14 +533,20 @@ class PresenceModule(Module):
     # HA WebSocket listener (motion, lights, dimmers, device_tracker)
     # ------------------------------------------------------------------
 
-    async def _ws_listen_loop(self):
+    async def _ws_listen_loop(self):  # noqa: C901
         """Connect to HA WebSocket and listen for presence-relevant events."""
         ws_url = self.ha_url.replace("http", "ws", 1) + "/api/websocket"
+        stagger = RECONNECT_STAGGER.get("presence_ws", 6)
         retry_delay = 5
+        first_connect = True
 
         while self.hub.is_running():
+            if not self._http_session:
+                self.logger.warning("HTTP session not available — waiting for init")
+                await asyncio.sleep(retry_delay)
+                continue
             try:
-                async with aiohttp.ClientSession() as session, session.ws_connect(ws_url) as ws:
+                async with self._http_session.ws_connect(ws_url) as ws:
                     msg = await ws.receive_json()
                     if msg.get("type") != "auth_required":
                         continue
@@ -547,6 +577,7 @@ class PresenceModule(Module):
 
                     self.logger.info("Presence WS connected — listening for sensor events")
                     retry_delay = 5
+                    first_connect = False
 
                     async for msg in ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
@@ -565,8 +596,13 @@ class PresenceModule(Module):
 
             except Exception as e:
                 self.logger.warning(f"Presence WS error: {e}, retrying in {retry_delay}s")
-                jitter = retry_delay * random.uniform(-0.25, 0.25)
-                actual_delay = retry_delay + jitter
+
+                # Apply stagger on first reconnect attempt to avoid thundering herd
+                base_delay = retry_delay + (stagger if first_connect else 0)
+                first_connect = False
+
+                jitter = base_delay * random.uniform(-0.25, 0.25)
+                actual_delay = base_delay + jitter
                 await asyncio.sleep(actual_delay)
                 retry_delay = min(retry_delay * 2, 60)
 

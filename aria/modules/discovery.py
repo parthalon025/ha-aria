@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import random
-import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -18,7 +17,7 @@ from typing import Any
 import aiohttp
 
 from aria.capabilities import Capability
-from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ENTITIES
+from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ENTITIES, RECONNECT_STAGGER
 from aria.hub.core import IntelligenceHub, Module
 
 logger = logging.getLogger(__name__)
@@ -93,6 +92,7 @@ class DiscoveryModule(Module):
     async def initialize(self):
         """Initialize module - run initial discovery and schedule archive checks."""
         self.logger.info("Discovery module initializing...")
+        self._classification_deferred = True  # Track whether initial classification ran
 
         # Run initial discovery
         try:
@@ -116,11 +116,30 @@ class DiscoveryModule(Module):
             run_immediately=False,
         )
 
-        # Run entity classification (merged from data_quality module)
-        try:
-            await self.run_classification()
-        except Exception as e:
-            self.logger.warning(f"Initial entity classification failed: {e}")
+        # #25: Defer classification until entity data is available in cache.
+        # Subscribe to cache_updated for entities category instead of running
+        # classification immediately (cold-start fix).
+        async def _on_cache_updated(data: dict[str, Any]):
+            category = data.get("category", "")
+            if category == CACHE_ENTITIES and self._classification_deferred:
+                self._classification_deferred = False
+                self.logger.info("Entity cache populated — running deferred classification")
+                try:
+                    await self.run_classification()
+                except Exception as e:
+                    self.logger.warning(f"Deferred entity classification failed: {e}")
+
+        self._on_cache_updated_handler = _on_cache_updated
+        self.hub.subscribe("cache_updated", self._on_cache_updated_handler)
+
+        # Also check if entities are already in cache (discovery may have populated them above)
+        entities_entry = await self.hub.get_cache(CACHE_ENTITIES)
+        if entities_entry and entities_entry.get("data"):
+            self._classification_deferred = False
+            try:
+                await self.run_classification()
+            except Exception as e:
+                self.logger.warning(f"Initial entity classification failed: {e}")
 
         await self.hub.schedule_task(
             task_id="data_quality_reclassify",
@@ -128,6 +147,11 @@ class DiscoveryModule(Module):
             interval=RECLASSIFY_INTERVAL,
             run_immediately=False,
         )
+
+    async def shutdown(self):
+        """Clean up event subscriptions."""
+        if hasattr(self, "_on_cache_updated_handler"):
+            self.hub.unsubscribe("cache_updated", self._on_cache_updated_handler)
 
     async def run_discovery(self) -> dict[str, Any]:
         """Run discovery script and store results in hub cache.
@@ -138,21 +162,29 @@ class DiscoveryModule(Module):
         self.logger.info("Running discovery...")
 
         try:
-            # Run discover.py subprocess
-            result = subprocess.run(
-                [sys.executable, str(self.discover_script)],
-                capture_output=True,
-                text=True,
-                timeout=120,
+            # Run discover.py subprocess (async to avoid blocking the event loop)
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                str(self.discover_script),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 env={**os.environ, "HA_URL": self.ha_url, "HA_TOKEN": self.ha_token},
             )
 
-            if result.returncode != 0:
-                error_msg = result.stderr or "Unknown error"
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            except TimeoutError:
+                proc.kill()
+                await proc.wait()
+                self.logger.error("Discovery timed out after 120 seconds")
+                raise
+
+            if proc.returncode != 0:
+                error_msg = stderr.decode() if stderr else "Unknown error"
                 raise RuntimeError(f"Discovery failed: {error_msg}")
 
             # Parse JSON output
-            capabilities = json.loads(result.stdout)
+            capabilities = json.loads(stdout.decode())
 
             # Store in hub cache
             await self._store_discovery_results(capabilities)
@@ -164,8 +196,7 @@ class DiscoveryModule(Module):
 
             return capabilities
 
-        except subprocess.TimeoutExpired:
-            self.logger.error("Discovery timed out after 120 seconds")
+        except TimeoutError:
             raise
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse discovery output: {e}")
@@ -336,6 +367,20 @@ class DiscoveryModule(Module):
         """Handle hub events."""
         pass
 
+    async def on_config_updated(self, config: dict[str, Any]):
+        """Re-read classification thresholds when curation config changes (#24).
+
+        Triggers a reclassification if any curation.* config key is updated,
+        ensuring live config changes propagate without requiring a restart.
+        """
+        key = config.get("key", "")
+        if key.startswith("curation.") or key.startswith("discovery."):
+            self.logger.info("Config updated (%s) — scheduling reclassification", key)
+            try:
+                await self.run_classification()
+            except Exception as e:
+                self.logger.warning("Reclassification after config update failed: %s", e)
+
     # ------------------------------------------------------------------
     # Event-driven discovery via HA WebSocket
     # ------------------------------------------------------------------
@@ -368,19 +413,26 @@ class DiscoveryModule(Module):
     async def _ws_registry_listener(self):
         """WebSocket listener loop for registry change events."""
         ws_url = self.ha_url.replace("http", "ws", 1) + "/api/websocket"
+        stagger = RECONNECT_STAGGER.get("discovery", 0)
         retry_delay = 5
+        first_connect = True
 
         while self.hub.is_running():
             try:
                 retry_delay = await self._ws_registry_session(ws_url, retry_delay)
+                first_connect = True  # Reset so next reconnect storm also gets staggered
             except (TimeoutError, aiohttp.ClientError) as e:
                 self.logger.warning(f"HA WebSocket error: {e} — retrying in {retry_delay}s")
             except Exception as e:
                 self.logger.error(f"HA WebSocket unexpected error: {e}")
 
-            # Backoff: 5s → 10s → 20s → 60s max, ±25% jitter to prevent thundering herd
-            jitter = retry_delay * random.uniform(-0.25, 0.25)
-            actual_delay = retry_delay + jitter
+            # Apply stagger on first reconnect attempt to avoid thundering herd
+            base_delay = retry_delay + (stagger if first_connect else 0)
+            first_connect = False
+
+            # Backoff: 5s → 10s → 20s → 60s max, ±25% jitter
+            jitter = base_delay * random.uniform(-0.25, 0.25)
+            actual_delay = base_delay + jitter
             await asyncio.sleep(actual_delay)
             retry_delay = min(retry_delay * 2, 60)
 
@@ -517,7 +569,7 @@ class DiscoveryModule(Module):
         return vehicle_entity_ids, vehicle_device_ids
 
     async def run_classification(self):
-        """Main classification pipeline: read cache, compute metrics, classify, upsert."""
+        """Main classification pipeline: read cache, compute metrics, classify, batch upsert."""
         self.logger.info("Starting entity classification...")
 
         entities_entry = await self.hub.get_cache(CACHE_ENTITIES)
@@ -539,11 +591,16 @@ class DiscoveryModule(Module):
             entities_data, config_thresholds["vehicle_patterns"]
         )
 
+        # Batch-fetch existing curations to avoid N+1 queries
+        all_entity_ids = list(entities_data.keys())
+        existing_curations = await self.hub.cache.get_curations_batch(all_entity_ids)
+
         classified = 0
         skipped = 0
+        batch_records = []
 
         for entity_id, entity_data in entities_data.items():
-            existing = await self.hub.cache.get_curation(entity_id)
+            existing = existing_curations.get(entity_id)
             if existing and existing.get("human_override"):
                 skipped += 1
                 continue
@@ -558,17 +615,23 @@ class DiscoveryModule(Module):
                 vehicle_device_ids,
             )
 
-            await self.hub.cache.upsert_curation(
-                entity_id=entity_id,
-                status=status,
-                tier=tier,
-                reason=reason,
-                auto_classification=f"tier{tier}_{status}",
-                metrics=metrics,
-                group_id=group_id,
-                decided_by="discovery",
+            batch_records.append(
+                {
+                    "entity_id": entity_id,
+                    "status": status,
+                    "tier": tier,
+                    "reason": reason,
+                    "auto_classification": f"tier{tier}_{status}",
+                    "metrics": metrics,
+                    "group_id": group_id,
+                    "decided_by": "discovery",
+                }
             )
             classified += 1
+
+        # Batch upsert all classifications in one transaction
+        if batch_records:
+            await self.hub.cache.upsert_curations_batch(batch_records)
 
         self.logger.info(f"Classification complete: {classified} classified, {skipped} human-override skipped")
 

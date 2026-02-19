@@ -1,11 +1,17 @@
 """SQLite cache manager with JSON columns and versioning."""
 
+import asyncio
+import contextlib
 import json
 import os
 from datetime import datetime, timedelta
 from typing import Any
 
 import aiosqlite
+
+# Event buffer constants
+_EVENT_BUFFER_FLUSH_INTERVAL = 5.0  # seconds
+_EVENT_BUFFER_MAX_SIZE = 50
 
 
 class CacheManager:
@@ -19,6 +25,8 @@ class CacheManager:
         """
         self.db_path = db_path
         self._conn: aiosqlite.Connection | None = None
+        self._event_buffer: list[tuple] = []
+        self._event_flush_task: asyncio.Task | None = None
 
     async def initialize(self):
         """Initialize database schema."""
@@ -189,8 +197,43 @@ class CacheManager:
 
         await self._conn.commit()
 
+        # Start periodic event buffer flush
+        self._event_flush_task = asyncio.create_task(self._event_flush_loop())
+
+    async def _event_flush_loop(self):
+        """Periodically flush buffered events to the database."""
+        try:
+            while True:
+                await asyncio.sleep(_EVENT_BUFFER_FLUSH_INTERVAL)
+                await self._flush_event_buffer()
+        except asyncio.CancelledError:
+            # Final flush on shutdown
+            await self._flush_event_buffer()
+
+    async def _flush_event_buffer(self):
+        """Write all buffered events to the database in one transaction."""
+        if not self._event_buffer or not self._conn:
+            return
+
+        batch = self._event_buffer
+        self._event_buffer = []
+
+        await self._conn.executemany(
+            """
+            INSERT INTO events (timestamp, event_type, category, data, metadata)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            batch,
+        )
+        await self._conn.commit()
+
     async def close(self):
         """Close database connection."""
+        if self._event_flush_task:
+            self._event_flush_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._event_flush_task
+            self._event_flush_task = None
         if self._conn:
             await self._conn.close()
             self._conn = None
@@ -222,7 +265,10 @@ class CacheManager:
         }
 
     async def set(self, category: str, data: dict[str, Any], metadata: dict[str, Any] | None = None) -> int:
-        """Set data in cache, incrementing version.
+        """Set data in cache, incrementing version atomically.
+
+        Uses a single UPSERT with COALESCE to increment version without
+        a separate read query.
 
         Args:
             category: Cache category
@@ -235,33 +281,29 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
-        # Get current version
-        current = await self.get(category)
-        new_version = (current["version"] + 1) if current else 1
+        now = datetime.now().isoformat()
+        data_json = json.dumps(data)
+        meta_json = json.dumps(metadata) if metadata else None
 
-        # Store data
+        # Atomic upsert: increment version without a prior read
         await self._conn.execute(
             """
             INSERT INTO cache (category, data, version, last_updated, metadata)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, 1, ?, ?)
             ON CONFLICT(category) DO UPDATE SET
                 data = excluded.data,
-                version = excluded.version,
+                version = cache.version + 1,
                 last_updated = excluded.last_updated,
                 metadata = excluded.metadata
             """,
-            (
-                category,
-                json.dumps(data),
-                new_version,
-                datetime.now().isoformat(),
-                json.dumps(metadata) if metadata else None,
-            ),
+            (category, data_json, now, meta_json),
         )
-
         await self._conn.commit()
 
-        return new_version
+        # Read back the version (lightweight single-column read)
+        cursor = await self._conn.execute("SELECT version FROM cache WHERE category = ?", (category,))
+        row = await cursor.fetchone()
+        return row["version"] if row else 1
 
     async def delete(self, category: str) -> bool:
         """Delete category from cache.
@@ -304,7 +346,10 @@ class CacheManager:
         data: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ):
-        """Log an event to the events table.
+        """Log an event to the events table (buffered).
+
+        Events are buffered and flushed every 5 seconds or when the buffer
+        reaches 50 events, whichever comes first.
 
         Args:
             event_type: Type of event (e.g., "cache_update", "module_registered")
@@ -315,25 +360,26 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
-        await self._conn.execute(
-            """
-            INSERT INTO events (timestamp, event_type, category, data, metadata)
-            VALUES (?, ?, ?, ?, ?)
-            """,
+        self._event_buffer.append(
             (
                 datetime.now().isoformat(),
                 event_type,
                 category,
                 json.dumps(data) if data else None,
                 json.dumps(metadata) if metadata else None,
-            ),
+            )
         )
-        await self._conn.commit()
+
+        # Flush immediately if buffer is full
+        if len(self._event_buffer) >= _EVENT_BUFFER_MAX_SIZE:
+            await self._flush_event_buffer()
 
     async def get_events(
         self, event_type: str | None = None, category: str | None = None, limit: int = 100
     ) -> list[dict[str, Any]]:
         """Get recent events from the events table.
+
+        Flushes any buffered events first to ensure read consistency.
 
         Args:
             event_type: Filter by event type (optional)
@@ -345,6 +391,9 @@ class CacheManager:
         """
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        # Flush buffer to ensure read consistency
+        await self._flush_event_buffer()
 
         query = "SELECT * FROM events WHERE 1=1"
         params = []
@@ -922,6 +971,87 @@ class CacheManager:
         if not row:
             return None
         return self._curation_from_row(row)
+
+    async def get_curations_batch(self, entity_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Get curation records for multiple entities in a single query.
+
+        Args:
+            entity_ids: List of HA entity IDs to look up.
+
+        Returns:
+            Dict mapping entity_id to curation dict. Missing entities are omitted.
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        if not entity_ids:
+            return {}
+
+        placeholders = ",".join("?" for _ in entity_ids)
+        cursor = await self._conn.execute(
+            f"SELECT * FROM entity_curation WHERE entity_id IN ({placeholders})",
+            entity_ids,
+        )
+        rows = await cursor.fetchall()
+        return {row["entity_id"]: self._curation_from_row(row) for row in rows}
+
+    async def upsert_curations_batch(self, records: list[dict[str, Any]]) -> int:
+        """Insert or update multiple entity curation records in a single transaction.
+
+        Each record dict must contain: entity_id, status, tier, reason,
+        auto_classification, metrics, group_id, decided_by.
+        human_override defaults to False.
+
+        Args:
+            records: List of curation record dicts.
+
+        Returns:
+            Number of records upserted.
+        """
+        if not self._conn:
+            raise RuntimeError("Cache not initialized. Call initialize() first.")
+
+        if not records:
+            return 0
+
+        now = datetime.now().isoformat()
+        rows = []
+        for r in records:
+            rows.append(
+                (
+                    r["entity_id"],
+                    r["status"],
+                    r["tier"],
+                    r.get("reason", ""),
+                    r.get("auto_classification", ""),
+                    r.get("human_override", False),
+                    json.dumps(r["metrics"]) if r.get("metrics") else None,
+                    r.get("group_id", ""),
+                    now,
+                    r.get("decided_by", "system"),
+                )
+            )
+
+        await self._conn.executemany(
+            """INSERT INTO entity_curation
+               (entity_id, status, tier, reason, auto_classification,
+                human_override, metrics, group_id, decided_at, decided_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(entity_id) DO UPDATE SET
+                   status = excluded.status,
+                   tier = excluded.tier,
+                   reason = excluded.reason,
+                   auto_classification = excluded.auto_classification,
+                   human_override = excluded.human_override,
+                   metrics = excluded.metrics,
+                   group_id = excluded.group_id,
+                   decided_at = excluded.decided_at,
+                   decided_by = excluded.decided_by
+            """,
+            rows,
+        )
+        await self._conn.commit()
+        return len(rows)
 
     async def get_curation_summary(self) -> dict[str, Any]:
         """Get aggregated curation counts by tier and status.

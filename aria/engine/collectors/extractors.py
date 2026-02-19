@@ -5,9 +5,12 @@ Registration happens via @CollectorRegistry.register() decorator at import time.
 """
 
 import contextlib
+import logging
 
 from aria.engine.collectors.registry import BaseCollector, CollectorRegistry
 from aria.engine.config import SafetyConfig
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_float(val, default=0.0):
@@ -39,7 +42,7 @@ class PowerCollector(BaseCollector):
                     outlets[name] = watts
                     total += watts
                 except (ValueError, TypeError):
-                    pass
+                    logger.warning("Failed to parse power value for %s: %r", eid, s.get("state"))
             elif eid == "sensor.usp_pdu_pro_ac_power_consumption":
                 with contextlib.suppress(ValueError, TypeError):
                     total = float(s["state"])

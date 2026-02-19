@@ -27,8 +27,37 @@ Started: 2026-02-19
 - Closed: 11 (was 3)
 - Reduction: 8 issues closed via triage (12.7%)
 
-## Fix Pass (Pending)
+## Fix Pass (Complete)
 
-Remaining 47 issues to fix in priority order (security > reliability > performance > architecture).
-KA test issues (#66-73) deferred to Phase 2. UI issue (#28) deferred to Phase 5.
-Effective fix scope: ~37 issues.
+Fixed 37 issues across 7 batches in priority order. All fixes reviewed via two-stage process (spec compliance + code quality).
+
+### Batch Results
+
+| Batch | Issues | Tests After | Commits |
+|-------|--------|-------------|---------|
+| Task 7: Security | #43, #44, #64, #65 | 1,435 | 1 |
+| Task 8: Reliability Critical | #19, #20, #21 | 1,449 | 2 |
+| Task 9: Reliability High | #22, #23, #24, #25, #27 | 1,474 | 2 |
+| Task 10: Reliability Medium | #45, #46, #47, #56 | 1,494 | 2 |
+| Task 11: Performance | #51, #52, #53, #54, #55, #58 | 1,518 | 2 |
+| Task 12: Architecture | #29, #30, #42, #59, #60, #62 | 1,523 | 2 |
+| Task 13: Remaining | #9, #36, #37, #38, #41, #48, #49, #50, #57 | 1,543 | 2 |
+
+### Final Test Count
+- **1,543 passed**, 15 skipped, 0 failures
+
+### Issues Summary
+- **Fixed:** 37 issues closed
+- **New follow-ups filed:** #74 (cache naive timestamps), #75 (snapshot pruning string comparison), #76 (presence C901 complexity)
+- **Deferred to Phase 2:** KA test issues #66-73
+- **Resolved during audit:** #28 (WS already works), #33 (watchdog covers Ollama), #34 (audit has retry+dead-letter)
+- **Pre-existing open:** #26, #31, #32, #35, #40, #61, #63 (reliability/architecture, not in fix scope)
+- **Deferred to Phase 2 merge:** KA test issues #66-73 (tests in unmerged worktree)
+- **Total open:** 18 (was 63, now 18 — **71% reduction**)
+
+### Key Patterns from Fix Pass
+1. **Subscriber lifecycle gaps** — Multiple modules registered event listeners without cleanup in shutdown()
+2. **Session fallback dead code** — `or aiohttp.ClientSession()` pattern created session leaks
+3. **Import coupling** — Constants defined in engine modules imported by hub modules; fixed with shared constants
+4. **Timezone inconsistency** — `datetime.now()` used without timezone throughout; standardized to UTC
+5. **Missing guards** — Functions that could fail silently returned fake data instead of None/error

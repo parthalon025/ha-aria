@@ -19,11 +19,11 @@ class TestSequenceClassifier:
         assert clf.n_neighbors == 3
         assert not clf.is_trained
 
-    def test_predict_untrained_returns_stable(self):
-        """Untrained classifier defaults to 'stable'."""
+    def test_predict_untrained_returns_none(self):
+        """Untrained classifier returns None."""
         clf = SequenceClassifier(window_size=4)
         window = np.zeros((4, 5))
-        assert clf.predict(window) == "stable"
+        assert clf.predict(window) is None
 
     def test_label_heuristic_ramping_up(self):
         """Increasing power trend labels as ramping_up."""
@@ -96,4 +96,4 @@ class TestSequenceClassifier:
         clf = SequenceClassifier(window_size=4)
         clf._tslearn_available = False
         window = np.zeros((4, 3))
-        assert clf.predict(window) == "stable"
+        assert clf.predict(window) is None

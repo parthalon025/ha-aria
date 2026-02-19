@@ -11,7 +11,7 @@ import sys
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -68,13 +68,22 @@ async def test_hub_initialization(initialized_hub):
     assert cache_path.exists()
 
 
+def _make_async_subprocess_mock(output_json):
+    """Create a mock for asyncio.create_subprocess_exec that returns JSON output."""
+    mock_proc = AsyncMock()
+    mock_proc.communicate = AsyncMock(return_value=(json.dumps(output_json).encode(), b""))
+    mock_proc.returncode = 0
+    mock_proc.kill = MagicMock()
+    mock_proc.wait = AsyncMock()
+    return mock_proc
+
+
 @pytest.mark.asyncio
 async def test_module_registration(initialized_hub):
     """Test modules can be registered with hub."""
-    # Mock the discover script subprocess call
-    with patch("subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps({"capabilities": {}, "entities": []}))
-
+    # Mock the discover script async subprocess call
+    mock_proc = _make_async_subprocess_mock({"capabilities": {}, "entities": []})
+    with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
         # Create and register discovery module
         discovery = DiscoveryModule(initialized_hub, "http://test:8123", "test_token")
         initialized_hub.register_module(discovery)
@@ -100,9 +109,8 @@ async def test_discovery_to_cache_pipeline(initialized_hub):
         },
     }
 
-    with patch("subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps(mock_output))
-
+    mock_proc = _make_async_subprocess_mock(mock_output)
+    with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
         # Initialize discovery module
         discovery = DiscoveryModule(initialized_hub, "http://test:8123", "test_token")
         initialized_hub.register_module(discovery)

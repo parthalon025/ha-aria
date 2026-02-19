@@ -35,6 +35,8 @@ class MockHub:
         self.cache = Mock()
         self.cache.get_curation = AsyncMock(return_value=None)
         self.cache.upsert_curation = AsyncMock()
+        self.cache.get_curations_batch = AsyncMock(return_value={})
+        self.cache.upsert_curations_batch = AsyncMock(return_value=0)
         self.cache.get_config_value = AsyncMock(side_effect=self._config_value)
 
         self.logger = Mock()
@@ -50,6 +52,10 @@ class MockHub:
         return self._cache.get(category)
 
     async def schedule_task(self, **kwargs):
+        pass
+
+    def subscribe(self, event_type: str, callback):
+        """No-op subscribe for tests that don't need event dispatch."""
         pass
 
     def register_module(self, mod):
@@ -377,25 +383,29 @@ async def test_human_override_preserved(hub, module):
     )
     hub.set_activity([])
 
-    # Simulate existing curation with human override
-    hub.cache.get_curation = AsyncMock(
+    # Simulate existing curation with human override via batch lookup
+    hub.cache.get_curations_batch = AsyncMock(
         return_value={
-            "entity_id": "light.manual",
-            "status": "included",
-            "tier": 3,
-            "human_override": True,
+            "light.manual": {
+                "entity_id": "light.manual",
+                "status": "included",
+                "tier": 3,
+                "human_override": True,
+            }
         }
     )
 
     await module.run_classification()
 
-    # upsert_curation should NOT be called for this entity
-    hub.cache.upsert_curation.assert_not_called()
+    # upsert_curations_batch should NOT be called (or called with empty list)
+    if hub.cache.upsert_curations_batch.called:
+        batch_arg = hub.cache.upsert_curations_batch.call_args[0][0]
+        assert len(batch_arg) == 0, "Human-override entity should be skipped"
 
 
 @pytest.mark.asyncio
 async def test_run_classification_calls_upsert(hub, module):
-    """Full pipeline with mock data calls upsert_curation for each entity."""
+    """Full pipeline with mock data calls upsert_curations_batch for all entities."""
     hub.set_entities(
         {
             "light.kitchen": make_entity("light.kitchen"),
@@ -417,14 +427,15 @@ async def test_run_classification_calls_upsert(hub, module):
 
     await module.run_classification()
 
-    assert hub.cache.upsert_curation.call_count == 3
+    hub.cache.upsert_curations_batch.assert_called_once()
+    batch = hub.cache.upsert_curations_batch.call_args[0][0]
+    assert len(batch) == 3
 
-    # Verify one of the calls was the update domain (tier 1)
-    calls = hub.cache.upsert_curation.call_args_list
-    update_call = [c for c in calls if c.kwargs.get("entity_id") == "update.core"]
-    assert len(update_call) == 1
-    assert update_call[0].kwargs["tier"] == 1
-    assert update_call[0].kwargs["status"] == "auto_excluded"
+    # Verify one of the records was the update domain (tier 1)
+    update_record = [r for r in batch if r["entity_id"] == "update.core"]
+    assert len(update_record) == 1
+    assert update_record[0]["tier"] == 1
+    assert update_record[0]["status"] == "auto_excluded"
 
 
 @pytest.mark.asyncio
@@ -458,7 +469,7 @@ async def test_empty_entity_cache(hub, module):
 
     await module.run_classification()
 
-    hub.cache.upsert_curation.assert_not_called()
+    hub.cache.upsert_curations_batch.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -473,7 +484,9 @@ async def test_empty_activity_cache(hub, module):
 
     await module.run_classification()
 
-    assert hub.cache.upsert_curation.call_count == 1
+    hub.cache.upsert_curations_batch.assert_called_once()
+    batch = hub.cache.upsert_curations_batch.call_args[0][0]
+    assert len(batch) == 1
 
 
 # ============================================================================
@@ -508,7 +521,10 @@ async def test_config_values_used(hub, module):
 
     # With noise threshold at 50, 100 events in one 15-min window
     # = 100/900*86400 = 9600/day → should be auto_excluded as noise
-    call = hub.cache.upsert_curation.call_args
-    assert call.kwargs["tier"] == 1
-    assert call.kwargs["status"] == "auto_excluded"
-    assert "noise" in call.kwargs["reason"].lower()
+    hub.cache.upsert_curations_batch.assert_called_once()
+    batch = hub.cache.upsert_curations_batch.call_args[0][0]
+    assert len(batch) == 1
+    record = batch[0]
+    assert record["tier"] == 1
+    assert record["status"] == "auto_excluded"
+    assert "noise" in record["reason"].lower()

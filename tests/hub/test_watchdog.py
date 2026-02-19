@@ -18,6 +18,7 @@ from aria.watchdog import (
     check_timer_health,
     run_watchdog,
     send_alert,
+    verify_telegram_connectivity,
 )
 
 # ---------------------------------------------------------------------------
@@ -600,3 +601,111 @@ class TestRunWatchdog:
         assert output["passed"] == output["total"]
         assert "results" in output
         assert "timestamp" in output
+
+
+# ---------------------------------------------------------------------------
+# Telegram startup probe
+# ---------------------------------------------------------------------------
+
+
+class TestTelegramProbe:
+    @patch("urllib.request.urlopen")
+    def test_probe_success(self, mock_urlopen):
+        """Successful getMe response sets last_telegram_ok=True."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(
+            {"ok": True, "result": {"id": 123, "is_bot": True, "username": "test_bot"}}
+        ).encode()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "test-token"}):
+            result = verify_telegram_connectivity()
+            assert result is True
+
+        import aria.watchdog
+
+        assert aria.watchdog.last_telegram_ok is True
+
+    @patch("urllib.request.urlopen")
+    def test_probe_api_error(self, mock_urlopen):
+        """API returning ok=false sets last_telegram_ok=False."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"ok": False, "description": "Unauthorized"}).encode()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "bad-token"}):
+            result = verify_telegram_connectivity()
+            assert result is False
+
+        import aria.watchdog
+
+        assert aria.watchdog.last_telegram_ok is False
+
+    def test_probe_no_token(self):
+        """Missing TELEGRAM_BOT_TOKEN sets last_telegram_ok=False."""
+        with patch.dict("os.environ", {}, clear=True):
+            result = verify_telegram_connectivity()
+            assert result is False
+
+        import aria.watchdog
+
+        assert aria.watchdog.last_telegram_ok is False
+
+    @patch("urllib.request.urlopen")
+    def test_probe_network_error(self, mock_urlopen):
+        """Network failure sets last_telegram_ok=False."""
+        mock_urlopen.side_effect = Exception("Connection refused")
+
+        with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "test-token"}):
+            result = verify_telegram_connectivity()
+            assert result is False
+
+        import aria.watchdog
+
+        assert aria.watchdog.last_telegram_ok is False
+
+    def test_health_endpoint_includes_telegram_ok(self):
+        """The /health endpoint must include telegram_ok field."""
+        from unittest.mock import AsyncMock
+
+        from fastapi.testclient import TestClient
+
+        from aria.hub.api import create_api
+        from aria.hub.core import IntelligenceHub
+
+        mock_hub = MagicMock(spec=IntelligenceHub)
+        mock_hub.cache = MagicMock()
+        mock_hub.modules = {}
+        mock_hub.module_status = {}
+        mock_hub.subscribers = {}
+        mock_hub.subscribe = MagicMock()
+        mock_hub._request_count = 0
+        mock_hub._audit_logger = None
+        mock_hub.audit_logger = None
+        mock_hub.set_cache = AsyncMock()
+        mock_hub.get_uptime_seconds = MagicMock(return_value=100)
+        mock_hub.health_check = AsyncMock(
+            return_value={
+                "status": "ok",
+                "uptime_seconds": 100,
+                "modules": {},
+                "cache": {"categories": []},
+            }
+        )
+
+        app = create_api(mock_hub)
+        client = TestClient(app)
+
+        import aria.watchdog
+
+        aria.watchdog.last_telegram_ok = True
+
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "telegram_ok" in data
+        assert data["telegram_ok"] is True

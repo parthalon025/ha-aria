@@ -880,10 +880,8 @@ class TestSeedPresenceFromHA:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
-        with (
-            patch("aria.modules.presence.aiohttp.ClientSession", return_value=mock_session),
-            patch.dict("os.environ", {"HA_URL": "http://localhost:8123", "HA_TOKEN": "test_token"}),
-        ):
+        module._http_session = mock_session
+        with patch.dict("os.environ", {"HA_URL": "http://localhost:8123", "HA_TOKEN": "test_token"}):
             await module._seed_presence_from_ha()
 
         assert module._person_states["person.alice"] == "home"
