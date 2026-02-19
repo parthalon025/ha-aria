@@ -116,6 +116,10 @@ class PresenceModule(Module):
         self._mqtt_client = None
         self._mqtt_connected = False
 
+        # Local entity→room cache (built from discovery cache, refreshed periodically)
+        self._entity_room_cache: dict[str, str] = {}
+        self._entity_room_cache_built = False
+
     async def _discover_camera_rooms(self) -> dict[str, str]:
         """Build camera->room mapping from HA entity/device registry cache.
 
@@ -234,6 +238,10 @@ class PresenceModule(Module):
                         person_count = 0
                         room_count = 0
                         now = datetime.now()
+                        # Build entity→room cache first (single bulk read)
+                        await self._build_entity_room_cache()
+                        # Only seed presence-relevant domains
+                        _SEED_PREFIXES = self._PRESENCE_DOMAINS
                         for state in states:
                             eid = state.get("entity_id", "")
                             st = state.get("state", "")
@@ -241,9 +249,8 @@ class PresenceModule(Module):
                             if eid.startswith("person."):
                                 self._person_states[eid] = st
                                 person_count += 1
-                            elif st and st not in ("unavailable", "unknown"):
-                                # Seed room signals from active entities
-                                room = await self._resolve_room(eid, attrs)
+                            elif st and st not in ("unavailable", "unknown") and eid.startswith(_SEED_PREFIXES):
+                                room = self._entity_room_cache.get(eid)
                                 if room:
                                     device_class = attrs.get("device_class", "")
                                     self._handle_room_entity(eid, st, attrs, device_class, room, now)
@@ -644,6 +651,9 @@ class PresenceModule(Module):
             elif state in ("off", "standby"):
                 self._add_signal(room, "media_inactive", 0.15, f"{entity_id} turned {state}", now)
 
+    # Domains that contribute to presence signals — skip everything else early
+    _PRESENCE_DOMAINS = ("light.", "binary_sensor.", "media_player.", "event.")
+
     async def _handle_ha_state_change(self, data: dict):
         """Process a state_changed event for presence-relevant entities."""
         new_state = data.get("new_state")
@@ -651,14 +661,21 @@ class PresenceModule(Module):
             return
 
         entity_id = new_state.get("entity_id", "")
+
+        if entity_id.startswith("person."):
+            state = new_state.get("state", "")
+            now = datetime.now()
+            self._handle_person_state(entity_id, state, now)
+            return
+
+        # Early exit for irrelevant domains — avoids expensive room resolution
+        if not entity_id.startswith(self._PRESENCE_DOMAINS):
+            return
+
         state = new_state.get("state", "")
         attrs = new_state.get("attributes", {})
         device_class = attrs.get("device_class", "")
         now = datetime.now()
-
-        if entity_id.startswith("person."):
-            self._handle_person_state(entity_id, state, now)
-            return
 
         room = await self._resolve_room(entity_id, attrs)
         if not room:
@@ -666,12 +683,52 @@ class PresenceModule(Module):
 
         self._handle_room_entity(entity_id, state, attrs, device_class, room, now)
 
+    async def _build_entity_room_cache(self):
+        """Build local entity→room lookup from discovery cache.
+
+        Fetches entities and devices caches once, builds a flat dict.
+        Called during initialization and periodically to stay current.
+        """
+        try:
+            entities_entry = await self.hub.get_cache("entities")
+            if not entities_entry:
+                return
+            entities_cache = entities_entry.get("data", entities_entry) if isinstance(entities_entry, dict) else {}
+
+            devices_entry = await self.hub.get_cache("devices")
+            devices_cache = {}
+            if devices_entry:
+                devices_cache = devices_entry.get("data", devices_entry) if isinstance(devices_entry, dict) else {}
+
+            new_cache: dict[str, str] = {}
+            for eid, edata in entities_cache.items():
+                if not isinstance(edata, dict):
+                    continue
+                area = edata.get("area_id") or edata.get("area")
+                if not area:
+                    device_id = edata.get("device_id")
+                    if device_id and device_id in devices_cache:
+                        area = devices_cache[device_id].get("area_id")
+                if area:
+                    new_cache[eid] = area
+
+            self._entity_room_cache = new_cache
+            self._entity_room_cache_built = True
+            logger.debug("Entity room cache built: %d mappings", len(new_cache))
+        except Exception as e:
+            logger.warning("Failed to build entity room cache: %s", e)
+
     async def _resolve_room(self, entity_id: str, attrs: dict) -> str | None:
         """Resolve an entity to its room/area name.
 
-        Uses the discovery cache if available, falls back to entity_id parsing.
+        Uses local cache (fast dict lookup) first, falls back to hub cache on miss.
         """
-        # Try discovery cache (entities -> device -> area chain)
+        # Fast path: local cache hit
+        cached = self._entity_room_cache.get(entity_id)
+        if cached:
+            return cached
+
+        # Slow path: hub cache lookup (for entities added since last cache build)
         try:
             entities_entry = await self.hub.get_cache("entities")
             if entities_entry:
@@ -679,9 +736,9 @@ class PresenceModule(Module):
                 entity_data = entities_cache.get(entity_id, {})
                 area = entity_data.get("area_id") or entity_data.get("area")
                 if area:
+                    self._entity_room_cache[entity_id] = area
                     return area
 
-                # Fall back to device -> area
                 device_id = entity_data.get("device_id")
                 if device_id:
                     devices_entry = await self.hub.get_cache("devices")
@@ -692,11 +749,11 @@ class PresenceModule(Module):
                         device = devices_cache.get(device_id, {})
                         area = device.get("area_id")
                         if area:
+                            self._entity_room_cache[entity_id] = area
                             return area
         except Exception:
             pass
 
-        self.logger.debug("Could not resolve room for %s", entity_id)
         return None
 
     # ------------------------------------------------------------------
@@ -734,6 +791,13 @@ class PresenceModule(Module):
     async def _flush_presence_state(self):
         """Recalculate presence probabilities and write to cache."""
         now = datetime.now()
+
+        # Refresh entity→room cache every 5 minutes (piggyback on 30s flush cycle)
+        if not self._entity_room_cache_built or (
+            hasattr(self, "_last_room_cache_refresh") and (now - self._last_room_cache_refresh).total_seconds() > 300
+        ):
+            await self._build_entity_room_cache()
+            self._last_room_cache_refresh = now
         results = {}
 
         # All rooms that have had any signal
