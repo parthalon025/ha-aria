@@ -24,7 +24,7 @@ Usage (internal flag-style, called by aria CLI dispatcher):
 import json
 import logging
 import sys
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from aria.engine.config import AppConfig
 from aria.engine.storage.data_store import DataStore
@@ -60,7 +60,7 @@ def cmd_snapshot_intraday():
 
     snapshot = build_intraday_snapshot(hour=None, date_str=None, config=config, store=store)
     # Add time features (wiring that was deferred during migration)
-    timestamp = snapshot.get("timestamp", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"))
+    timestamp = snapshot.get("timestamp", datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%S"))
     snapshot["time_features"] = build_time_features(timestamp, snapshot.get("sun"), snapshot.get("date"))
 
     path = store.save_intraday_snapshot(snapshot)
@@ -96,7 +96,7 @@ def cmd_analyze():
     from aria.engine.models.device_failure import detect_contextual_anomalies
     from aria.engine.models.training import count_days_of_data
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     snapshot = store.load_snapshot(today)
     if not snapshot:
         snapshot = build_snapshot(date_str=today, config=config, store=store)
@@ -186,7 +186,7 @@ def _run_ml_predictions(config, store, baselines, weather, tomorrow):
             print(f"  ! {df['entity_id']}: {df['failure_probability']:.0%} ({df['risk']})")
 
     ctx_anomalies = None
-    today_snap = store.load_snapshot(datetime.now().strftime("%Y-%m-%d"))
+    today_snap = store.load_snapshot(datetime.now(tz=UTC).strftime("%Y-%m-%d"))
     if today_snap:
         feature_config = load_feature_config(store)
         fv = build_feature_vector(today_snap, feature_config)
@@ -217,7 +217,7 @@ def cmd_predict():
         correlations = correlations.get("correlations", [])
 
     weather = parse_weather(fetch_weather(config.weather))
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    tomorrow = (datetime.now(tz=UTC) + timedelta(days=1)).strftime("%Y-%m-%d")
 
     ml_preds = None
     device_failures = None
@@ -251,7 +251,7 @@ def cmd_score():
 
     from aria.engine.predictions.scoring import accuracy_trend, score_all_predictions
 
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
     predictions = store.load_predictions()
     actual = store.load_snapshot(yesterday)
     if not actual:
@@ -279,7 +279,7 @@ def cmd_report(dry_run=False):
     from aria.engine.collectors.snapshot import build_snapshot
     from aria.engine.llm.reports import generate_insight_report
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     snapshot = store.load_snapshot(today)
     if not snapshot:
         snapshot = build_snapshot(date_str=today, config=config, store=store)
@@ -351,7 +351,7 @@ def cmd_brief():
     from aria.engine.collectors.snapshot import build_snapshot
     from aria.engine.llm.reports import generate_brief_line
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     snapshot = store.load_snapshot(today)
     if not snapshot:
         snapshot = build_snapshot(date_str=today, config=config, store=store)
@@ -556,7 +556,7 @@ def cmd_occupancy():
     )
     from aria.engine.collectors.snapshot import build_snapshot
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     snapshot = store.load_snapshot(today)
     if not snapshot:
         snapshot = build_snapshot(date_str=today, config=config, store=store)

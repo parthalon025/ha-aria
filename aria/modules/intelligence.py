@@ -9,7 +9,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -351,7 +351,7 @@ class IntelligenceModule(Module):
 
     def _extract_intraday_trend(self) -> list[dict[str, Any]]:
         """Extract today's intraday snapshots as compact trend entries."""
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         intraday_dir = self.intel_dir / "intraday" / today
         if not intraday_dir.exists():
             return []
@@ -442,7 +442,7 @@ class IntelligenceModule(Module):
             files = files[:limit]
         return [
             {
-                "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                "timestamp": datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat(),
                 "type": run_type,
                 "status": "ok",
             }
@@ -473,7 +473,7 @@ class IntelligenceModule(Module):
 
     def _build_run_log(self) -> list[dict[str, Any]]:
         """Build run history from file mtimes and log file."""
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         runs = []
         runs.extend(self._scan_dir_for_runs(self.intel_dir / "daily", "daily", limit=5))
         runs.extend(self._scan_dir_for_runs(self.intel_dir / "intraday" / today, "intraday"))

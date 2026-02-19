@@ -17,7 +17,7 @@ import logging
 import math
 import pickle
 import warnings
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -151,7 +151,7 @@ class MLEngine(Module):
 
         # Hardware-aware tiered model registry (Phase 1)
         self.registry = TieredModelRegistry.with_defaults()
-        hw_profile = scan_hardware()
+        hw_profile = hub.hardware_profile if hub.hardware_profile is not None else scan_hardware()
         self.current_tier = recommend_tier(hw_profile)
         self.fallback_tracker = FallbackTracker(ttl_days=7)
         logger.info(
@@ -187,6 +187,9 @@ class MLEngine(Module):
         # Loaded models cache
         self.models: dict[str, dict[str, Any]] = {}
 
+        # Model pipeline status: untrained | training | ready | stale
+        self.model_status: str = "untrained"
+
     async def initialize(self):
         """Initialize module - load existing models."""
         self.logger.info("ML Engine initializing...")
@@ -205,7 +208,9 @@ class MLEngine(Module):
         # Load existing models
         await self._load_models()
 
-        self.logger.info("ML Engine initialized")
+        if self.models:
+            self.model_status = "ready"
+        self.logger.info("ML Engine initialized (model_status=%s)", self.model_status)
 
     async def _load_models(self):
         """Load trained models from disk."""
@@ -277,6 +282,7 @@ class MLEngine(Module):
 
     async def train_models(self, days_history: int = 60):
         """Train models using historical data."""
+        self.model_status = "training"
         self.logger.info(f"Training models with {days_history} days of history...")
 
         capabilities_entry = await self.hub.get_cache_fresh(
@@ -296,6 +302,7 @@ class MLEngine(Module):
         training_results = await self._train_capability_targets(capabilities, training_data)
 
         await self._train_anomaly_detector(training_data)
+        await self._train_reference_model(training_data)
         self.logger.info("Model training complete")
 
         trained_targets = []
@@ -308,7 +315,7 @@ class MLEngine(Module):
         await self.hub.set_cache(
             "ml_training_metadata",
             {
-                "last_trained": datetime.now().isoformat(),
+                "last_trained": datetime.now(tz=UTC).isoformat(),
                 "days_history": days_history,
                 "num_snapshots": len(training_data),
                 "capabilities_trained": list(capabilities.keys()),
@@ -322,9 +329,11 @@ class MLEngine(Module):
             await self._write_feedback_to_capabilities(training_results)
 
         config = await self._get_feature_config()
-        config["last_modified"] = datetime.now().isoformat()
+        config["last_modified"] = datetime.now(tz=UTC).isoformat()
         config["modified_by"] = "ml_engine"
         await self.hub.set_cache("feature_config", config)
+
+        self.model_status = "ready"
 
     async def _write_feedback_to_capabilities(self, training_results: dict[str, dict[str, dict[str, Any]]]):
         """Write ML accuracy feedback back to the capabilities cache.
@@ -343,7 +352,7 @@ class MLEngine(Module):
             return
 
         caps = caps_entry.get("data", {})
-        now_iso = datetime.now().isoformat()
+        now_iso = datetime.now(tz=UTC).isoformat()
         updated_count = 0
 
         for cap_name, targets in training_results.items():
@@ -405,7 +414,7 @@ class MLEngine(Module):
             List of snapshot dictionaries
         """
         raw_snapshots = []
-        today = datetime.now()
+        today = datetime.now(tz=UTC)
 
         for i in range(days):
             date_str = (today - timedelta(days=i)).strftime("%Y-%m-%d")
@@ -514,7 +523,7 @@ class MLEngine(Module):
             "lgbm_model": lgbm_model,
             "iso_model": iso_model,
             "scaler": scaler,
-            "trained_at": datetime.now().isoformat(),
+            "trained_at": datetime.now(tz=UTC).isoformat(),
             "num_samples": len(X),
             "num_train": len(X_train),
             "num_val": len(X_val),
@@ -595,7 +604,7 @@ class MLEngine(Module):
         # Save anomaly detector
         model_data = {
             "model": model,
-            "trained_at": datetime.now().isoformat(),
+            "trained_at": datetime.now(tz=UTC).isoformat(),
             "num_samples": len(X),
             "contamination": 0.05,
         }
@@ -880,7 +889,7 @@ class MLEngine(Module):
             Array of weights, one per snapshot
         """
         if reference_date is None:
-            reference_date = datetime.now()
+            reference_date = datetime.now(tz=UTC)
 
         ref_weekday = reference_date.weekday()
         weights = []
@@ -896,6 +905,11 @@ class MLEngine(Module):
                     snap_dt = datetime.fromisoformat(date_str)
                 else:
                     snap_dt = datetime.strptime(date_str, "%Y-%m-%d")
+                # Ensure both datetimes are tz-aware for subtraction
+                if snap_dt.tzinfo is None and reference_date.tzinfo is not None:
+                    snap_dt = snap_dt.replace(tzinfo=reference_date.tzinfo)
+                elif snap_dt.tzinfo is not None and reference_date.tzinfo is None:
+                    reference_date = reference_date.replace(tzinfo=snap_dt.tzinfo)
             except (ValueError, TypeError):
                 weights.append(0.0)
                 continue
@@ -940,7 +954,10 @@ class MLEngine(Module):
         if not windows:
             return self._empty_rolling_window_stats()
 
-        now = datetime.now()
+        # NOTE: Activity monitor stores timestamps as naive local time.
+        # Use local time here for consistent string comparison with stored data.
+        # When activity_monitor is converted to UTC, update this to match.
+        now = datetime.now()  # noqa: DTZ005 — intentional: matches activity_monitor's naive local timestamps
         for hours in ROLLING_WINDOWS_HOURS:
             cutoff = (now - timedelta(hours=hours)).isoformat()
             relevant = [w for w in windows if w.get("window_start", "") >= cutoff]
@@ -1098,7 +1115,7 @@ class MLEngine(Module):
 
         # Build and cache final result
         result = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
             "predictions": predictions_dict,
             "anomaly_detected": is_anomaly,
             "anomaly_score": round(anomaly_score, 3) if anomaly_score is not None else None,
@@ -1337,7 +1354,7 @@ class MLEngine(Module):
         # Build minimal snapshot from discovery data
         discovery = discovery_entry.get("data", {})
         snapshot = {
-            "date": datetime.now().isoformat(),
+            "date": datetime.now(tz=UTC).isoformat(),
             "power": discovery.get("power_monitoring", {}),
             "lights": discovery.get("lighting", {}),
             "occupancy": discovery.get("occupancy", {}),
@@ -1401,15 +1418,130 @@ class MLEngine(Module):
 
         return stats
 
-    async def _train_reference_model(self, features, targets):
+    async def _build_reference_features(
+        self, training_data: list[dict[str, Any]], config: dict, feature_names: list[str]
+    ) -> tuple[list[list[float]], dict[str, list[float]]]:
+        """Build feature matrix and target dict for reference model training."""
+        X_list: list[list[float]] = []
+        y_dict: dict[str, list[float]] = {}
+
+        for i, snapshot in enumerate(training_data):
+            prev_snapshot = training_data[i - 1] if i > 0 else None
+            rolling_stats = self._compute_snapshot_rolling_stats(training_data, i)
+
+            features = await self._extract_features(
+                snapshot, config=config, prev_snapshot=prev_snapshot, rolling_stats=rolling_stats
+            )
+            if features is None:
+                continue
+
+            row = [features.get(name, 0) for name in feature_names]
+            targets_found = self._extract_all_targets(snapshot, y_dict)
+            if targets_found:
+                X_list.append(row)
+
+        return X_list, y_dict
+
+    def _extract_all_targets(self, snapshot: dict[str, Any], y_dict: dict[str, list[float]]) -> bool:
+        """Extract all available target values from a snapshot into y_dict."""
+        found = False
+        for target_names in self.capability_predictions.values():
+            for t in target_names:
+                val = self._extract_target(snapshot, t)
+                if val is not None:
+                    y_dict.setdefault(t, []).append(val)
+                    found = True
+        return found
+
+    @staticmethod
+    def _compute_snapshot_rolling_stats(training_data: list[dict[str, Any]], i: int) -> dict[str, float]:
+        """Compute rolling stats for a snapshot at index i."""
+        if i < 7:
+            return {}
+        recent = training_data[max(0, i - 7) : i]
+        return {
+            "power_mean_7d": sum(s.get("power", {}).get("total_watts", 0) for s in recent) / len(recent),
+            "lights_mean_7d": sum(s.get("lights", {}).get("on", 0) for s in recent) / len(recent),
+        }
+
+    async def _fit_and_save_reference_target(
+        self, target_name: str, X: np.ndarray, y_values: list[float], ref_dir: Path
+    ) -> None:
+        """Fit a reference GB model for one target and save to disk."""
+        y = np.array(y_values, dtype=float)
+        split_idx = int(len(X) * 0.8)
+        X_train, X_val = X[:split_idx], X[split_idx:]
+        y_train, y_val = y[:split_idx], y[split_idx:]
+
+        ref_model = GradientBoostingRegressor(
+            n_estimators=100,
+            learning_rate=0.1,
+            max_depth=4,
+            min_samples_leaf=max(3, len(X_train) // 20),
+            subsample=0.8,
+            random_state=42,
+        )
+        ref_model.fit(X_train, y_train)
+
+        y_pred = ref_model.predict(X_val)
+        mae = float(mean_absolute_error(y_val, y_pred))
+        r2 = float(r2_score(y_val, y_pred)) if len(y_val) > 1 else 0.0
+
+        ref_data = {
+            "model": ref_model,
+            "target": target_name,
+            "trained_at": datetime.now(tz=UTC).isoformat(),
+            "mae": round(mae, 3),
+            "r2": round(r2, 3),
+            "num_samples": len(X),
+        }
+
+        def _save(path, data):
+            with open(path, "wb") as f:
+                pickle.dump(data, f)
+
+        await asyncio.to_thread(_save, ref_dir / f"ref_{target_name}.pkl", ref_data)
+        self.logger.info("Reference model for %s: MAE=%.3f, R2=%.3f (%d samples)", target_name, mae, r2, len(X))
+
+    async def _train_reference_model(self, training_data: list[dict[str, Any]]):
         """Train clean reference model without meta-learner modifications.
 
-        Maintains a parallel unmodified model to distinguish meta-learner
-        errors from genuine behavioral drift.
+        Maintains a parallel unmodified gradient-boosting model trained on the
+        same data as the primary model, but using the default (frozen) feature
+        config. This allows comparing against the meta-learner-tuned model to
+        distinguish genuine behavioral drift from meta-learner errors.
+
+        Args:
+            training_data: List of snapshot dicts (same data as primary training).
         """
-        pass  # Phase 2: Wire into retrain cycle to train parallel model with
-        # frozen feature config.  compare_model_accuracy() in intelligence.py
-        # provides the comparison logic once both model sets exist.
+        if len(training_data) < 14:
+            self.logger.warning("Insufficient data for reference model (%d < 14)", len(training_data))
+            return
+
+        self.logger.info("Training reference model (frozen config, %d snapshots)...", len(training_data))
+
+        try:
+            from aria.shared.constants import DEFAULT_FEATURE_CONFIG
+
+            config = {**DEFAULT_FEATURE_CONFIG}
+            feature_names = await self._get_feature_names(config)
+            X_list, y_dict = await self._build_reference_features(training_data, config, feature_names)
+
+            if len(X_list) < 14:
+                self.logger.warning("Insufficient reference training vectors (%d < 14)", len(X_list))
+                return
+
+            X = np.array(X_list, dtype=float)
+            ref_dir = self.models_dir / "reference"
+            ref_dir.mkdir(parents=True, exist_ok=True)
+
+            for target_name, y_values in y_dict.items():
+                if len(y_values) != len(X_list):
+                    continue
+                await self._fit_and_save_reference_target(target_name, X, y_values, ref_dir)
+
+        except Exception as e:
+            self.logger.error("Reference model training failed: %s", e)
 
     async def on_event(self, event_type: str, data: dict[str, Any]):
         """Handle hub events.
@@ -1448,9 +1580,12 @@ class MLEngine(Module):
                     self.logger.info("Training metadata missing last_trained — will train immediately")
                 else:
                     last_trained = datetime.fromisoformat(last_trained_str)
-                    days_since = (datetime.now() - last_trained).total_seconds() / 86400
+                    if last_trained.tzinfo is None:
+                        last_trained = last_trained.replace(tzinfo=UTC)
+                    days_since = (datetime.now(tz=UTC) - last_trained).total_seconds() / 86400
                     if days_since > interval_days:
                         run_immediately = True
+                        self.model_status = "stale"
                         self.logger.info(
                             f"Last training was {days_since:.1f} days ago (>{interval_days}) — will train immediately"
                         )

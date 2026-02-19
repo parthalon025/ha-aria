@@ -26,6 +26,7 @@ def mock_hub():
     hub.get_cache_fresh = AsyncMock(return_value=None)
     hub.set_cache = AsyncMock()
     hub.logger = Mock()
+    hub.hardware_profile = None  # MLEngine will fall back to scan_hardware()
     return hub
 
 
@@ -2061,6 +2062,7 @@ class TestAnomalyExplanation:
         mock_hub.get_config_value = Mock(return_value=None)
         mock_hub.logger = Mock()
         mock_hub.modules = {}
+        mock_hub.hardware_profile = None
         return MLEngine(mock_hub, str(tmp_path / "m"), str(tmp_path / "t"))
 
     def test_anomaly_detection_returns_explanations(self, tmp_path):
@@ -2132,6 +2134,7 @@ class TestTrajectoryFeature:
         mock_hub.get_config_value = Mock(return_value=None)
         mock_hub.logger = Mock()
         mock_hub.modules = {}
+        mock_hub.hardware_profile = None
         return MLEngine(mock_hub, str(tmp_path / "m"), str(tmp_path / "t"))
 
     async def test_feature_config_includes_pattern_features(self, tmp_path):
