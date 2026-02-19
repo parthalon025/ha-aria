@@ -109,6 +109,9 @@ class PresenceModule(Module):
         # Bayesian estimator (shared with engine, but used in real-time here)
         self._occupancy = BayesianOccupancy()
 
+        # Shared aiohttp session (created in initialize, closed in shutdown)
+        self._http_session: aiohttp.ClientSession | None = None
+
         # MQTT client (lazy init)
         self._mqtt_client = None
         self._mqtt_connected = False
@@ -217,7 +220,8 @@ class PresenceModule(Module):
             if not ha_url or not ha_token:
                 logger.warning("Cannot seed presence: HA_URL/HA_TOKEN not set")
                 return
-            async with aiohttp.ClientSession() as session:
+            session = self._http_session or aiohttp.ClientSession()
+            try:
                 headers = {"Authorization": f"Bearer {ha_token}"}
                 async with session.get(
                     f"{ha_url}/api/states", headers=headers, timeout=aiohttp.ClientTimeout(total=10)
@@ -233,12 +237,18 @@ class PresenceModule(Module):
                         logger.info("Seeded %d person states from HA", count)
                     else:
                         logger.warning("HA REST API returned %d during presence seeding", resp.status)
+            finally:
+                if not self._http_session:
+                    await session.close()
         except Exception as e:
             logger.warning("Failed to seed presence from HA: %s", e)
 
     async def initialize(self):
         """Start MQTT listener and HA WebSocket listener."""
         self.logger.info("Presence module initializing...")
+
+        # Create shared HTTP session for all outbound requests
+        self._http_session = aiohttp.ClientSession()
 
         await self._seed_presence_from_ha()
 
@@ -289,7 +299,11 @@ class PresenceModule(Module):
         self.logger.info("Presence module started")
 
     async def shutdown(self):
-        """Clean up MQTT connection."""
+        """Clean up MQTT connection and HTTP session."""
+        if self._http_session:
+            with contextlib.suppress(Exception):
+                await self._http_session.close()
+            self._http_session = None
         if self._mqtt_client:
             with contextlib.suppress(Exception):
                 self._mqtt_client.disconnect()
@@ -309,44 +323,44 @@ class PresenceModule(Module):
 
     async def _fetch_face_config(self):
         """Fetch face recognition config and labeled faces from Frigate."""
+        if not self._http_session:
+            return
         try:
-            async with aiohttp.ClientSession() as session:
-                # Fetch face recognition config
-                async with session.get(
-                    f"{self._frigate_url}/api/config", timeout=aiohttp.ClientTimeout(total=5)
-                ) as resp:
-                    if resp.status == 200:
-                        config = await resp.json()
-                        self._face_config = config.get("face_recognition", {})
-                        self._face_config_fetched = True
+            # Fetch face recognition config
+            async with self._http_session.get(
+                f"{self._frigate_url}/api/config", timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status == 200:
+                    config = await resp.json()
+                    self._face_config = config.get("face_recognition", {})
+                    self._face_config_fetched = True
 
-                        # Extract camera names for MQTT alias resolution
-                        cameras = config.get("cameras", {})
-                        if cameras:
-                            self._frigate_camera_names = set(cameras.keys())
+                    # Extract camera names for MQTT alias resolution
+                    cameras = config.get("cameras", {})
+                    if cameras:
+                        self._frigate_camera_names = set(cameras.keys())
 
-                # Fetch labeled faces (name -> list of face images)
-                async with session.get(
-                    f"{self._frigate_url}/api/faces", timeout=aiohttp.ClientTimeout(total=5)
-                ) as resp:
-                    if resp.status == 200:
-                        faces = await resp.json()
-                        self._labeled_faces = {
-                            name: len(images) if isinstance(images, list) else 0 for name, images in faces.items()
-                        }
+            # Fetch labeled faces (name -> list of face images)
+            async with self._http_session.get(
+                f"{self._frigate_url}/api/faces", timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status == 200:
+                    faces = await resp.json()
+                    self._labeled_faces = {
+                        name: len(images) if isinstance(images, list) else 0 for name, images in faces.items()
+                    }
         except Exception as e:
             self.logger.debug(f"Failed to fetch Frigate face config: {e}")
 
     async def get_frigate_thumbnail(self, event_id: str) -> bytes | None:
         """Proxy a Frigate event thumbnail. Returns JPEG bytes or None."""
+        if not self._http_session:
+            return None
         try:
-            async with (
-                aiohttp.ClientSession() as session,
-                session.get(
-                    f"{self._frigate_url}/api/events/{event_id}/thumbnail.jpg",
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp,
-            ):
+            async with self._http_session.get(
+                f"{self._frigate_url}/api/events/{event_id}/thumbnail.jpg",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
                 if resp.status == 200:
                     return await resp.read()
         except Exception:
@@ -355,14 +369,13 @@ class PresenceModule(Module):
 
     async def get_frigate_snapshot(self, event_id: str) -> bytes | None:
         """Proxy a Frigate event snapshot. Returns JPEG bytes or None."""
+        if not self._http_session:
+            return None
         try:
-            async with (
-                aiohttp.ClientSession() as session,
-                session.get(
-                    f"{self._frigate_url}/api/events/{event_id}/snapshot.jpg",
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp,
-            ):
+            async with self._http_session.get(
+                f"{self._frigate_url}/api/events/{event_id}/snapshot.jpg",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
                 if resp.status == 200:
                     return await resp.read()
         except Exception:
@@ -526,7 +539,8 @@ class PresenceModule(Module):
 
         while self.hub.is_running():
             try:
-                async with aiohttp.ClientSession() as session, session.ws_connect(ws_url) as ws:
+                session = self._http_session or aiohttp.ClientSession()
+                async with session.ws_connect(ws_url) as ws:
                     msg = await ws.receive_json()
                     if msg.get("type") != "auth_required":
                         continue

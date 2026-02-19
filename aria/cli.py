@@ -414,7 +414,13 @@ def _make_init_module(hub):
 
 
 async def _register_modules(hub, ha_url, ha_token, intelligence_dir, logger):
-    """Register and initialize all hub modules."""
+    """Register and initialize all hub modules in dependency tiers.
+
+    Tier 0: discovery (must be first — other modules depend on its cache data)
+    Tier 1: ml_engine, patterns, orchestrator (parallel — independent of each other)
+    Tier 2: optional modules (parallel — non-fatal)
+    """
+    import asyncio
     import os
     from pathlib import Path
 
@@ -427,7 +433,7 @@ async def _register_modules(hub, ha_url, ha_token, intelligence_dir, logger):
     training_data_dir = os.path.join(intelligence_dir, "daily")
     _init = _make_init_module(hub)
 
-    # discovery
+    # --- Tier 0: discovery (must complete before others) ---
     discovery = DiscoveryModule(hub, ha_url, ha_token)
     hub.register_module(discovery)
     await _init(discovery, "discovery")()
@@ -437,31 +443,45 @@ async def _register_modules(hub, ha_url, ha_token, intelligence_dir, logger):
     except Exception as e:
         logger.warning(f"Event listener failed to start (non-fatal): {e}")
 
-    # ml_engine
+    # --- Tier 1: parallel core modules ---
     ml_engine = MLEngine(hub, models_dir, training_data_dir)
     hub.register_module(ml_engine)
-    await _init(ml_engine, "ml_engine")()
-    await ml_engine.schedule_periodic_training(interval_days=7)
 
-    # pattern_recognition
     log_dir = Path(intelligence_dir)
     patterns = PatternRecognition(hub, log_dir)
     hub.register_module(patterns)
-    await _init(patterns, "pattern_recognition")()
 
-    # orchestrator
     orchestrator = OrchestratorModule(hub, ha_url, ha_token)
     hub.register_module(orchestrator)
-    await _init(orchestrator, "orchestrator")()
 
-    # Non-fatal optional modules
+    async def _init_ml():
+        await _init(ml_engine, "ml_engine")()
+        await ml_engine.schedule_periodic_training(interval_days=7)
+
+    tier1_results = await asyncio.gather(
+        _init_ml(),
+        _init(patterns, "pattern_recognition")(),
+        _init(orchestrator, "orchestrator")(),
+        return_exceptions=True,
+    )
+    for i, result in enumerate(tier1_results):
+        if isinstance(result, Exception):
+            names = ["ml_engine", "pattern_recognition", "orchestrator"]
+            logger.error(f"Tier 1 module {names[i]} failed: {result}")
+
+    # --- Tier 2: optional modules (parallel, non-fatal) ---
     await _register_optional_modules(hub, ha_url, ha_token, intelligence_dir, _init, logger)
 
 
 async def _register_optional_modules(hub, ha_url, ha_token, intelligence_dir, _init, logger):
-    """Register optional modules that are non-fatal on failure."""
-    await _register_analysis_modules(hub, intelligence_dir, _init, logger)
-    await _register_monitor_modules(hub, ha_url, ha_token, _init, logger)
+    """Register optional modules that are non-fatal on failure (parallel)."""
+    import asyncio
+
+    await asyncio.gather(
+        _register_analysis_modules(hub, intelligence_dir, _init, logger),
+        _register_monitor_modules(hub, ha_url, ha_token, _init, logger),
+        return_exceptions=True,
+    )
 
 
 async def _register_analysis_modules(hub, intelligence_dir, _init, logger):

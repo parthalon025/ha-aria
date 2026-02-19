@@ -11,6 +11,7 @@ Architecture:
 - Model selection is configurable: any subset of {gb, rf, lgbm} can be enabled
 """
 
+import asyncio
 import json
 import logging
 import math
@@ -208,10 +209,14 @@ class MLEngine(Module):
 
     async def _load_models(self):
         """Load trained models from disk."""
+
+        def _load_pickle(path):
+            with open(path, "rb") as f:
+                return pickle.load(f)
+
         for model_file in self.models_dir.glob("*.pkl"):
             try:
-                with open(model_file, "rb") as f:
-                    model_data = pickle.load(f)
+                model_data = await asyncio.to_thread(_load_pickle, model_file)
 
                 model_name = model_file.stem
                 self.models[model_name] = model_data
@@ -520,8 +525,12 @@ class MLEngine(Module):
         }
 
         model_file = self.models_dir / f"{target}_model.pkl"
-        with open(model_file, "wb") as f:
-            pickle.dump(model_data, f)
+
+        def _save_pickle(path, data):
+            with open(path, "wb") as f:
+                pickle.dump(data, f)
+
+        await asyncio.to_thread(_save_pickle, model_file, model_data)
         self.models[target] = model_data
 
         self.logger.info(
@@ -592,8 +601,12 @@ class MLEngine(Module):
         }
 
         model_file = self.models_dir / "anomaly_detector.pkl"
-        with open(model_file, "wb") as f:
-            pickle.dump(model_data, f)
+
+        def _save_anomaly_pickle(path, data):
+            with open(path, "wb") as f:
+                pickle.dump(data, f)
+
+        await asyncio.to_thread(_save_anomaly_pickle, model_file, model_data)
 
         # Cache in memory
         self.models["anomaly_detector"] = model_data

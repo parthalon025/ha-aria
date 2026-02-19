@@ -4,6 +4,7 @@ Assembles predictions, baselines, trends, insights, run history, and config
 from ~/ha-logs/intelligence/ into a single consolidated cache category.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -119,7 +120,7 @@ class IntelligenceModule(Module):
         """Read all intelligence files and push to cache."""
         self.logger.info(f"Intelligence module initializing (dir: {self.intel_dir})")
         try:
-            data = self._read_intelligence_data()
+            data = await asyncio.to_thread(self._read_intelligence_data)
             data["activity"] = await self._read_activity_data()
             await self.hub.set_cache(
                 CACHE_INTELLIGENCE,
@@ -143,7 +144,7 @@ class IntelligenceModule(Module):
 
         async def refresh():
             try:
-                data = self._read_intelligence_data()
+                data = await asyncio.to_thread(self._read_intelligence_data)
                 data["activity"] = await self._read_activity_data()
                 await self.hub.set_cache(
                     CACHE_INTELLIGENCE,

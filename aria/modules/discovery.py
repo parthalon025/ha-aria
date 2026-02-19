@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import random
-import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -163,21 +162,29 @@ class DiscoveryModule(Module):
         self.logger.info("Running discovery...")
 
         try:
-            # Run discover.py subprocess
-            result = subprocess.run(
-                [sys.executable, str(self.discover_script)],
-                capture_output=True,
-                text=True,
-                timeout=120,
+            # Run discover.py subprocess (async to avoid blocking the event loop)
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                str(self.discover_script),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 env={**os.environ, "HA_URL": self.ha_url, "HA_TOKEN": self.ha_token},
             )
 
-            if result.returncode != 0:
-                error_msg = result.stderr or "Unknown error"
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            except TimeoutError:
+                proc.kill()
+                await proc.wait()
+                self.logger.error("Discovery timed out after 120 seconds")
+                raise
+
+            if proc.returncode != 0:
+                error_msg = stderr.decode() if stderr else "Unknown error"
                 raise RuntimeError(f"Discovery failed: {error_msg}")
 
             # Parse JSON output
-            capabilities = json.loads(result.stdout)
+            capabilities = json.loads(stdout.decode())
 
             # Store in hub cache
             await self._store_discovery_results(capabilities)
@@ -189,8 +196,7 @@ class DiscoveryModule(Module):
 
             return capabilities
 
-        except subprocess.TimeoutExpired:
-            self.logger.error("Discovery timed out after 120 seconds")
+        except TimeoutError:
             raise
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse discovery output: {e}")
@@ -563,7 +569,7 @@ class DiscoveryModule(Module):
         return vehicle_entity_ids, vehicle_device_ids
 
     async def run_classification(self):
-        """Main classification pipeline: read cache, compute metrics, classify, upsert."""
+        """Main classification pipeline: read cache, compute metrics, classify, batch upsert."""
         self.logger.info("Starting entity classification...")
 
         entities_entry = await self.hub.get_cache(CACHE_ENTITIES)
@@ -585,11 +591,16 @@ class DiscoveryModule(Module):
             entities_data, config_thresholds["vehicle_patterns"]
         )
 
+        # Batch-fetch existing curations to avoid N+1 queries
+        all_entity_ids = list(entities_data.keys())
+        existing_curations = await self.hub.cache.get_curations_batch(all_entity_ids)
+
         classified = 0
         skipped = 0
+        batch_records = []
 
         for entity_id, entity_data in entities_data.items():
-            existing = await self.hub.cache.get_curation(entity_id)
+            existing = existing_curations.get(entity_id)
             if existing and existing.get("human_override"):
                 skipped += 1
                 continue
@@ -604,17 +615,23 @@ class DiscoveryModule(Module):
                 vehicle_device_ids,
             )
 
-            await self.hub.cache.upsert_curation(
-                entity_id=entity_id,
-                status=status,
-                tier=tier,
-                reason=reason,
-                auto_classification=f"tier{tier}_{status}",
-                metrics=metrics,
-                group_id=group_id,
-                decided_by="discovery",
+            batch_records.append(
+                {
+                    "entity_id": entity_id,
+                    "status": status,
+                    "tier": tier,
+                    "reason": reason,
+                    "auto_classification": f"tier{tier}_{status}",
+                    "metrics": metrics,
+                    "group_id": group_id,
+                    "decided_by": "discovery",
+                }
             )
             classified += 1
+
+        # Batch upsert all classifications in one transaction
+        if batch_records:
+            await self.hub.cache.upsert_curations_batch(batch_records)
 
         self.logger.info(f"Classification complete: {classified} classified, {skipped} human-override skipped")
 
