@@ -163,3 +163,13 @@ export function describeEvent(evt) {
   // Fallback
   return { text: `${name}: ${from} \u2192 ${to}`, icon: 'default' };
 }
+
+/**
+ * Extract the last_updated timestamp from a useCache() result.
+ * Cache envelope shape: { category, data: {...}, last_updated }
+ * Returns ISO string or null.
+ */
+export function cacheTimestamp(cacheData) {
+  if (!cacheData || !cacheData.data) return null;
+  return cacheData.last_updated || cacheData.data.last_updated || null;
+}

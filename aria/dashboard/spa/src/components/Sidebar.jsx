@@ -4,38 +4,31 @@ import AriaLogo from './AriaLogo.jsx';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Home', icon: GridIcon },
-  // Data Collection
-  { section: 'Data Collection' },
-  { path: '/discovery', label: 'Discovery', icon: SearchIcon },
-  { path: '/capabilities', label: 'Capabilities', icon: ZapIcon },
-  { path: '/data-curation', label: 'Data Curation', icon: FilterIcon },
-  { path: '/presence', label: 'Presence', icon: UsersIcon },
-  // Learning
-  { section: 'Learning' },
-  { path: '/intelligence', label: 'Intelligence', icon: BrainIcon },
-  { path: '/ml-engine', label: 'ML Engine', icon: CpuIcon },
-  { path: '/predictions', label: 'Predictions', icon: TrendingUpIcon },
-  { path: '/patterns', label: 'Patterns', icon: LayersIcon },
-  // Actions
-  { section: 'Actions' },
-  { path: '/shadow', label: 'Shadow Mode', icon: EyeIcon },
-  { path: '/automations', label: 'Automations', icon: SettingsIcon },
-  { path: '/settings', label: 'Settings', icon: SlidersIcon },
-  { path: '/validation', label: 'Validation', icon: CheckIcon },
+  { path: '/observe', label: 'Observe', icon: EyeIcon },
+  { path: '/understand', label: 'Understand', icon: BrainIcon },
+  { path: '/decide', label: 'Decide', icon: ActivityIcon },
+  // System section (expandable)
+  { section: 'System', expandable: true },
+  { path: '/discovery', label: 'Discovery', icon: SearchIcon, system: true },
+  { path: '/capabilities', label: 'Capabilities', icon: ZapIcon, system: true },
+  { path: '/ml-engine', label: 'ML Engine', icon: CpuIcon, system: true },
+  { path: '/data-curation', label: 'Data Curation', icon: FilterIcon, system: true },
+  { path: '/validation', label: 'Validation', icon: CheckIcon, system: true },
+  { path: '/settings', label: 'Settings', icon: SlidersIcon, system: true },
 ];
 
 // The 5 primary tabs for the phone bottom bar
 const PHONE_TABS = [
   { path: '/', label: 'Home', icon: GridIcon },
-  { path: '/intelligence', label: 'Intel', icon: BrainIcon },
-  { path: '/predictions', label: 'Predict', icon: TrendingUpIcon },
-  { path: '/shadow', label: 'Shadow', icon: EyeIcon },
+  { path: '/observe', label: 'Observe', icon: EyeIcon },
+  { path: '/understand', label: 'Understand', icon: BrainIcon },
+  { path: '/decide', label: 'Decide', icon: ActivityIcon },
   { key: 'more', label: 'More', icon: MoreIcon },
 ];
 
-// Items shown in the "More" sheet (everything not in PHONE_TABS)
+// Items shown in the "More" sheet (system items)
 const MORE_ITEMS = NAV_ITEMS.filter(
-  (item) => !item.section && !['/', '/intelligence', '/predictions', '/shadow'].includes(item.path)
+  (item) => item.system
 );
 
 // Simple inline SVG icons
@@ -214,6 +207,31 @@ function BookIcon() {
   );
 }
 
+function CompassIcon() {
+  return (
+    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+    </svg>
+  );
+}
+
+function ActivityIcon() {
+  return (
+    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
 function getHashPath() {
   const hash = window.location.hash || '#/';
   const path = hash.replace(/^#/, '') || '/';
@@ -351,6 +369,7 @@ function PhoneNav({ currentPath }) {
 
 function TabletNav({ currentPath }) {
   const [expanded, setExpanded] = useState(false);
+  const [systemOpen, setSystemOpen] = useState(false);
   const connected = wsConnected.value;
   const isDark = theme.value === 'dark';
 
@@ -359,7 +378,7 @@ function TabletNav({ currentPath }) {
     setExpanded(false);
   }, [currentPath]);
 
-  const navItems = NAV_ITEMS.filter((item) => !item.section);
+  const navItems = NAV_ITEMS.filter((item) => !item.section && !item.system);
   const railWidth = expanded ? '240px' : '56px';
 
   return (
@@ -393,45 +412,54 @@ function TabletNav({ currentPath }) {
         <div class="flex-1 overflow-y-auto" style="padding: 4px 0;">
           {expanded ? (
             // Expanded: show sections + labels
-            NAV_ITEMS.map((item, i) => {
-              if (item.section) {
+            NAV_ITEMS.map((navItem, i) => {
+              if (navItem.section && navItem.expandable) {
                 return (
-                  <div
-                    key={item.section}
-                    style={`padding: 0 16px; padding-top: 14px; padding-bottom: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); white-space: nowrap;${i > 0 ? ' border-top: 1px solid var(--border-subtle); margin-top: 6px;' : ''}`}
+                  <button
+                    key={navItem.section}
+                    onClick={() => setSystemOpen(!systemOpen)}
+                    class="flex items-center justify-between w-full"
+                    style={`padding: 0 16px; padding-top: 14px; padding-bottom: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); white-space: nowrap; background: none; border: none; cursor: pointer;${i > 0 ? ' border-top: 1px solid var(--border-subtle); margin-top: 6px;' : ''}`}
+                    aria-expanded={systemOpen}
                   >
-                    {item.section}
-                  </div>
+                    <span>{navItem.section}</span>
+                    <span style={`transition: transform 0.2s ease; transform: rotate(${systemOpen ? '0deg' : '-90deg'});`}>
+                      <ChevronDownIcon />
+                    </span>
+                  </button>
                 );
               }
-              const active = currentPath === item.path;
+              if (navItem.system && !systemOpen) {
+                return null;
+              }
+              const active = currentPath === navItem.path;
               return (
                 <a
-                  key={item.path}
-                  href={`#${item.path}`}
+                  key={navItem.path}
+                  href={`#${navItem.path}`}
                   class="flex items-center gap-3"
                   style={`padding: 8px 16px; font-size: 14px; font-weight: 500; text-decoration: none; white-space: nowrap; transition: background 0.15s ease; ${active ? 'color: var(--text-primary); background: var(--bg-surface-raised); border-left: 2px solid var(--accent); padding-left: 14px;' : 'color: var(--text-tertiary); border-left: 2px solid transparent; padding-left: 14px;'}`}
-                  aria-label={item.label}
+                  aria-label={navItem.label}
                 >
-                  <item.icon />
-                  {item.label}
+                  <navItem.icon />
+                  {navItem.label}
                 </a>
               );
             })
           ) : (
-            // Collapsed: icon-only
-            navItems.map((item) => {
-              const active = currentPath === item.path;
+            // Collapsed: icon-only (system items hidden)
+            navItems.map((navItem) => {
+              const active = currentPath === navItem.path;
               return (
                 <a
-                  key={item.path}
-                  href={`#${item.path}`}
+                  key={navItem.path}
+                  href={`#${navItem.path}`}
                   class="flex items-center justify-center"
                   style={`width: 56px; height: 44px; text-decoration: none; transition: background 0.15s ease; ${active ? 'color: var(--accent); border-left: 2px solid var(--accent);' : 'color: var(--text-tertiary); border-left: 2px solid transparent;'}`}
-                  title={item.label}
-                  aria-label={item.label}
+                  title={navItem.label}
+                  aria-label={navItem.label}
                 >
-                  <item.icon />
+                  <navItem.icon />
                 </a>
               );
             })
@@ -483,6 +511,7 @@ function DesktopNav({ currentPath }) {
   const connected = wsConnected.value;
   const statusText = wsMessage.value;
   const isDark = theme.value === 'dark';
+  const [systemOpen, setSystemOpen] = useState(false);
 
   return (
     <nav
@@ -498,22 +527,31 @@ function DesktopNav({ currentPath }) {
 
       {/* Nav links */}
       <div class="flex-1 px-3 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map((item, i) => {
-          if (item.section) {
+        {NAV_ITEMS.map((navItem, i) => {
+          if (navItem.section && navItem.expandable) {
             return (
-              <div
-                key={item.section}
-                style={`padding: 0 12px; padding-top: 16px; padding-bottom: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary);${i > 0 ? ' border-top: 1px solid var(--border-subtle); margin-top: 8px;' : ''}`}
+              <button
+                key={navItem.section}
+                onClick={() => setSystemOpen(!systemOpen)}
+                class="flex items-center justify-between w-full"
+                style={`padding: 0 12px; padding-top: 16px; padding-bottom: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); background: none; border: none; cursor: pointer;${i > 0 ? ' border-top: 1px solid var(--border-subtle); margin-top: 8px;' : ''}`}
+                aria-expanded={systemOpen}
               >
-                {item.section}
-              </div>
+                <span>{navItem.section}</span>
+                <span style={`transition: transform 0.2s ease; transform: rotate(${systemOpen ? '0deg' : '-90deg'});`}>
+                  <ChevronDownIcon />
+                </span>
+              </button>
             );
           }
-          const active = currentPath === item.path;
+          if (navItem.system && !systemOpen) {
+            return null;
+          }
+          const active = currentPath === navItem.path;
           return (
             <a
-              key={item.path}
-              href={`#${item.path}`}
+              key={navItem.path}
+              href={`#${navItem.path}`}
               class="flex items-center gap-3 text-sm font-medium"
               style={active
                 ? 'background: var(--bg-surface-raised); color: var(--text-primary); border-left: 2px solid var(--accent); padding: 8px 12px; border-radius: var(--radius); transition: background 0.15s ease, color 0.15s ease;'
@@ -521,10 +559,10 @@ function DesktopNav({ currentPath }) {
               }
               onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--bg-surface-raised)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
               onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-tertiary)'; } }}
-              aria-label={item.label}
+              aria-label={navItem.label}
             >
-              <item.icon />
-              {item.label}
+              <navItem.icon />
+              {navItem.label}
             </a>
           );
         })}
