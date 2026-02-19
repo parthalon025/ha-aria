@@ -108,7 +108,11 @@ async def test_engine_produces_predictions(engine_output):
 @pytest.mark.asyncio
 async def test_hub_reads_engine_output(engine_output, tmp_path):
     """Write engine output to disk in the format IntelligenceModule expects,
-    then verify it reads into hub cache correctly."""
+    then verify it reads into hub cache correctly.
+
+    Note: engine_output is module-scoped (shared, expensive), while tmp_path is
+    function-scoped — each test gets its own hub DB and intelligence directory.
+    """
     result = engine_output["result"]
 
     # Build the intelligence directory structure
@@ -122,10 +126,13 @@ async def test_hub_reads_engine_output(engine_output, tmp_path):
     (intel_dir / "baselines.json").write_text(json.dumps(result["baselines"]))
 
     # Write accuracy.json from scores
+    # scores has: {"overall": int, "metrics": {"power_watts": {"accuracy": ...}, ...}}
     accuracy = {
-        "overall": result["scores"].get("overall_accuracy", 0),
+        "overall": result["scores"].get("overall", 0),
         "by_metric": {
-            k: v.get("accuracy", 0) for k, v in result["scores"].items() if isinstance(v, dict) and "accuracy" in v
+            k: v.get("accuracy", 0)
+            for k, v in result["scores"].get("metrics", {}).items()
+            if isinstance(v, dict) and "accuracy" in v
         },
     }
     (intel_dir / "accuracy.json").write_text(json.dumps(accuracy))
@@ -283,6 +290,8 @@ async def test_golden_snapshot(engine_output, tmp_path, update_golden):
 
     Captures a deterministic summary of the end-to-end flow: engine pipeline
     results, hub intelligence loading, and orchestrator suggestion generation.
+
+    Note: engine_output is module-scoped (shared), tmp_path is function-scoped.
     """
     result = engine_output["result"]
 
@@ -292,8 +301,9 @@ async def test_golden_snapshot(engine_output, tmp_path, update_golden):
     failed_metrics = sorted([m for m, r in training.items() if "error" in r])
 
     scores = result["scores"]
+    # Per-metric scores live under scores["metrics"], not at the top level
     score_summary = {}
-    for metric, score_data in sorted(scores.items()):
+    for metric, score_data in sorted(scores.get("metrics", {}).items()):
         if isinstance(score_data, dict) and "accuracy" in score_data:
             score_summary[metric] = round(score_data["accuracy"], 1)
 

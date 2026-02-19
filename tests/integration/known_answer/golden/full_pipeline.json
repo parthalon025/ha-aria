@@ -18,7 +18,13 @@
       "useful_events"
     ],
     "failed_metrics": [],
-    "score_summary": {}
+    "score_summary": {
+      "devices_home": 100,
+      "lights_on": 85,
+      "power_watts": 91,
+      "unavailable": 100,
+      "useful_events": 99
+    }
   },
   "hub": {
     "intelligence_loaded": true,
