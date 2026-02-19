@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+import sqlite3
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -20,6 +21,9 @@ from typing import Any
 import aiosqlite
 
 logger = logging.getLogger(__name__)
+
+_DEAD_LETTER_PATH = Path.home() / "ha-logs" / "intelligence" / "audit_dead_letter.jsonl"
+_MAX_RETRIES = 3
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS audit_events (
@@ -552,30 +556,84 @@ class AuditLogger:
                 logger.exception("Audit flush loop error — will retry")
 
     async def _batch_insert(self, items: list[tuple]) -> None:
-        """Batch INSERT in single transaction."""
-        await self._db.executemany(
-            "INSERT INTO audit_events "
-            "(timestamp, event_type, source, action, subject, "
-            "detail, request_id, severity, checksum) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            items,
-        )
-        await self._db.commit()
-        self._total_written += len(items)
+        """Batch INSERT in single transaction with retry on transient SQLite errors.
 
-        # Notify WebSocket subscribers
-        for row in items:
-            event_dict = {
-                "timestamp": row[0],
-                "event_type": row[1],
-                "source": row[2],
-                "action": row[3],
-                "subject": row[4],
-                "severity": row[7],
-            }
-            for sub in list(self._subscribers):  # snapshot — safe against concurrent add/remove
-                with contextlib.suppress(asyncio.QueueFull):
-                    sub.put_nowait(event_dict)
+        Retries up to _MAX_RETRIES times on sqlite3.OperationalError (locked, busy, I/O).
+        Backoff: 0.5s, 1s, 2s (0.5 * 2^attempt). On final failure, writes to dead-letter file.
+        Non-OperationalError exceptions propagate immediately without retry.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                await self._db.executemany(
+                    "INSERT INTO audit_events "
+                    "(timestamp, event_type, source, action, subject, "
+                    "detail, request_id, severity, checksum) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    items,
+                )
+                await self._db.commit()
+                self._total_written += len(items)
+
+                # Notify WebSocket subscribers
+                for row in items:
+                    event_dict = {
+                        "timestamp": row[0],
+                        "event_type": row[1],
+                        "source": row[2],
+                        "action": row[3],
+                        "subject": row[4],
+                        "severity": row[7],
+                    }
+                    for sub in list(self._subscribers):  # snapshot — safe against concurrent add/remove
+                        with contextlib.suppress(asyncio.QueueFull):
+                            sub.put_nowait(event_dict)
+                return  # success — done
+
+            except sqlite3.OperationalError as exc:
+                last_exc = exc
+                delay = 0.5 * (2**attempt)
+                logger.warning(
+                    "Audit batch insert failed (attempt %d/%d): %s — retrying in %.1fs",
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    exc,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+
+        # All retries exhausted — write to dead-letter file
+        logger.error(
+            "Audit batch insert failed after %d retries: %s — writing %d events to dead-letter file",
+            _MAX_RETRIES,
+            last_exc,
+            len(items),
+        )
+        await self._write_dead_letter(items)
+
+    async def _write_dead_letter(self, items: list[tuple]) -> None:
+        """Append failed batch items to the dead-letter JSONL file."""
+        _DEAD_LETTER_PATH.parent.mkdir(parents=True, exist_ok=True)
+        loop = asyncio.get_event_loop()
+
+        def _append():
+            with open(_DEAD_LETTER_PATH, "a") as f:
+                for row in items:
+                    record = {
+                        "timestamp": row[0],
+                        "event_type": row[1],
+                        "source": row[2],
+                        "action": row[3],
+                        "subject": row[4],
+                        "detail": row[5],
+                        "request_id": row[6],
+                        "severity": row[7],
+                        "checksum": row[8],
+                        "dead_letter_at": datetime.now(UTC).isoformat(),
+                    }
+                    f.write(json.dumps(record) + "\n")
+
+        await loop.run_in_executor(None, _append)
 
     @staticmethod
     def _row_to_dict(row: aiosqlite.Row, json_fields: list[str] | None = None) -> dict:

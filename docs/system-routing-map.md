@@ -852,6 +852,7 @@ Integration boundaries where bugs hide. Ordered by estimated risk (silent corrup
 - **Test coverage:** **None** — concurrency not tested (all tests use in-memory or single-connection)
 - **Failure mode:** **Unlikely** — WAL mode is designed for this, but under extreme load could see `database is locked` errors
 - **Suggested mitigation:** Low risk. Engine's SQLite fallback read should use `timeout=5` on connection
+- **Status: MITIGATED (closes #34):** `AuditLogger._batch_insert()` now retries up to 3 times on `sqlite3.OperationalError` (locked, busy, I/O) with exponential backoff (0.5s, 1s, 2s). On final failure, failed events are written to `~/ha-logs/intelligence/audit_dead_letter.jsonl` instead of being silently discarded. Non-OperationalError exceptions propagate immediately. See `aria/hub/audit.py` and `tests/hub/test_audit.py::TestBatchInsertRetry`.
 
 ### RISK-10: Pipeline Sankey Topology Drift
 

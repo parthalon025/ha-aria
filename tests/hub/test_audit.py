@@ -2,9 +2,11 @@
 
 import json
 import os
+import sqlite3
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -346,3 +348,118 @@ class TestVerifyIntegrity:
         result = await audit_logger.verify_integrity()
         assert result["invalid"] == 1
         assert len(result["details"]) == 1
+
+
+class TestBatchInsertRetry:
+    """Retry logic and dead-letter on batch insert failures."""
+
+    async def test_retry_succeeds_on_second_attempt(self, audit_logger):
+        """OperationalError on first attempt, success on second — events written, no dead-letter."""
+        items = [
+            (
+                "2026-01-01T00:00:00+00:00",
+                "retry_test",
+                "unit_test",
+                "attempt",
+                None,
+                None,
+                None,
+                "info",
+                "abc123",
+            )
+        ]
+
+        call_count = 0
+        original_executemany = audit_logger._db.executemany
+
+        async def failing_then_success(sql, data):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise sqlite3.OperationalError("database is locked")
+            return await original_executemany(sql, data)
+
+        with (
+            patch.object(audit_logger._db, "executemany", side_effect=failing_then_success),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            await audit_logger._batch_insert(items)
+
+        assert call_count == 2
+        assert audit_logger._total_written == 1
+        events = await audit_logger.query_events(event_type="retry_test")
+        assert len(events) == 1
+
+    async def test_dead_letter_written_after_max_retries(self, audit_logger, tmp_path):
+        """All retries exhausted — events written to dead-letter file, nothing in DB."""
+        items = [
+            (
+                "2026-01-01T00:00:00+00:00",
+                "dead_letter_test",
+                "unit_test",
+                "fail",
+                None,
+                None,
+                None,
+                "error",
+                "deadbeef",
+            )
+        ]
+
+        dead_letter_path = tmp_path / "audit_dead_letter.jsonl"
+
+        async def always_fail(sql, data):
+            raise sqlite3.OperationalError("disk I/O error")
+
+        with (
+            patch.object(audit_logger._db, "executemany", side_effect=always_fail),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            patch("aria.hub.audit._DEAD_LETTER_PATH", dead_letter_path),
+        ):
+            await audit_logger._batch_insert(items)
+
+        assert dead_letter_path.exists(), "Dead-letter file should be created"
+        lines = dead_letter_path.read_text().strip().split("\n")
+        assert len(lines) == 1
+        record = json.loads(lines[0])
+        assert record["event_type"] == "dead_letter_test"
+        assert record["action"] == "fail"
+        assert "dead_letter_at" in record
+
+        # Nothing should be in the DB
+        events = await audit_logger.query_events(event_type="dead_letter_test")
+        assert len(events) == 0
+
+    async def test_non_operational_error_propagates_immediately(self, audit_logger):
+        """Non-OperationalError (e.g. ValueError) does not retry — propagates immediately."""
+        items = [
+            (
+                "2026-01-01T00:00:00+00:00",
+                "propagate_test",
+                "unit_test",
+                "crash",
+                None,
+                None,
+                None,
+                "info",
+                "xyz",
+            )
+        ]
+
+        call_count = 0
+
+        async def raise_value_error(sql, data):
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("unexpected schema mismatch")
+
+        with (
+            patch.object(audit_logger._db, "executemany", side_effect=raise_value_error),
+            patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+            pytest.raises(ValueError, match="unexpected schema mismatch"),
+        ):
+            await audit_logger._batch_insert(items)
+
+        # Only one attempt — no retries, no sleep
+        assert call_count == 1
+        mock_sleep.assert_not_called()
