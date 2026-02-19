@@ -39,13 +39,13 @@ warnings.filterwarnings(
 
 from aria.capabilities import Capability, DemandSignal  # noqa: E402
 from aria.engine.fallback import FallbackTracker  # noqa: E402
-from aria.engine.features.feature_config import DEFAULT_FEATURE_CONFIG as _ENGINE_FEATURE_CONFIG  # noqa: E402
 from aria.engine.features.vector_builder import build_feature_vector as _engine_build_feature_vector  # noqa: E402
 from aria.engine.hardware import recommend_tier, scan_hardware  # noqa: E402
 from aria.engine.models.registry import TieredModelRegistry  # noqa: E402
-from aria.engine.sequence import TRAJECTORY_CLASSES  # noqa: E402
 from aria.engine.validation import validate_snapshot_batch  # noqa: E402
 from aria.hub.core import IntelligenceHub, Module  # noqa: E402
+from aria.shared.constants import DEFAULT_FEATURE_CONFIG as _ENGINE_FEATURE_CONFIG  # noqa: E402
+from aria.shared.constants import TRAJECTORY_CLASSES  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

@@ -19,11 +19,14 @@ _PIPELINE_GRAPH_PATH = (
     Path(__file__).resolve().parents[2] / "aria" / "dashboard" / "spa" / "src" / "lib" / "pipelineGraph.js"
 )
 
-# The 10 surviving hub modules (from cli.py registration order)
-_REGISTERED_MODULE_IDS = {
+# Sankey node IDs for the 10 surviving hub modules.
+# NOTE: These are Sankey display IDs, not hub module_id values.
+# e.g., PatternRecognition registers as "pattern_recognition" in the hub
+# but appears as "patterns" in the Sankey graph.
+_SANKEY_MODULE_NODE_IDS = {
     "discovery",
     "activity_monitor",
-    "patterns",
+    "patterns",  # hub module_id: "pattern_recognition"
     "orchestrator",
     "shadow_engine",
     "trajectory_classifier",
@@ -80,7 +83,7 @@ class TestSankeyTopologySync:
         """
         sankey_ids = self._get_sankey_module_ids()
         # Exclude non-pipeline modules and virtual nodes
-        expected = _REGISTERED_MODULE_IDS - {"audit_logger"}
+        expected = _SANKEY_MODULE_NODE_IDS - {"audit_logger"}
         missing = expected - sankey_ids
         assert not missing, (
             f"Hub modules missing from Sankey graph: {sorted(missing)}. "
@@ -96,7 +99,7 @@ class TestSankeyTopologySync:
         """
         sankey_ids = self._get_sankey_module_ids()
         # 'engine' is a virtual node representing the batch pipeline
-        allowed = _REGISTERED_MODULE_IDS | {"engine"}
+        allowed = _SANKEY_MODULE_NODE_IDS | {"engine"}
         stale = sankey_ids - allowed
         assert not stale, (
             f"Sankey graph contains stale module IDs: {sorted(stale)}. "
@@ -107,7 +110,7 @@ class TestSankeyTopologySync:
         """SOURCES array should only contain external data sources, not
         hub modules."""
         source_ids = _parse_js_node_ids(self.js_text, "SOURCES")
-        overlap = source_ids & _REGISTERED_MODULE_IDS
+        overlap = source_ids & _SANKEY_MODULE_NODE_IDS
         assert not overlap, (
             f"SOURCES array contains hub module IDs: {sorted(overlap)}. "
             f"Module nodes belong in INTAKE/PROCESSING/ENRICHMENT."
@@ -125,14 +128,15 @@ class TestSankeyTopologySync:
         assert len(all_ids) > 15, f"Expected >15 total nodes, found {len(all_ids)}. Parsing may have failed."
 
     def test_patterns_module_in_sankey(self):
-        """The 'patterns' module (PatternRecognition) must appear in the Sankey.
+        """Both 'patterns' and 'trajectory_classifier' must appear in the Sankey.
 
-        This is a regression check — patterns was nearly dropped during the
-        lean audit but remains a registered module.
+        Regression check — patterns was nearly dropped during the lean audit
+        but remains a registered module.
         """
         sankey_ids = self._get_sankey_module_ids()
-        # patterns module may appear as 'patterns' or 'trajectory_classifier'
-        # depending on Sankey grouping. Both should be present.
+        assert "patterns" in sankey_ids, (
+            "patterns missing from Sankey — PatternRecognition is a registered processing module"
+        )
         assert "trajectory_classifier" in sankey_ids, (
             "trajectory_classifier missing from Sankey — it's a registered processing module"
         )
