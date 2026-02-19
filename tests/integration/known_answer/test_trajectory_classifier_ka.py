@@ -129,15 +129,16 @@ async def test_initializes_and_activates(hub):
     ):
         await tc.initialize()
 
-    assert tc.active is True
+    try:
+        assert tc.active is True
 
-    # Verify subscription
-    subs = hub.subscribers.get("shadow_resolved", [])
-    assert tc._on_shadow_resolved in subs, "Should be subscribed to shadow_resolved"
+        # Verify subscription
+        subs = hub.subscribers.get("shadow_resolved", [])
+        assert tc._on_shadow_resolved in subs, "Should be subscribed to shadow_resolved"
+    finally:
+        await tc.shutdown()
 
-    await tc.shutdown()
-
-    # Verify unsubscription
+    # Verify unsubscription (after cleanup)
     subs_after = hub.subscribers.get("shadow_resolved", [])
     assert tc._on_shadow_resolved not in subs_after, "Should be unsubscribed after shutdown"
 

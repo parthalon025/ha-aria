@@ -5,10 +5,24 @@ initializes correctly with pre-populated capabilities cache, and
 produces a stable golden snapshot of post-initialization state.
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from aria.modules.ml_engine import MLEngine
 from tests.integration.known_answer.conftest import golden_compare
+
+
+# Patch hardware detection so tests are deterministic across machines.
+def _fake_scan_hardware():
+    from aria.engine.hardware import HardwareProfile
+
+    return HardwareProfile(ram_gb=32.0, cpu_cores=8, gpu_available=False)
+
+
+def _fake_recommend_tier(_profile):
+    return 3
+
 
 # Minimal capabilities data matching what discovery would produce.
 # MLEngine.initialize() reads this from cache via get_cache_fresh("capabilities").
@@ -42,7 +56,11 @@ async def ml_engine(hub, tmp_path):
     # Pre-populate capabilities cache so initialize() finds data
     await hub.set_cache("capabilities", MOCK_CAPABILITIES)
 
-    engine = MLEngine(hub=hub, models_dir=str(models_dir), training_data_dir=str(training_data_dir))
+    with (
+        patch("aria.modules.ml_engine.scan_hardware", _fake_scan_hardware),
+        patch("aria.modules.ml_engine.recommend_tier", _fake_recommend_tier),
+    ):
+        engine = MLEngine(hub=hub, models_dir=str(models_dir), training_data_dir=str(training_data_dir))
     return engine
 
 
@@ -85,7 +103,11 @@ async def test_initialize_without_capabilities(hub, tmp_path):
     training_data_dir.mkdir()
 
     # Do NOT pre-populate capabilities cache
-    engine = MLEngine(hub=hub, models_dir=str(models_dir), training_data_dir=str(training_data_dir))
+    with (
+        patch("aria.modules.ml_engine.scan_hardware", _fake_scan_hardware),
+        patch("aria.modules.ml_engine.recommend_tier", _fake_recommend_tier),
+    ):
+        engine = MLEngine(hub=hub, models_dir=str(models_dir), training_data_dir=str(training_data_dir))
     await engine.initialize()
 
     # Should return early without error — no models loaded
