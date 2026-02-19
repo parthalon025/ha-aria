@@ -1,0 +1,78 @@
+{
+  "suggestion_count": 2,
+  "pattern_ids": [
+    "ka_evening_living",
+    "ka_morning_kitchen"
+  ],
+  "suggestions": [
+    {
+      "suggestion_id": "ceb4247cbb879cf1",
+      "pattern_id": "ka_morning_kitchen",
+      "automation_yaml": {
+        "alias": "Pattern: Morning Kitchen Routine",
+        "description": "Auto-generated from detected pattern. Morning kitchen routine: lights then coffee maker",
+        "trigger": [
+          {
+            "platform": "time",
+            "at": "07:00:00"
+          }
+        ],
+        "condition": [],
+        "action": [
+          {
+            "service": "light.turn_on",
+            "target": {
+              "area_id": "Kitchen"
+            }
+          }
+        ]
+      },
+      "confidence": 0.75,
+      "status": "pending",
+      "requires_explicit_approval": false,
+      "metadata": {
+        "area": "Kitchen",
+        "typical_time": "07:00",
+        "variance_minutes": 10,
+        "frequency": 15,
+        "total_days": 20,
+        "llm_description": "Morning kitchen routine: lights then coffee maker"
+      }
+    },
+    {
+      "suggestion_id": "190ba82aacd06187",
+      "pattern_id": "ka_evening_living",
+      "automation_yaml": {
+        "alias": "Pattern: Evening Living Room",
+        "description": "Auto-generated from detected pattern. Evening living room: lights then TV",
+        "trigger": [
+          {
+            "platform": "time",
+            "at": "18:00:00"
+          }
+        ],
+        "condition": [],
+        "action": [
+          {
+            "service": "notify.persistent_notification",
+            "data": {
+              "message": "Pattern detected in Living Room at typical time",
+              "title": "Living Room Pattern"
+            }
+          }
+        ]
+      },
+      "confidence": 0.6,
+      "status": "pending",
+      "requires_explicit_approval": false,
+      "metadata": {
+        "area": "Living Room",
+        "typical_time": "18:00",
+        "variance_minutes": 15,
+        "frequency": 12,
+        "total_days": 20,
+        "llm_description": "Evening living room: lights then TV"
+      }
+    }
+  ]
+}
