@@ -62,6 +62,13 @@ class TestConfigDefaultsStructure:
                 assert val >= param["min_value"], f"Param '{param['key']}': default {val} < min {param['min_value']}"
                 assert val <= param["max_value"], f"Param '{param['key']}': default {val} > max {param['max_value']}"
 
+    def test_all_entries_have_layman_and_technical_descriptions(self):
+        for param in CONFIG_DEFAULTS:
+            assert "description_layman" in param, f"{param['key']} missing description_layman"
+            assert "description_technical" in param, f"{param['key']} missing description_technical"
+            assert len(param["description_layman"]) > 10, f"{param['key']} layman too short"
+            assert len(param["description_technical"]) > 10, f"{param['key']} technical too short"
+
 
 # ============================================================================
 # Presence weight/decay config entries
