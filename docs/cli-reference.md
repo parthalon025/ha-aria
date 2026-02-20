@@ -21,7 +21,9 @@ Reference doc for CLAUDE.md. All commands route through the unified `aria` entry
 | `aria sequences detect` | Detect anomalous event sequences |
 | `aria snapshot-intraday` | Collect intraday snapshot (used internally by hub) |
 | `aria sync-logs` | Sync HA logbook to local JSON |
-| `aria discover-organic` | Run organic capability discovery (Layer 1 + Layer 2) |
+| `aria watchdog` | Run health checks and alert on failures |
+| `aria status` | Show ARIA hub status |
+| `aria demo` | Generate synthetic demo data for visual testing |
 | `aria capabilities list` | List all registered capabilities (--layer, --status, --verbose) |
 | `aria capabilities verify` | Validate all capabilities against tests/config/deps |
 | `aria capabilities export` | Export capability registry as JSON |

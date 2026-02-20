@@ -774,7 +774,7 @@ Integration boundaries where bugs hide. Ordered by estimated risk (silent corrup
 - **Test coverage:** **None** — no automated check that Sankey matches module registry
 - **Failure mode:** **Visual** — dashboard shows outdated pipeline visualization
 - **Suggested mitigation:** Automated test that compares Sankey node list against registered module IDs
-- **Note (2026-02-19):** Lean audit removed 4 modules (online_learner, transfer_engine, organic_discovery, activity_labeler) and renamed pattern_recognition → trajectory_classifier. Sankey needs corresponding update.
+- **Resolved (2026-02-20):** Lean audit removed 4 modules (online_learner, transfer_engine, organic_discovery, activity_labeler) and renamed pattern_recognition → trajectory_classifier. Sankey topology overhauled in pipeline-sankey-accuracy-design — all nodes, links, and output columns now match actual module registry.
 
 ### RISK-11: Telegram Alert Failure is Silent
 

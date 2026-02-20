@@ -14,7 +14,7 @@
 **Your home generates 22,000+ events every day.<br/>ARIA learns what they mean.**
 
 [![CI](https://github.com/parthalon025/ha-aria/actions/workflows/ci.yml/badge.svg)](https://github.com/parthalon025/ha-aria/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1235_passing-brightgreen)](https://github.com/parthalon025/ha-aria/actions)
+[![Tests](https://img.shields.io/badge/tests-1607_passing-brightgreen)](https://github.com/parthalon025/ha-aria/actions)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -76,7 +76,7 @@ ARIA watches, learns, and predicts — **entirely on your local hardware.** No c
 
 ### See
 
-- **13-page interactive dashboard** with live WebSocket updates
+- **OODA-structured interactive dashboard** with live WebSocket updates
 - **Real-time activity monitor** — what's happening in your home right now
 - **Presence dashboard** — room occupancy, signal feed, camera status, and face recognition
 - **Layman-readable** — every chart includes a plain-English explanation
@@ -202,7 +202,7 @@ flowchart TB
     end
 
     subgraph Dash ["Dashboard"]
-        D1["12 interactive pages"]
+        D1["OODA-structured pages"]
         D2["Live updates"]
     end
 
@@ -230,23 +230,15 @@ flowchart TB
 
 ## Dashboard
 
-The dashboard ships with 13 pages covering the full intelligence pipeline:
+The dashboard is organized around the **OODA loop** (Observe → Understand → Decide), with a Home page and System section:
 
-| Page | What You See |
-|------|-------------|
-| **Home** | Pipeline flowchart with live status — see what ARIA is doing right now |
-| **Discovery** | Every entity, device, and area HA knows about |
-| **Capabilities** | What your home can do (lighting, climate, presence, etc.) |
-| **Data Curation** | Control which entities ARIA pays attention to |
-| **Intelligence** | Baselines, trends, correlations, activity timeline, daily insights |
-| **Predictions** | What ARIA thinks will happen tomorrow vs what actually happened |
-| **Patterns** | Recurring sequences ARIA detected in your event history |
-| **Shadow Mode** | How accurate ARIA's predictions are over time |
-| **ML Engine** | Which features matter most, model health, training status |
-| **Automations** | Ready-to-use HA automation YAML from detected patterns |
-| **Presence** | Room occupancy probabilities, camera signal feed, face recognition |
-| **Settings** | Tune thresholds, schedules, and model config |
-| **Guide** | Interactive onboarding — how everything works |
+| Section | Pages | What You See |
+|---------|-------|-------------|
+| **Home** | Pipeline flowchart | Live pipeline status — see what ARIA is doing right now |
+| **Observe** | Discovery, Capabilities, Data Curation | What your home has — entities, devices, areas, and which ones ARIA watches |
+| **Understand** | Intelligence, Predictions, Patterns, Shadow Mode | What it means — baselines, forecasts, sequences, and prediction accuracy |
+| **Decide** | ML Engine, Automations, Presence | What to do about it — model health, automation YAML, room occupancy |
+| **System** | Settings, Validation, Guide | Administration — thresholds, integrity checks, and onboarding |
 
 <div align="center">
 
@@ -279,7 +271,9 @@ The dashboard ships with 13 pages covering the full intelligence pipeline:
 | `aria occupancy` | Estimate who's home |
 | `aria power-profiles` | Analyze power consumption per outlet |
 | `aria sync-logs` | Sync HA logbook to local storage |
-| `aria discover-organic` | Run organic capability discovery pipeline |
+| `aria audit` | Run integrity checks and verification |
+| `aria snapshot-intraday` | Capture lightweight intraday snapshot |
+| `aria meta-learn` | Run meta-learning pipeline to tune ARIA |
 | `aria watchdog` | Run health checks and alert on failures |
 | `aria status` | Show ARIA hub status |
 | `aria capabilities list` | List all registered capabilities |
@@ -335,10 +329,10 @@ HA tracks individual entity history. ARIA finds patterns *across* entities, pred
 
 | | |
 |:---|:---|
-| **Tests** | 1,235 passing (CI-enforced) |
-| **Code** | 20,755 lines across 80 Python files |
-| **Dashboard** | 53 JSX components across 13 pages |
-| **Hub modules** | 12 registered (discovery, ML, patterns, shadow, orchestrator, data quality, organic discovery, intelligence, activity monitor, activity labeler, presence, watchdog) |
+| **Tests** | 1,607 passing (CI-enforced) |
+| **Code** | 24,086 lines across 89 Python files |
+| **Dashboard** | 71 JSX components across 19 pages |
+| **Hub modules** | 10 registered (discovery, ML engine, patterns, shadow engine, orchestrator, trajectory classifier, intelligence, activity monitor, presence, audit logger) |
 | **CI** | Lint → Test (Python 3.12 + 3.13) → Dashboard build |
 
 ## For Researchers

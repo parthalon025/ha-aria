@@ -133,7 +133,7 @@ This roadmap tracks the 5-phase engineering process to achieve those outputs rel
 
 ---
 
-## Phase 5: UI — Science-Based Decision Tool (Queued)
+## Phase 5: UI — Science-Based Decision Tool (Done)
 
 **Prerequisite:** Phase 4 complete (reliable, secure backend)
 
@@ -173,5 +173,5 @@ Phase 2's known-answer test harness is the key enabler: it proves the intelligen
 - [x] Every surviving module has a known-answer integration test *(Phase 2: 10/10 modules)*
 - [x] Full pipeline known-answer test passes *(Phase 2: engine → hub → output)*
 - [x] Open issue count reduced by 50%+ *(Phase 3+4: 63 → 18, 71% reduction)*
-- [ ] UI surfaces recommendations and anomalies as primary views *(Phase 5)*
+- [x] UI surfaces recommendations and anomalies as primary views *(Phase 5: OODA nav + SUPERHOT)*
 - [x] GitHub roadmap with milestones covers remaining work *(Phase 3: milestones created)*
