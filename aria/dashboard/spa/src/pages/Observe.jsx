@@ -9,6 +9,7 @@ import PresenceCard from '../components/PresenceCard.jsx';
 import { HomeRightNow } from './intelligence/HomeRightNow.jsx';
 import { ActivitySection } from './intelligence/ActivitySection.jsx';
 import InlineSettings from '../components/InlineSettings.jsx';
+import DataSourceConfig from '../components/DataSourceConfig.jsx';
 
 export default function Observe() {
   const intelligence = useCache('intelligence');
@@ -102,6 +103,16 @@ export default function Observe() {
         categories={['Activity Monitor']}
         title="Observation Settings"
         subtitle="Control how ARIA monitors your home — event rates, occupancy tracking, and WebSocket connection sensitivity."
+      />
+      <DataSourceConfig
+        module="presence"
+        title="Presence Sources"
+        subtitle="Toggle which signal types feed room occupancy detection."
+      />
+      <DataSourceConfig
+        module="activity"
+        title="Activity Sources"
+        subtitle="Toggle which entity domains are tracked for activity monitoring."
       />
     </div>
   );

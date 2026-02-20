@@ -6,6 +6,7 @@ import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import PageBanner from '../components/PageBanner.jsx';
 import InlineSettings from '../components/InlineSettings.jsx';
+import DataSourceConfig from '../components/DataSourceConfig.jsx';
 import { Section, Callout } from './intelligence/utils.jsx';
 import { AnomalyAlerts } from './intelligence/AnomalyAlerts.jsx';
 import { PredictionsVsActuals } from './intelligence/PredictionsVsActuals.jsx';
@@ -170,6 +171,16 @@ export default function Understand() {
         categories={['Anomaly Detection', 'Shadow Engine', 'Drift Detection', 'Forecaster']}
         title="Analysis Settings"
         subtitle="Fine-tune how ARIA detects patterns, anomalies, and forecast accuracy. Most users won't need to change these."
+      />
+      <DataSourceConfig
+        module="anomaly"
+        title="Anomaly Sources"
+        subtitle="Toggle which detection methods feed the anomaly pipeline."
+      />
+      <DataSourceConfig
+        module="shadow"
+        title="Shadow Sources"
+        subtitle="Toggle which capabilities are shadow-predicted."
       />
     </div>
   );
