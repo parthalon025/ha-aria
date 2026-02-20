@@ -927,6 +927,361 @@ CONFIG_DEFAULTS: list[dict[str, Any]] = [
         "description": "Export events to JSONL archive before deleting them during pruning.",
         "category": "Audit",
     },
+    # ── Presence Weights ─────────────────────────────────────────────
+    {
+        "key": "presence.weight.motion",
+        "default_value": "0.9",
+        "value_type": "number",
+        "label": "Motion Sensor Trust",
+        "description": ("Bayesian prior weight for motion-type signals in the occupancy fusion algorithm."),
+        "description_layman": (
+            "How much should ARIA trust motion sensors? Higher means motion alone can determine someone is in a room."
+        ),
+        "description_technical": (
+            "Bayesian prior weight for motion signals in occupancy fusion."
+            " Range 0.1-1.0. Default 0.9. At 0.1: motion barely registers,"
+            " needs corroboration. At 1.0: single motion event = 100%"
+            " confidence, may false-positive from pets."
+        ),
+        "category": "Presence Weights",
+        "min_value": 0.1,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    {
+        "key": "presence.weight.door",
+        "default_value": "0.6",
+        "value_type": "number",
+        "label": "Door Sensor Trust",
+        "description": ("Bayesian prior weight for door-type signals in the occupancy fusion algorithm."),
+        "description_layman": (
+            "How much should ARIA trust door sensors? A door opening suggests someone entered, but isn't as definitive."
+        ),
+        "description_technical": (
+            "Bayesian prior weight for door open/close signals."
+            " Range 0.1-1.0. Default 0.6. Door events are directionally"
+            " ambiguous (enter vs exit), hence moderate default."
+        ),
+        "category": "Presence Weights",
+        "min_value": 0.1,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    {
+        "key": "presence.weight.media",
+        "default_value": "0.4",
+        "value_type": "number",
+        "label": "Media Player Trust",
+        "description": ("Bayesian prior weight for media player signals in the occupancy fusion algorithm."),
+        "description_layman": (
+            "How much should ARIA trust media players (TV, speakers)?"
+            " A playing TV suggests someone is watching, but could be left on."
+        ),
+        "description_technical": (
+            "Bayesian prior weight for media_player state signals."
+            " Range 0.1-1.0. Default 0.4. Lower because media devices"
+            " are often left playing in empty rooms."
+        ),
+        "category": "Presence Weights",
+        "min_value": 0.1,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    {
+        "key": "presence.weight.power",
+        "default_value": "0.3",
+        "value_type": "number",
+        "label": "Power Draw Trust",
+        "description": ("Bayesian prior weight for power draw signals in the occupancy fusion algorithm."),
+        "description_layman": (
+            "How much should ARIA trust power consumption? High power"
+            " draw hints someone is using appliances, but many run on their own."
+        ),
+        "description_technical": (
+            "Bayesian prior weight for power consumption signals."
+            " Range 0.1-1.0. Default 0.3. Lowest default weight —"
+            " appliances cycle autonomously, fridges/HVACs confound."
+        ),
+        "category": "Presence Weights",
+        "min_value": 0.1,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    {
+        "key": "presence.weight.device_tracker",
+        "default_value": "0.5",
+        "value_type": "number",
+        "label": "Device Tracker Trust",
+        "description": ("Bayesian prior weight for device tracker signals in the occupancy fusion algorithm."),
+        "description_layman": (
+            "How much should ARIA trust phone location? Phones at home"
+            " mean someone is likely home, but could be left behind."
+        ),
+        "description_technical": (
+            "Bayesian prior weight for device_tracker (phone presence)."
+            " Range 0.1-1.0. Default 0.5. Binary signal (home/away),"
+            " no decay. Moderate default accounts for phones left at home."
+        ),
+        "category": "Presence Weights",
+        "min_value": 0.1,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    {
+        "key": "presence.weight.camera_person",
+        "default_value": "0.95",
+        "value_type": "number",
+        "label": "Camera Person Detection Trust",
+        "description": "Bayesian prior weight for camera person detection signals.",
+        "description_layman": (
+            "How much should ARIA trust camera person detection? Very high — seeing a person shape is strong evidence."
+        ),
+        "description_technical": (
+            "Bayesian prior weight for Frigate person detection via MQTT."
+            " Range 0.1-1.0. Default 0.95. Near-certain: person-class"
+            " detection is highly reliable with modern models."
+        ),
+        "category": "Presence Weights",
+        "min_value": 0.1,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    {
+        "key": "presence.weight.camera_face",
+        "default_value": "1.0",
+        "value_type": "number",
+        "label": "Camera Face Recognition Trust",
+        "description": "Bayesian prior weight for camera face recognition signals.",
+        "description_layman": (
+            "How much should ARIA trust face recognition? Maximum —"
+            " a recognized face is the strongest possible evidence."
+        ),
+        "description_technical": (
+            "Bayesian prior weight for face recognition signals."
+            " Range 0.1-1.0. Default 1.0. Maximum confidence:"
+            " identified face is definitive. No decay (binary)."
+        ),
+        "category": "Presence Weights",
+        "min_value": 0.1,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    {
+        "key": "presence.weight.light_interaction",
+        "default_value": "0.7",
+        "value_type": "number",
+        "label": "Light Interaction Trust",
+        "description": "Bayesian prior weight for light on/off interaction signals.",
+        "description_layman": (
+            "How much should ARIA trust light switches? Someone turning"
+            " a light on/off is good evidence they are in the room."
+        ),
+        "description_technical": (
+            "Bayesian prior weight for light state change events."
+            " Range 0.1-1.0. Default 0.7. Light toggling implies human"
+            " action, though automations can also toggle lights."
+        ),
+        "category": "Presence Weights",
+        "min_value": 0.1,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    {
+        "key": "presence.weight.dimmer_press",
+        "default_value": "0.85",
+        "value_type": "number",
+        "label": "Dimmer Press Trust",
+        "description": "Bayesian prior weight for physical dimmer press signals.",
+        "description_layman": (
+            "How much should ARIA trust dimmer button presses? Very strong — only a person can push a physical button."
+        ),
+        "description_technical": (
+            "Bayesian prior weight for physical dimmer/button press events."
+            " Range 0.1-1.0. Default 0.85. Higher than light_interaction"
+            " because automations cannot trigger physical presses."
+        ),
+        "category": "Presence Weights",
+        "min_value": 0.1,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    # ── Presence Decay Times ──────────────────────────────────────────
+    {
+        "key": "presence.decay.motion",
+        "default_value": "300",
+        "value_type": "number",
+        "label": "Motion Decay (seconds)",
+        "description": "How long a motion signal persists before fading.",
+        "description_layman": (
+            "After motion is detected, how many seconds until ARIA forgets about it? Default 5 minutes."
+        ),
+        "description_technical": (
+            "Exponential decay time constant for motion signals in seconds."
+            " Default 300 (5 min). Short decay avoids stale motion keeping"
+            " rooms 'occupied' after people leave."
+        ),
+        "category": "Presence Decay",
+        "min_value": 30,
+        "max_value": 3600,
+        "step": 30,
+    },
+    {
+        "key": "presence.decay.door",
+        "default_value": "600",
+        "value_type": "number",
+        "label": "Door Decay (seconds)",
+        "description": "How long a door signal persists before fading.",
+        "description_layman": (
+            "After a door opens, how many seconds until ARIA stops considering it? Default 10 minutes."
+        ),
+        "description_technical": (
+            "Decay time constant for door open/close signals."
+            " Default 600 (10 min). Longer than motion because a door"
+            " event implies a transition that takes time to resolve."
+        ),
+        "category": "Presence Decay",
+        "min_value": 30,
+        "max_value": 3600,
+        "step": 30,
+    },
+    {
+        "key": "presence.decay.media",
+        "default_value": "1800",
+        "value_type": "number",
+        "label": "Media Decay (seconds)",
+        "description": "How long a media player signal persists before fading.",
+        "description_layman": (
+            "After media stops playing, how many seconds until ARIA stops"
+            " counting it? Default 30 min — someone might pause and return."
+        ),
+        "description_technical": (
+            "Decay time constant for media player signals."
+            " Default 1800 (30 min). Long decay because media sessions are"
+            " typically continuous and pausing doesn't mean leaving."
+        ),
+        "category": "Presence Decay",
+        "min_value": 60,
+        "max_value": 7200,
+        "step": 60,
+    },
+    {
+        "key": "presence.decay.power",
+        "default_value": "3600",
+        "value_type": "number",
+        "label": "Power Draw Decay (seconds)",
+        "description": "How long a power draw signal persists before fading.",
+        "description_layman": (
+            "After high power draw is detected, how long until ARIA forgets?"
+            " Default 1 hour — appliances often run in long cycles."
+        ),
+        "description_technical": (
+            "Decay time constant for power consumption signals."
+            " Default 3600 (1 hr). Longest decay — power cycles are slow"
+            " (washer, dryer, HVAC). Reducing below 600s may cause flapping."
+        ),
+        "category": "Presence Decay",
+        "min_value": 60,
+        "max_value": 7200,
+        "step": 60,
+    },
+    {
+        "key": "presence.decay.device_tracker",
+        "default_value": "0",
+        "value_type": "number",
+        "label": "Device Tracker Decay (seconds)",
+        "description": "Decay for device tracker signals. 0 means binary (no decay).",
+        "description_layman": (
+            "How quickly should phone presence fade? Default 0 (instant) — either the phone is home or it isn't."
+        ),
+        "description_technical": (
+            "Decay time constant for device_tracker. Default 0 (binary,"
+            " no decay). device_tracker is a persistent state (home/away),"
+            " not a transient event. Set >0 if tracker is unreliable."
+        ),
+        "category": "Presence Decay",
+        "min_value": 0,
+        "max_value": 3600,
+        "step": 30,
+    },
+    {
+        "key": "presence.decay.camera_person",
+        "default_value": "120",
+        "value_type": "number",
+        "label": "Camera Person Decay (seconds)",
+        "description": ("How long a camera person detection persists before fading."),
+        "description_layman": (
+            "After a camera sees a person, how long does that count?"
+            " Default 2 min — short because the camera keeps updating."
+        ),
+        "description_technical": (
+            "Decay time constant for Frigate person detection. Default 120"
+            " (2 min). Short because Frigate sends continuous events while"
+            " a person is visible — decay only matters after they leave."
+        ),
+        "category": "Presence Decay",
+        "min_value": 30,
+        "max_value": 1800,
+        "step": 30,
+    },
+    {
+        "key": "presence.decay.camera_face",
+        "default_value": "0",
+        "value_type": "number",
+        "label": "Camera Face Decay (seconds)",
+        "description": "Decay for face recognition signals. 0 means binary (no decay).",
+        "description_layman": (
+            "How quickly should face recognition fade? Default 0"
+            " — once recognized, presence is confirmed until disproven."
+        ),
+        "description_technical": (
+            "Decay time for face recognition. Default 0 (binary). Face"
+            " recognition is a discrete identification event — presence"
+            " persists until contradicted by other signals."
+        ),
+        "category": "Presence Decay",
+        "min_value": 0,
+        "max_value": 1800,
+        "step": 30,
+    },
+    {
+        "key": "presence.decay.light_interaction",
+        "default_value": "600",
+        "value_type": "number",
+        "label": "Light Interaction Decay (seconds)",
+        "description": "How long a light interaction signal persists before fading.",
+        "description_layman": (
+            "After someone toggles a light, how long does that count as evidence? Default 10 minutes."
+        ),
+        "description_technical": (
+            "Decay time for light toggle events. Default 600 (10 min)."
+            " Matches door decay — a light interaction implies someone"
+            " is actively using the room."
+        ),
+        "category": "Presence Decay",
+        "min_value": 30,
+        "max_value": 3600,
+        "step": 30,
+    },
+    {
+        "key": "presence.decay.dimmer_press",
+        "default_value": "300",
+        "value_type": "number",
+        "label": "Dimmer Press Decay (seconds)",
+        "description": "How long a dimmer press signal persists before fading.",
+        "description_layman": (
+            "After someone presses a dimmer button, how long does that"
+            " count? Default 5 min — like motion, a point-in-time event."
+        ),
+        "description_technical": (
+            "Decay time for physical button press events. Default 300"
+            " (5 min). Same as motion — physical interaction is a point"
+            " event, not a continuous state."
+        ),
+        "category": "Presence Decay",
+        "min_value": 30,
+        "max_value": 3600,
+        "step": 30,
+    },
     # ── Module Data Sources ────────────────────────────────────────────
     {
         "key": "presence.enabled_signals",
@@ -999,6 +1354,8 @@ async def seed_config_defaults(cache) -> int:
             max_value=param.get("max_value"),
             options=param.get("options"),
             step=param.get("step"),
+            description_layman=param.get("description_layman"),
+            description_technical=param.get("description_technical"),
         )
         if was_inserted:
             inserted += 1

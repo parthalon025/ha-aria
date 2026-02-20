@@ -43,7 +43,7 @@ class TestConfigDefaultsStructure:
         assert len(keys) == len(set(keys)), f"Duplicate keys: {[k for k in keys if keys.count(k) > 1]}"
 
     def test_expected_parameter_count(self):
-        assert len(CONFIG_DEFAULTS) == 93
+        assert len(CONFIG_DEFAULTS) == 111  # 93 original + 18 presence weight/decay
 
     def test_all_categories_are_set(self):
         for param in CONFIG_DEFAULTS:
@@ -64,6 +64,54 @@ class TestConfigDefaultsStructure:
 
 
 # ============================================================================
+# Presence weight/decay config entries
+# ============================================================================
+
+
+class TestPresenceWeightDecayEntries:
+    SIGNAL_TYPES = [
+        "motion",
+        "door",
+        "media",
+        "power",
+        "device_tracker",
+        "camera_person",
+        "camera_face",
+        "light_interaction",
+        "dimmer_press",
+    ]
+
+    def test_presence_weight_entries_exist(self):
+        keys = {p["key"] for p in CONFIG_DEFAULTS}
+        for signal in self.SIGNAL_TYPES:
+            assert f"presence.weight.{signal}" in keys, f"Missing weight for {signal}"
+            assert f"presence.decay.{signal}" in keys, f"Missing decay for {signal}"
+
+    def test_presence_weight_defaults_match_sensor_config(self):
+        from aria.engine.analysis.occupancy import SENSOR_CONFIG
+
+        by_key = {p["key"]: p for p in CONFIG_DEFAULTS}
+        for signal, cfg in SENSOR_CONFIG.items():
+            weight_key = f"presence.weight.{signal}"
+            decay_key = f"presence.decay.{signal}"
+            assert float(by_key[weight_key]["default_value"]) == cfg["weight"], (
+                f"{weight_key}: {by_key[weight_key]['default_value']} != {cfg['weight']}"
+            )
+            assert float(by_key[decay_key]["default_value"]) == cfg["decay_seconds"], (
+                f"{decay_key}: {by_key[decay_key]['default_value']} != {cfg['decay_seconds']}"
+            )
+
+    def test_presence_weights_have_layman_and_technical(self):
+        by_key = {p["key"]: p for p in CONFIG_DEFAULTS}
+        for signal in self.SIGNAL_TYPES:
+            for prefix in ("presence.weight.", "presence.decay."):
+                key = f"{prefix}{signal}"
+                param = by_key[key]
+                assert param.get("description_layman"), f"{key} missing description_layman"
+                assert param.get("description_technical"), f"{key} missing description_technical"
+
+
+# ============================================================================
 # seed_config_defaults
 # ============================================================================
 
@@ -72,15 +120,15 @@ class TestSeedConfigDefaults:
     @pytest.mark.asyncio
     async def test_seed_populates_all_params(self, cache):
         seeded = await seed_config_defaults(cache)
-        assert seeded == 93
+        assert seeded == 111
 
         configs = await cache.get_all_config()
-        assert len(configs) == 93
+        assert len(configs) == 111
 
     @pytest.mark.asyncio
     async def test_seed_is_idempotent(self, cache):
         first = await seed_config_defaults(cache)
-        assert first == 93
+        assert first == 111
 
         second = await seed_config_defaults(cache)
         assert second == 0  # nothing new inserted
