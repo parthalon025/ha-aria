@@ -128,6 +128,14 @@ class IntelligenceHub:
             run_immediately=True,
         )
 
+        # Schedule daily event store pruning
+        await self.schedule_task(
+            "event_store_prune",
+            self._prune_event_store,
+            interval=timedelta(hours=24),
+            run_immediately=False,
+        )
+
         # Propagate config changes to all modules that implement on_config_updated
         async def _dispatch_config_updated(data: dict[str, Any]):
             await self.on_config_updated(data)
@@ -425,6 +433,17 @@ class IntelligenceHub:
         task.add_done_callback(self.tasks.discard)
 
         self.logger.info(f"Scheduled task: {task_id}" + (f" (interval: {interval})" if interval else " (one-time)"))
+
+    async def _prune_event_store(self):
+        """Prune old events from EventStore based on retention config."""
+        try:
+            retention_days = int(await self.cache.get_config_value("events.retention_days", 90))
+            cutoff = (datetime.now(tz=UTC) - timedelta(days=retention_days)).isoformat()
+            pruned = await self.event_store.prune_before(cutoff)
+            if pruned:
+                self.logger.info("Pruned %d old events (retention=%d days)", pruned, retention_days)
+        except Exception as e:
+            self.logger.error("Event store pruning failed: %s", e)
 
     async def _prune_stale_data(self):
         """Prune old events, resolved predictions, and snapshot log entries."""

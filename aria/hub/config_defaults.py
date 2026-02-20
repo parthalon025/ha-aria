@@ -53,6 +53,18 @@ CONFIG_DEFAULTS: list[dict[str, Any]] = [
         "max_value": 168,
         "step": 1,
     },
+    # ── Event Store ────────────────────────────────────────────────────
+    {
+        "key": "events.retention_days",
+        "default_value": "90",
+        "value_type": "number",
+        "label": "Event Retention (Days)",
+        "description": "How many days of raw state_changed events to keep in the event store.",
+        "category": "Event Store",
+        "min_value": 7,
+        "max_value": 365,
+        "step": 1,
+    },
     # ── Feature Engineering ───────────────────────────────────────────
     {
         "key": "features.decay_half_life_days",
