@@ -47,6 +47,7 @@ def get_feature_names(config=None):
     names.extend(_get_enabled_keys(config, "interaction_features"))
     names.extend(_get_enabled_keys(config, "presence_features"))
     names.extend(_get_enabled_keys(config, "pattern_features"))
+    names.extend(_get_enabled_keys(config, "event_features"))
     return names
 
 
@@ -119,8 +120,12 @@ def _build_lag_features(features, prev_snapshot, rolling_stats, lc):
         features["rolling_7d_lights_mean"] = rolling.get("lights_mean_7d", 0)
 
 
-def build_feature_vector(snapshot, config=None, prev_snapshot=None, rolling_stats=None):
+def build_feature_vector(snapshot, config=None, prev_snapshot=None, rolling_stats=None, segment_data=None):
     """Build a feature vector (dict) from a snapshot using the feature config.
+
+    Args:
+        segment_data: Optional dict from SegmentBuilder with event-derived features.
+            When None, event features default to 0.
 
     Returns dict of feature_name -> float value.
     """
@@ -150,6 +155,9 @@ def build_feature_vector(snapshot, config=None, prev_snapshot=None, rolling_stat
     # Presence features (from real-time presence module cache)
     _build_presence_features(features, snapshot, config.get("presence_features", {}))
 
+    # Event-derived features (from SegmentBuilder)
+    _build_event_features(features, segment_data, config.get("event_features", {}))
+
     return features
 
 
@@ -174,6 +182,14 @@ def _build_presence_features(features, snapshot, pc):
         features["presence_identified_persons"] = presence.get("identified_person_count", 0)
     if pc.get("presence_camera_signals"):
         features["presence_camera_signals"] = presence.get("camera_signal_count", 0)
+
+
+def _build_event_features(features, segment_data, ec):
+    """Add event-derived features from SegmentBuilder output."""
+    segment = segment_data or {}
+    for key, enabled in ec.items():
+        if enabled:
+            features[key] = segment.get(key, 0)
 
 
 def extract_target_values(snapshot):

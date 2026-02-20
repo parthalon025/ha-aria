@@ -70,6 +70,13 @@ DEFAULT_FEATURE_CONFIG: dict = {
     "pattern_features": {
         "trajectory_class": True,
     },
+    "event_features": {
+        "event_count": True,
+        "light_transitions": True,
+        "motion_events": True,
+        "unique_entities_active": True,
+        "domain_entropy": True,
+    },
     "target_metrics": [
         "power_watts",
         "lights_on",
