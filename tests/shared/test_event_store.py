@@ -52,7 +52,7 @@ class TestInitialization:
             "SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_sce_%'"
         )
         indexes = {row[0] for row in await cursor.fetchall()}
-        assert indexes == {"idx_sce_ts", "idx_sce_entity", "idx_sce_area", "idx_sce_domain"}
+        assert indexes == {"idx_sce_ts", "idx_sce_entity", "idx_sce_area", "idx_sce_domain", "idx_sce_context"}
 
 
 # ── Insert Single Event ─────────────────────────────────────────────────
@@ -309,6 +309,7 @@ class TestRowStructure:
             "device_id",
             "area_id",
             "attributes_json",
+            "context_parent_id",
         }
         assert expected_keys == set(row.keys())
         assert row["entity_id"] == "light.living_room"
