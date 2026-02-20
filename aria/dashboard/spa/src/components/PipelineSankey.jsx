@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'preact/hooks';
-import { computeLayout, computeTraceback } from '../lib/sankeyLayout.js';
+import { computeLayout } from '../lib/sankeyLayout.js';
 import { ALL_NODES, LINKS, NODE_DETAIL, getNodeMetric, getNodeTierGate, ACTION_CONDITIONS } from '../lib/pipelineGraph.js';
 import PipelineStepper from './PipelineStepper.jsx';
 
@@ -50,16 +50,9 @@ function SvgSparkline({ data, x, y, w, h, color }) {
 }
 
 function getNodeSparklineData(cacheData, nodeId) {
-  const sparklineMap = {
-    intelligence: () => cacheData?.intelligence?.data?.intraday_trend,
-    shadow_engine: () => cacheData?.shadow_accuracy?.history,
-    ml_engine: () => cacheData?.ml_pipeline?.training?.r2_history,
-    activity_monitor: () => cacheData?.pipeline?.event_rate_history,
-  };
-  const getter = sparklineMap[nodeId];
-  if (!getter) return null;
-  const data = getter();
-  return Array.isArray(data) && data.length >= 2 ? data : null;
+  // Sparkline paths referenced non-existent backend time-series arrays.
+  // Stub until backend adds history endpoints.
+  return null;
 }
 
 function getNodeFreshness(cacheData, nodeId) {
@@ -70,11 +63,8 @@ function getNodeFreshness(cacheData, nodeId) {
     intelligence: 'intelligence',
     ml_engine: 'ml_pipeline',
     shadow_engine: 'shadow_accuracy',
-    pattern_recognition: 'patterns',
-    data_quality: 'curation',
-    orchestrator: 'automations',
-    organic_discovery: 'capabilities',
-    activity_labeler: 'activity_labels',
+    patterns: 'patterns',
+    orchestrator: 'automation_suggestions',
   };
   const cat = categoryMap[nodeId];
   if (!cat) return null;
@@ -89,10 +79,10 @@ function getNodeFreshness(cacheData, nodeId) {
   return { text: `${hours}h`, status: 'blocked' };
 }
 
-function SankeyNode({ node, status, metric, onClick, highlighted, dimmed, onMouseEnter, onMouseLeave, sparklineData, freshness, pulsing }) {
+function SankeyNode({ node, status, metric, onClick, onMouseEnter, onMouseLeave, sparklineData, freshness, pulsing }) {
   const color = STATUS_COLORS[status] || STATUS_COLORS.waiting;
   const isTierLocked = status === 'tier_locked';
-  const opacity = dimmed ? 0.12 : isTierLocked ? 0.4 : 1;
+  const opacity = isTierLocked ? 0.4 : 1;
 
   return (
     <g
@@ -108,8 +98,8 @@ function SankeyNode({ node, status, metric, onClick, highlighted, dimmed, onMous
         height={node.h}
         rx="4"
         fill="var(--bg-surface)"
-        stroke={highlighted ? 'var(--accent)' : pulsing ? 'var(--accent)' : 'var(--border-primary)'}
-        stroke-width={highlighted ? '2' : pulsing ? '2' : '1'}
+        stroke={pulsing ? 'var(--accent)' : 'var(--border-primary)'}
+        stroke-width={pulsing ? '2' : '1'}
       >
         {pulsing && (
           <animate attributeName="opacity" values="1;0.5;1" dur="0.6s" repeatCount="1" />
@@ -148,10 +138,9 @@ function SankeyNode({ node, status, metric, onClick, highlighted, dimmed, onMous
   );
 }
 
-function SankeyFlow({ link, dimmed, highlighted }) {
+function SankeyFlow({ link }) {
   const color = FLOW_COLORS[link.type] || 'var(--border-primary)';
-  const opacity = dimmed ? 0.05 : (0.3 + Math.min(0.4, link.value * 0.04));
-  const strokeW = highlighted ? 2 : 0;
+  const opacity = 0.3 + Math.min(0.4, link.value * 0.04);
   const dashArray = link.type === 'feedback' ? '4 3' : 'none';
 
   return (
@@ -160,8 +149,7 @@ function SankeyFlow({ link, dimmed, highlighted }) {
         d={link.path}
         fill={color}
         opacity={opacity}
-        stroke={highlighted ? color : 'none'}
-        stroke-width={strokeW}
+        stroke="none"
         stroke-dasharray={dashArray}
       />
     </g>
@@ -252,7 +240,6 @@ export default function PipelineSankey({ moduleStatuses, cacheData }) {
   const [width, setWidth] = useState(860);
   const [expandedColumn, setExpandedColumn] = useState(-1);
   const [hoveredNode, setHoveredNode] = useState(null);
-  const [traceTarget, setTraceTarget] = useState(null);
   const [transitioning, setTransitioning] = useState(false);
   const prevTimestampsRef = useRef({});
   const [pulsingNodes, setPulsingNodes] = useState(new Set());
@@ -274,12 +261,6 @@ export default function PipelineSankey({ moduleStatuses, cacheData }) {
     [width, expandedColumn]
   );
 
-  // Compute trace-back highlight set
-  const traceSet = useMemo(
-    () => (traceTarget ? computeTraceback(traceTarget, LINKS, NODE_DETAIL) : null),
-    [traceTarget]
-  );
-
   function handleNodeClick(node) {
     if (node.isGroup) {
       setTransitioning(true);
@@ -287,40 +268,29 @@ export default function PipelineSankey({ moduleStatuses, cacheData }) {
         setExpandedColumn((prev) => (prev === node.column ? -1 : node.column));
         setTimeout(() => setTransitioning(false), 150);
       }, 150);
-      setTraceTarget(null);
-    } else if (node.column === 4) {
-      // Output node — toggle trace-back
-      setTraceTarget((prev) => (prev === node.id ? null : node.id));
+    } else if (node.column === 4 && node.page) {
+      // Output node — navigate to OODA page
+      window.location.hash = node.page;
+    } else if (node.column === 0) {
+      // Source node — no navigation, detail panel on hover is sufficient
+      return;
     } else {
-      // Navigate to module detail
+      // Module node — navigate to module detail
       window.location.hash = `#/detail/module/${node.id}`;
     }
-  }
-
-  function isNodeDimmed(node) {
-    if (!traceSet) return false;
-    if (node.isGroup) return !node.childIds?.some((id) => traceSet.has(id));
-    return !traceSet.has(node.id);
-  }
-
-  function isLinkDimmed(link) {
-    if (!traceSet) return false;
-    return !traceSet.has(link.source) || !traceSet.has(link.target);
   }
 
   // Detect cache timestamp changes and pulse affected nodes
   useEffect(() => {
     const categoryToNodes = {
-      capabilities: ['discovery', 'organic_discovery'],
+      capabilities: ['discovery'],
       activity_summary: ['activity_monitor'],
       presence: ['presence'],
       intelligence: ['intelligence'],
       ml_pipeline: ['ml_engine'],
       shadow_accuracy: ['shadow_engine'],
-      patterns: ['pattern_recognition'],
-      curation: ['data_quality'],
-      automations: ['orchestrator'],
-      activity_labels: ['activity_labeler'],
+      patterns: ['patterns'],
+      automation_suggestions: ['orchestrator'],
     };
 
     const newPulsing = new Set();
@@ -370,35 +340,9 @@ export default function PipelineSankey({ moduleStatuses, cacheData }) {
           <SankeyFlow
             key={`${link.source}-${link.target}`}
             link={link}
-            dimmed={isLinkDimmed(link)}
-            highlighted={traceSet && !isLinkDimmed(link)}
           />
         ))}
         </g>
-
-        {/* Trace labels on highlighted flows */}
-        {traceSet && layout.links
-          .filter((link) => !isLinkDimmed(link))
-          .map((link) => {
-            const midX = (link.x0 + link.x1) / 2;
-            const midY = (link.y0 + link.y1) / 2;
-            const label = getNodeMetric(cacheData, link.source);
-            if (!label || label === '\u2014') return null;
-            return (
-              <text
-                key={`trace-${link.source}-${link.target}`}
-                x={midX}
-                y={midY - 6}
-                text-anchor="middle"
-                fill="var(--accent)"
-                font-size="7"
-                font-family="var(--font-mono)"
-                opacity="0.8"
-              >
-                {label}
-              </text>
-            );
-          })}
 
         {/* Bus Bar */}
         <BusBar busBar={layout.busBar} />
@@ -422,8 +366,6 @@ export default function PipelineSankey({ moduleStatuses, cacheData }) {
               status={status}
               metric={metric}
               onClick={handleNodeClick}
-              highlighted={traceSet && traceSet.has(node.id)}
-              dimmed={isNodeDimmed(node)}
               onMouseEnter={() => !node.isGroup && setHoveredNode(node.id)}
               onMouseLeave={() => setHoveredNode(null)}
               sparklineData={sparklineData}
@@ -444,7 +386,7 @@ export default function PipelineSankey({ moduleStatuses, cacheData }) {
         <span><span style="color: var(--accent);">{'\u25CF'}</span> data flow</span>
         <span><span style="color: var(--status-healthy);">{'\u25CF'}</span> cache read/write</span>
         <span><span style="color: var(--status-warning);">{'\u25CF'}</span> feedback loop</span>
-        <span style="opacity: 0.6;">click column to expand · click output to trace</span>
+        <span style="opacity: 0.6;">click column to expand · click to navigate</span>
       </div>
 
       {/* Action strip */}

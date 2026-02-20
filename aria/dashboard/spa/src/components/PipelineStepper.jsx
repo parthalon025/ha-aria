@@ -52,7 +52,15 @@ export default function PipelineStepper({ moduleStatuses, cacheData }) {
               >
                 <span
                   class="w-2 h-2 rounded-full flex-shrink-0"
-                  style="background: var(--status-healthy);"
+                  style={`background: ${(() => {
+                    const statuses = stage.nodes
+                      .filter((nd) => nd.column > 0)
+                      .map((nd) => getModuleStatus(moduleStatuses, nd.id));
+                    if (statuses.includes('blocked')) return 'var(--status-error)';
+                    if (statuses.includes('warning')) return 'var(--status-warning)';
+                    if (statuses.some((s) => s === 'healthy')) return 'var(--status-healthy)';
+                    return statuses.length === 0 ? 'var(--status-healthy)' : 'var(--status-waiting)';
+                  })()};`}
                 />
                 <span class="flex-1 text-xs font-semibold" style="color: var(--text-primary); font-family: var(--font-mono);">
                   {stage.label}
@@ -68,7 +76,31 @@ export default function PipelineStepper({ moduleStatuses, cacheData }) {
                   {stage.nodes.map((node) => {
                     const status = node.column === 0 ? 'healthy' : getModuleStatus(moduleStatuses, node.id);
                     const metric = getNodeMetric(cacheData, node.id);
-                    return (
+                    const href = node.column === 4 && node.page
+                      ? node.page
+                      : node.column > 0 && node.column < 4
+                        ? `#/detail/module/${node.id}`
+                        : null;
+
+                    return href ? (
+                      <a
+                        key={node.id}
+                        href={href}
+                        class="clickable-data flex items-center gap-2 py-1"
+                        style="text-decoration: none; color: inherit;"
+                      >
+                        <span
+                          class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                          style={`background: ${STATUS_COLORS[status]};`}
+                        />
+                        <span class="flex-1 text-xs" style="color: var(--text-secondary); font-family: var(--font-mono);">
+                          {node.label}
+                        </span>
+                        <span class="text-xs" style="color: var(--text-tertiary); font-family: var(--font-mono);">
+                          {metric}
+                        </span>
+                      </a>
+                    ) : (
                       <div key={node.id} class="flex items-center gap-2 py-1">
                         <span
                           class="w-1.5 h-1.5 rounded-full flex-shrink-0"
