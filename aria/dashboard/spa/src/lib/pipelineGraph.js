@@ -37,22 +37,15 @@ export const ENRICHMENT = [
   { id: 'orchestrator', column: 3, label: 'Orchestrator', metricKey: 'suggestion_count' },
 ];
 
-// --- Column 4: API Outputs ---
+// --- Column 4: OODA Page Outputs ---
 export const OUTPUTS = [
-  { id: 'out_auto_suggestions', column: 4, label: 'Suggestions', metricKey: 'suggestion_count', page: '/automations' },
-  { id: 'out_pending_auto', column: 4, label: 'Pending Automations', metricKey: null, page: '/automations' },
-  { id: 'out_created_auto', column: 4, label: 'Created Automations', metricKey: null, page: '/automations' },
-  { id: 'out_ml_predictions', column: 4, label: 'ML Predictions', metricKey: null, page: '/predictions' },
-  { id: 'out_ml_drift', column: 4, label: 'ML Drift / Anomalies', metricKey: null, page: '/ml-engine' },
-  { id: 'out_shadow_preds', column: 4, label: 'Shadow Predictions', metricKey: null, page: '/shadow' },
-  { id: 'out_shadow_accuracy', column: 4, label: 'Shadow Accuracy', metricKey: null, page: '/shadow' },
-  { id: 'out_pipeline_stage', column: 4, label: 'Pipeline Stage', metricKey: null, page: '/' },
-  { id: 'out_patterns', column: 4, label: 'Patterns', metricKey: null, page: '/patterns' },
-  { id: 'out_intelligence', column: 4, label: 'Intelligence', metricKey: null, page: '/intelligence' },
-  { id: 'out_presence', column: 4, label: 'Presence Map', metricKey: null, page: '/presence' },
-  { id: 'out_curation', column: 4, label: 'Entity Curation', metricKey: null, page: '/data-curation' },
-  { id: 'out_capabilities', column: 4, label: 'Capabilities', metricKey: null, page: '/capabilities' },
-  { id: 'out_validation', column: 4, label: 'Validation', metricKey: null, page: '/validation' },
+  { id: 'out_observe', column: 4, label: 'Observe', page: '#/observe' },
+  { id: 'out_understand', column: 4, label: 'Understand', page: '#/understand' },
+  { id: 'out_decide', column: 4, label: 'Decide', page: '#/decide' },
+  { id: 'out_capabilities', column: 4, label: 'Capabilities', page: '#/capabilities' },
+  { id: 'out_ml_models', column: 4, label: 'ML Models', page: '#/ml-engine' },
+  { id: 'out_curation', column: 4, label: 'Data Curation', page: '#/data-curation' },
+  { id: 'out_validation', column: 4, label: 'Validation', page: '#/validation' },
 ];
 
 export const ALL_NODES = [...SOURCES, ...INTAKE, ...PROCESSING, ...ENRICHMENT, ...OUTPUTS];
@@ -62,16 +55,16 @@ export const ALL_NODES = [...SOURCES, ...INTAKE, ...PROCESSING, ...ENRICHMENT, .
 export const LINKS = [
   // Sources → Intake
   { source: 'rest_states', target: 'engine', value: 10, type: 'data' },
-  { source: 'rest_states', target: 'activity_monitor', value: 3, type: 'data' },
+
   { source: 'rest_registries', target: 'discovery', value: 8, type: 'data' },
   { source: 'ws_registry', target: 'discovery', value: 2, type: 'data' },
   { source: 'ws_state_changed', target: 'activity_monitor', value: 8, type: 'data' },
   { source: 'ws_state_changed', target: 'presence', value: 3, type: 'data' },
   { source: 'mqtt_frigate', target: 'presence', value: 4, type: 'data' },
   { source: 'logbook_json', target: 'engine', value: 5, type: 'data' },
-  { source: 'logbook_json', target: 'patterns', value: 5, type: 'data' },
+
   { source: 'snapshot_json', target: 'engine', value: 4, type: 'data' },
-  { source: 'snapshot_json', target: 'ml_engine', value: 4, type: 'data' },
+
 
   // Intake → Processing (through cache)
   { source: 'discovery', target: 'ml_engine', value: 3, type: 'cache' },
@@ -79,30 +72,35 @@ export const LINKS = [
   { source: 'activity_monitor', target: 'shadow_engine', value: 5, type: 'cache' },
   { source: 'activity_monitor', target: 'ml_engine', value: 3, type: 'cache' },
   { source: 'engine', target: 'intelligence', value: 6, type: 'cache' },
+  { source: 'engine', target: 'ml_engine', value: 5, type: 'cache' },
+  { source: 'engine', target: 'patterns', value: 4, type: 'cache' },
+
+  // Intake → Intake/Processing (cache dependency)
+  { source: 'discovery', target: 'presence', value: 2, type: 'cache' },
+  { source: 'discovery', target: 'activity_monitor', value: 2, type: 'cache' },
+  { source: 'discovery', target: 'shadow_engine', value: 2, type: 'cache' },
 
   // Processing → Processing (internal)
   { source: 'shadow_engine', target: 'trajectory_classifier', value: 3, type: 'cache' },
 
   // Processing → Enrichment
   { source: 'patterns', target: 'orchestrator', value: 5, type: 'cache' },
-  { source: 'shadow_engine', target: 'orchestrator', value: 2, type: 'cache' },
+  { source: 'intelligence', target: 'orchestrator', value: 3, type: 'cache' },
 
-  // Enrichment → Outputs
-  { source: 'orchestrator', target: 'out_auto_suggestions', value: 4, type: 'cache' },
-  { source: 'orchestrator', target: 'out_pending_auto', value: 2, type: 'cache' },
-  { source: 'orchestrator', target: 'out_created_auto', value: 2, type: 'cache' },
-  { source: 'ml_engine', target: 'out_ml_predictions', value: 3, type: 'cache' },
-  { source: 'ml_engine', target: 'out_ml_drift', value: 2, type: 'cache' },
-  { source: 'shadow_engine', target: 'out_shadow_preds', value: 3, type: 'cache' },
-  { source: 'shadow_engine', target: 'out_shadow_accuracy', value: 2, type: 'cache' },
-  { source: 'shadow_engine', target: 'out_pipeline_stage', value: 2, type: 'cache' },
-  { source: 'patterns', target: 'out_patterns', value: 3, type: 'cache' },
-  { source: 'intelligence', target: 'out_intelligence', value: 4, type: 'cache' },
-  { source: 'presence', target: 'out_presence', value: 3, type: 'cache' },
-  { source: 'discovery', target: 'out_curation', value: 3, type: 'cache' },
+  // Processing/Enrichment → Outputs (OODA pages)
+  { source: 'presence', target: 'out_observe', value: 3, type: 'cache' },
+  { source: 'activity_monitor', target: 'out_observe', value: 3, type: 'cache' },
+  { source: 'intelligence', target: 'out_observe', value: 2, type: 'cache' },
+  { source: 'intelligence', target: 'out_understand', value: 4, type: 'cache' },
+  { source: 'ml_engine', target: 'out_understand', value: 3, type: 'cache' },
+  { source: 'shadow_engine', target: 'out_understand', value: 3, type: 'cache' },
+  { source: 'patterns', target: 'out_understand', value: 2, type: 'cache' },
+  { source: 'orchestrator', target: 'out_decide', value: 4, type: 'cache' },
   { source: 'discovery', target: 'out_capabilities', value: 3, type: 'cache' },
+  { source: 'ml_engine', target: 'out_ml_models', value: 3, type: 'cache' },
+  { source: 'discovery', target: 'out_curation', value: 3, type: 'cache' },
 
-  // Feedback loops (reverse direction, amber)
+  // Feedback loops — ml/shadow write accuracy to capabilities cache (owned by discovery)
   { source: 'ml_engine', target: 'discovery', value: 2, type: 'feedback' },
   { source: 'shadow_engine', target: 'discovery', value: 2, type: 'feedback' },
 ];
@@ -137,7 +135,7 @@ export const NODE_DETAIL = {
   logbook_json: {
     protocol: 'Disk files (ha-log-sync timer, every 15m)',
     reads: 'Logbook JSON files',
-    writes: 'Consumed by Engine + Trajectory Classifier',
+    writes: 'Consumed by Engine + Patterns',
   },
   snapshot_json: {
     protocol: 'Disk files (engine timers)',
@@ -192,8 +190,43 @@ export const NODE_DETAIL = {
   },
   orchestrator: {
     protocol: 'Can call HA /api/automation/trigger',
-    reads: 'patterns cache',
+    reads: 'patterns, automation_suggestions, pending_automations caches',
     writes: 'automation_suggestions, pending_automations, created_automations',
+  },
+  out_observe: {
+    protocol: 'Dashboard page',
+    reads: 'presence, activity_summary, intelligence caches',
+    writes: 'User interaction (view)',
+  },
+  out_understand: {
+    protocol: 'Dashboard page',
+    reads: 'intelligence, ml_predictions, shadow_accuracy, patterns caches',
+    writes: 'User interaction (view)',
+  },
+  out_decide: {
+    protocol: 'Dashboard page',
+    reads: 'automation_suggestions, pending_automations caches',
+    writes: 'User interaction (approve/reject automations)',
+  },
+  out_capabilities: {
+    protocol: 'Dashboard page',
+    reads: 'capabilities registry, candidates',
+    writes: 'User interaction (promote/demote)',
+  },
+  out_ml_models: {
+    protocol: 'Dashboard page',
+    reads: 'ml_models, ml_drift, ml_features, ml_hardware caches',
+    writes: 'User interaction (view)',
+  },
+  out_curation: {
+    protocol: 'Dashboard page',
+    reads: 'curation, curation_summary caches',
+    writes: 'User interaction (tier assignment)',
+  },
+  out_validation: {
+    protocol: 'Dashboard page',
+    reads: 'validation_latest cache',
+    writes: 'User interaction (view)',
   },
 };
 
@@ -261,7 +294,7 @@ export const ACTION_CONDITIONS = [
     id: 'advance_pipeline',
     test: (d) => d.pipeline?.can_advance,
     text: 'Pipeline gate met \u2014 advance to next stage \u2192',
-    href: '#/shadow',
+    href: '#/understand',
   },
   {
     id: 'edge_entities',
@@ -273,13 +306,13 @@ export const ACTION_CONDITIONS = [
     id: 'shadow_disagreements',
     test: (d) => (d.shadow_accuracy?.disagreement_count || 0) > 5,
     text: (d) => `Review ${d.shadow_accuracy.disagreement_count} high-confidence disagreements \u2192`,
-    href: '#/shadow',
+    href: '#/understand',
   },
   {
     id: 'automation_suggestions',
     test: (d) => (d.intelligence?.automation_suggestions?.length || 0) > 0,
     text: (d) => `Review ${d.intelligence.automation_suggestions.length} automation suggestions \u2192`,
-    href: '#/automations',
+    href: '#/decide',
   },
   {
     id: 'all_healthy',
