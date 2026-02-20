@@ -1329,6 +1329,50 @@ def _register_frigate_routes(router: APIRouter, hub: IntelligenceHub) -> None:
         return Response(content=data, media_type="image/jpeg")
 
 
+def _register_event_store_routes(router: APIRouter, hub: IntelligenceHub) -> None:
+    """Event store query endpoints — /api/state-events."""
+
+    @router.get("/api/state-events")
+    async def get_state_events(  # noqa: PLR0913
+        start: str,
+        end: str,
+        entity_id: str | None = None,
+        area_id: str | None = None,
+        domain: str | None = None,
+        limit: int = Query(default=1000, le=10000),
+    ):
+        """Query state_changed events from the event store."""
+        if not hasattr(hub, "event_store") or not hub.event_store:
+            return JSONResponse({"error": "Event store not available"}, status_code=503)
+
+        try:
+            if entity_id:
+                events = await hub.event_store.query_by_entity(entity_id, start, end, limit)
+            elif area_id:
+                events = await hub.event_store.query_by_area(area_id, start, end, limit)
+            elif domain:
+                events = await hub.event_store.query_by_domain(domain, start, end, limit)
+            else:
+                events = await hub.event_store.query_events(start, end, limit)
+
+            return {"events": events, "count": len(events)}
+        except Exception:
+            logger.exception("Error querying state events")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
+
+    @router.get("/api/state-events/stats")
+    async def get_state_event_stats():
+        """Get event store statistics."""
+        if not hasattr(hub, "event_store") or not hub.event_store:
+            return JSONResponse({"error": "Event store not available"}, status_code=503)
+        try:
+            total = await hub.event_store.total_count()
+            return {"total_events": total}
+        except Exception:
+            logger.exception("Error getting event stats")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
+
+
 def _register_audit_routes(router: APIRouter, hub: Any) -> None:
     """Register /api/audit/* endpoints."""
 
@@ -1581,6 +1625,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
     _register_validation_routes(router)
     _register_frigate_routes(router, hub)
     _register_audit_routes(router, hub)
+    _register_event_store_routes(router, hub)
 
     # WebSocket endpoint (auth handled inline — FastAPI dependency injection
     # doesn't apply to websocket routes on the main app)
