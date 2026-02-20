@@ -2511,6 +2511,641 @@ CONFIG_DEFAULTS: list[dict[str, Any]] = [
         ),
         "category": "Discovery",
     },
+    # ── Phase 3: Pattern Engine ────────────────────────────────────────
+    {
+        "key": "patterns.analysis_interval",
+        "default_value": "7200",
+        "value_type": "number",
+        "label": "Pattern Analysis Interval (s)",
+        "description": "How often ARIA looks for new patterns.",
+        "description_layman": (
+            "How often ARIA analyzes your home activity to find"
+            " repeating patterns. Lower values mean faster learning"
+            " but more CPU usage."
+        ),
+        "description_technical": (
+            "Periodic scheduling interval in seconds for the pattern"
+            " detection engine. Range 1800-86400, default 7200 (2h)."
+            " Each run queries EventStore for the last 7 days."
+        ),
+        "category": "Pattern Engine",
+        "min_value": 1800,
+        "max_value": 86400,
+        "step": 600,
+    },
+    {
+        "key": "patterns.max_areas",
+        "default_value": "20",
+        "value_type": "number",
+        "label": "Max Areas to Analyze",
+        "description": "Maximum rooms to analyze at once for patterns.",
+        "description_layman": (
+            "The maximum number of rooms ARIA analyzes for patterns."
+            " Higher values cover more of your home but take longer."
+        ),
+        "description_technical": (
+            "Top-N most active areas selected by event count for"
+            " pattern detection. Range 5-50, default 20. Areas below"
+            " this cutoff are skipped to stay within memory budget."
+        ),
+        "category": "Pattern Engine",
+        "min_value": 5,
+        "max_value": 50,
+        "step": 1,
+    },
+    {
+        "key": "patterns.memory_budget_mb",
+        "default_value": "512",
+        "value_type": "number",
+        "label": "Memory Budget (MB)",
+        "description": "Memory limit for pattern analysis.",
+        "description_layman": (
+            "Maximum memory ARIA can use while analyzing patterns. Higher values allow deeper analysis of larger homes."
+        ),
+        "description_technical": (
+            "Hard ceiling in MB for pattern detection working set."
+            " Range 128-2048, default 512. If exceeded, analysis"
+            " switches to sampling mode for remaining areas."
+        ),
+        "category": "Pattern Engine",
+        "min_value": 128,
+        "max_value": 2048,
+        "step": 64,
+    },
+    {
+        "key": "patterns.min_events",
+        "default_value": "500",
+        "value_type": "number",
+        "label": "Minimum Events for Analysis",
+        "description": "Minimum events before pattern analysis starts.",
+        "description_layman": (
+            "ARIA waits until it has seen this many events before"
+            " trying to find patterns. Too few events produce"
+            " unreliable results."
+        ),
+        "description_technical": (
+            "Minimum total EventStore events before pattern engine"
+            " runs. Range 100-5000, default 500. Below this count,"
+            " engine returns empty results."
+        ),
+        "category": "Pattern Engine",
+        "min_value": 100,
+        "max_value": 5000,
+        "step": 100,
+    },
+    {
+        "key": "patterns.min_days",
+        "default_value": "7",
+        "value_type": "number",
+        "label": "Minimum Days for Analysis",
+        "description": "Minimum days of data before pattern analysis.",
+        "description_layman": (
+            "ARIA waits this many days after installation before"
+            " looking for patterns. This ensures enough data for"
+            " reliable detection."
+        ),
+        "description_technical": (
+            "Minimum distinct days in EventStore before pattern detection activates. Range 3-30, default 7."
+        ),
+        "category": "Pattern Engine",
+        "min_value": 3,
+        "max_value": 30,
+        "step": 1,
+    },
+    # ── Phase 3: Gap Analyzer ──────────────────────────────────────────
+    {
+        "key": "gap.analysis_interval",
+        "default_value": "14400",
+        "value_type": "number",
+        "label": "Gap Analysis Interval (s)",
+        "description": "How often ARIA checks for things you do manually.",
+        "description_layman": (
+            "How often ARIA looks for actions you repeat manually"
+            " that could be automated. Less frequent than pattern"
+            " analysis since gaps change slowly."
+        ),
+        "description_technical": (
+            "Periodic scheduling interval for the gap analyzer."
+            " Range 3600-86400, default 14400 (4h). Queries manual-only"
+            " events (context_parent_id IS NULL)."
+        ),
+        "category": "Gap Analyzer",
+        "min_value": 3600,
+        "max_value": 86400,
+        "step": 1800,
+    },
+    {
+        "key": "gap.min_occurrences",
+        "default_value": "15",
+        "value_type": "number",
+        "label": "Min Occurrences",
+        "description": "Times you must do something before ARIA suggests automating.",
+        "description_layman": (
+            "You need to repeat an action this many times before"
+            " ARIA suggests turning it into an automation. Higher"
+            " values mean fewer but more reliable suggestions."
+        ),
+        "description_technical": (
+            "Minimum frequency count for a manual action sequence before it appears as a gap. Range 5-100, default 15."
+        ),
+        "category": "Gap Analyzer",
+        "min_value": 5,
+        "max_value": 100,
+        "step": 1,
+    },
+    {
+        "key": "gap.min_consistency",
+        "default_value": "0.6",
+        "value_type": "number",
+        "label": "Min Consistency",
+        "description": "How consistent the action must be.",
+        "description_layman": (
+            "How regularly you need to repeat an action. 0.6 means"
+            " you do it at least 60% of eligible days. Lower values"
+            " catch more patterns but may suggest less reliable ones."
+        ),
+        "description_technical": (
+            "Minimum consistency ratio (occurrences / eligible days) for gap detection. Range 0.3-1.0, default 0.6."
+        ),
+        "category": "Gap Analyzer",
+        "min_value": 0.3,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    {
+        "key": "gap.min_days",
+        "default_value": "14",
+        "value_type": "number",
+        "label": "Min Days for Gap Analysis",
+        "description": "Minimum days of data before gap analysis.",
+        "description_layman": (
+            "ARIA needs at least this many days of data before it starts suggesting automations for manual actions."
+        ),
+        "description_technical": (
+            "Minimum distinct days in EventStore before gap analyzer activates. Range 7-60, default 14."
+        ),
+        "category": "Gap Analyzer",
+        "min_value": 7,
+        "max_value": 60,
+        "step": 1,
+    },
+    # ── Phase 3: Automation Generator ──────────────────────────────────
+    {
+        "key": "automation.max_suggestions_per_cycle",
+        "default_value": "10",
+        "value_type": "number",
+        "label": "Max Suggestions per Cycle",
+        "description": "Maximum new suggestions per analysis cycle.",
+        "description_layman": (
+            "How many new automation suggestions ARIA creates each"
+            " time it analyzes your home. Keeps the list manageable."
+        ),
+        "description_technical": (
+            "Top-N cap on suggestions produced per generator cycle."
+            " Range 1-50, default 10. Remaining detections are queued"
+            " for the next cycle."
+        ),
+        "category": "Automation Generator",
+        "min_value": 1,
+        "max_value": 50,
+        "step": 1,
+    },
+    {
+        "key": "automation.min_combined_score",
+        "default_value": "0.6",
+        "value_type": "number",
+        "label": "Min Confidence Score",
+        "description": "Minimum confidence before ARIA suggests anything.",
+        "description_layman": (
+            "How confident ARIA must be before suggesting an"
+            " automation. Higher values mean fewer but more reliable"
+            " suggestions."
+        ),
+        "description_technical": (
+            "Combined score floor: pattern_confidence * 0.5 +"
+            " gap_consistency * 0.3 + recency_weight * 0.2."
+            " Range 0.3-0.9, default 0.6."
+        ),
+        "category": "Automation Generator",
+        "min_value": 0.3,
+        "max_value": 0.9,
+        "step": 0.05,
+    },
+    {
+        "key": "automation.min_observations",
+        "default_value": "10",
+        "value_type": "number",
+        "label": "Min Observations",
+        "description": "Minimum observations before suggesting.",
+        "description_layman": ("ARIA must observe a pattern this many times before suggesting an automation."),
+        "description_technical": (
+            "Minimum observation_count on a DetectionResult before"
+            " it enters the generation pipeline. Range 3-50, default 10."
+        ),
+        "category": "Automation Generator",
+        "min_value": 3,
+        "max_value": 50,
+        "step": 1,
+    },
+    {
+        "key": "automation.rejection_penalty",
+        "default_value": "0.8",
+        "value_type": "number",
+        "label": "Rejection Penalty",
+        "description": "How much confidence drops per rejection.",
+        "description_layman": (
+            "Each time you reject a suggestion, ARIA reduces its"
+            " confidence in that pattern by this much. At 0.8, each"
+            " rejection cuts confidence by 20%."
+        ),
+        "description_technical": (
+            "Multiplicative penalty per user rejection on the same"
+            " source pattern. Range 0.5-0.95, default 0.8."
+            " After max_rejections, pattern is suppressed entirely."
+        ),
+        "category": "Automation Generator",
+        "min_value": 0.5,
+        "max_value": 0.95,
+        "step": 0.05,
+    },
+    {
+        "key": "automation.max_rejections",
+        "default_value": "3",
+        "value_type": "number",
+        "label": "Max Rejections",
+        "description": "Stop suggesting after this many rejections.",
+        "description_layman": (
+            "After you reject the same suggestion this many times, ARIA stops suggesting it entirely."
+        ),
+        "description_technical": (
+            "Hard cap on rejection count per source pattern."
+            " Range 1-10, default 3. Once reached, pattern is"
+            " permanently suppressed from generation."
+        ),
+        "category": "Automation Generator",
+        "min_value": 1,
+        "max_value": 10,
+        "step": 1,
+    },
+    # ── Phase 3: Shadow Comparison ─────────────────────────────────────
+    {
+        "key": "shadow.sync_interval",
+        "default_value": "1800",
+        "value_type": "number",
+        "label": "Shadow Sync Interval (s)",
+        "description": "How often ARIA checks your existing automations.",
+        "description_layman": (
+            "How often ARIA checks your existing Home Assistant automations to avoid suggesting duplicates."
+        ),
+        "description_technical": (
+            "Periodic interval for GET /api/config/automation/config."
+            " Range 600-86400, default 1800 (30min). Uses incremental"
+            " hash-based sync to minimize processing."
+        ),
+        "category": "Shadow Comparison",
+        "min_value": 600,
+        "max_value": 86400,
+        "step": 300,
+    },
+    {
+        "key": "shadow.duplicate_threshold",
+        "default_value": "0.8",
+        "value_type": "number",
+        "label": "Duplicate Threshold",
+        "description": "How similar before ARIA considers it a duplicate.",
+        "description_layman": (
+            "How closely an ARIA suggestion must match an existing"
+            " automation to be considered a duplicate. Higher values"
+            " mean stricter matching."
+        ),
+        "description_technical": (
+            "Jaccard similarity threshold for trigger+target entity"
+            " overlap. Range 0.5-1.0, default 0.8. At 1.0, only"
+            " exact matches are suppressed."
+        ),
+        "category": "Shadow Comparison",
+        "min_value": 0.5,
+        "max_value": 1.0,
+        "step": 0.05,
+    },
+    # ── Phase 3: LLM Refinement ────────────────────────────────────────
+    {
+        "key": "llm.automation_model",
+        "default_value": "qwen2.5-coder:14b",
+        "value_type": "string",
+        "label": "Automation LLM Model",
+        "description": "AI model that polishes automation names/descriptions.",
+        "description_layman": (
+            "The AI model ARIA uses to write friendly names and descriptions for suggested automations."
+        ),
+        "description_technical": (
+            "Ollama model name for automation alias/description"
+            " refinement. Submitted through ollama-queue if"
+            " llm.queue_enabled. Timeout controlled by"
+            " llm.automation_timeout."
+        ),
+        "category": "LLM Refinement",
+    },
+    {
+        "key": "llm.automation_timeout",
+        "default_value": "30",
+        "value_type": "number",
+        "label": "LLM Timeout (s)",
+        "description": "Seconds to wait for AI polish before using template.",
+        "description_layman": (
+            "How long ARIA waits for the AI to polish automation"
+            " names. If it takes too long, ARIA uses the template"
+            " version instead."
+        ),
+        "description_technical": (
+            "aiohttp timeout for Ollama inference call. Range 10-120,"
+            " default 30. On timeout, template output ships as-is."
+        ),
+        "category": "LLM Refinement",
+        "min_value": 10,
+        "max_value": 120,
+        "step": 5,
+    },
+    # ── Phase 3: Data Filtering ────────────────────────────────────────
+    {
+        "key": "filter.ignored_states",
+        "default_value": "unavailable,unknown",
+        "value_type": "string",
+        "label": "Ignored States",
+        "description": "State values excluded from analysis.",
+        "description_layman": (
+            "Device states that ARIA ignores completely. Usually"
+            " 'unavailable' and 'unknown' since they represent"
+            " communication errors, not real activity."
+        ),
+        "description_technical": (
+            "Comma-separated state values filtered out during"
+            " normalization. Both old_state and new_state checked."
+            " Events matching either direction are removed."
+        ),
+        "category": "Data Filtering",
+    },
+    {
+        "key": "filter.min_availability_pct",
+        "default_value": "80",
+        "value_type": "number",
+        "label": "Min Availability (%)",
+        "description": "Devices below this % are ignored as unreliable.",
+        "description_layman": (
+            "Devices that are unavailable more than this percentage"
+            " of the time are excluded from analysis. Keeps"
+            " suggestions reliable."
+        ),
+        "description_technical": (
+            "Entity health floor. Entities with availability below"
+            " this threshold get health_grade='unreliable' and are"
+            " excluded from detection. Range 50-99, default 80."
+        ),
+        "category": "Data Filtering",
+        "min_value": 50,
+        "max_value": 99,
+        "step": 1,
+    },
+    {
+        "key": "filter.exclude_entities",
+        "default_value": "",
+        "value_type": "string",
+        "label": "Exclude Entities",
+        "description": "Specific devices to exclude from analysis.",
+        "description_layman": (
+            "Specific devices you never want ARIA to analyze or"
+            " suggest automations for. Enter entity IDs separated"
+            " by commas."
+        ),
+        "description_technical": (
+            "Comma-separated entity_ids excluded from normalizer. Exact match. Empty default means no exclusions."
+        ),
+        "category": "Data Filtering",
+    },
+    {
+        "key": "filter.exclude_areas",
+        "default_value": "",
+        "value_type": "string",
+        "label": "Exclude Areas",
+        "description": "Rooms to exclude from suggestions.",
+        "description_layman": (
+            "Rooms you never want ARIA to analyze or create automations for. Enter area names separated by commas."
+        ),
+        "description_technical": (
+            "Comma-separated HA area_ids excluded from normalizer. Events in these areas are filtered before detection."
+        ),
+        "category": "Data Filtering",
+    },
+    {
+        "key": "filter.exclude_domains",
+        "default_value": (
+            "update,button,number,input_number,input_boolean,"
+            "input_select,input_text,persistent_notification,"
+            "scene,script,automation"
+        ),
+        "value_type": "string",
+        "label": "Exclude Domains",
+        "description": "Device types ARIA ignores.",
+        "description_layman": (
+            "Types of Home Assistant entities ARIA ignores. Usually"
+            " includes helper entities and system entities that"
+            " don't represent real physical actions."
+        ),
+        "description_technical": (
+            "Comma-separated HA domains excluded from normalizer."
+            " If filter.include_domains is set, this list is ignored"
+            " (whitelist takes precedence)."
+        ),
+        "category": "Data Filtering",
+    },
+    {
+        "key": "filter.include_domains",
+        "default_value": "",
+        "value_type": "string",
+        "label": "Include Domains (whitelist)",
+        "description": "If set, ONLY these types are analyzed.",
+        "description_layman": (
+            "If you only want ARIA to look at specific device types,"
+            " list them here. Leave empty to use the exclude list"
+            " instead."
+        ),
+        "description_technical": (
+            "Comma-separated whitelist. If non-empty, overrides"
+            " filter.exclude_domains — only these domains pass"
+            " normalization. Empty default means blacklist mode."
+        ),
+        "category": "Data Filtering",
+    },
+    {
+        "key": "filter.exclude_entity_patterns",
+        "default_value": "*_battery,*_signal_strength,*_linkquality,*_firmware",
+        "value_type": "string",
+        "label": "Exclude Entity Patterns",
+        "description": "Name patterns to exclude from analysis.",
+        "description_layman": (
+            "Entity name patterns ARIA ignores. Uses * as wildcard."
+            " Default excludes battery, signal, and firmware entities"
+            " which are noisy and not automatable."
+        ),
+        "description_technical": (
+            "Comma-separated fnmatch glob patterns applied to"
+            " entity_id. Matched entities are excluded during"
+            " normalization."
+        ),
+        "category": "Data Filtering",
+    },
+    {
+        "key": "filter.flaky_weight",
+        "default_value": "0.5",
+        "value_type": "number",
+        "label": "Flaky Entity Weight",
+        "description": "Confidence multiplier for unreliable devices.",
+        "description_layman": (
+            "How much to reduce confidence for devices that are"
+            " sometimes unavailable. At 0.5, flaky devices contribute"
+            " half the normal confidence."
+        ),
+        "description_technical": (
+            "Multiplicative weight applied to confidence scores"
+            " for entities with health_grade='flaky'. Range 0.1-1.0,"
+            " default 0.5. Unreliable entities are excluded entirely."
+        ),
+        "category": "Data Filtering",
+        "min_value": 0.1,
+        "max_value": 1.0,
+        "step": 0.1,
+    },
+    # ── Phase 3: Calendar ──────────────────────────────────────────────
+    {
+        "key": "calendar.enabled",
+        "default_value": "true",
+        "value_type": "boolean",
+        "label": "Calendar Integration",
+        "description": "Use your calendar to improve automation accuracy.",
+        "description_layman": (
+            "When enabled, ARIA uses your calendar to understand"
+            " holidays, vacations, and work-from-home days so it"
+            " can make better automation suggestions."
+        ),
+        "description_technical": (
+            "Enables calendar-aware day classification. When disabled,"
+            " all weekdays are 'workday' and weekends are 'weekend'."
+            " No holiday/vacation/WFH detection."
+        ),
+        "category": "Calendar",
+    },
+    {
+        "key": "calendar.holiday_keywords",
+        "default_value": "holiday,vacation,PTO,trip,out of office,off",
+        "value_type": "string",
+        "label": "Holiday Keywords",
+        "description": "Words that mean you're not working.",
+        "description_layman": (
+            "Calendar event titles containing these words are treated as holidays or days off. Separate with commas."
+        ),
+        "description_technical": (
+            "Case-insensitive substring match against calendar event"
+            " summaries. Matched days get day_type='holiday' or"
+            " 'vacation' depending on duration."
+        ),
+        "category": "Calendar",
+    },
+    {
+        "key": "calendar.wfh_keywords",
+        "default_value": "WFH,remote,work from home",
+        "value_type": "string",
+        "label": "WFH Keywords",
+        "description": "Words that mean you're working from home.",
+        "description_layman": (
+            "Calendar event titles containing these words are treated"
+            " as work-from-home days, which may have different"
+            " automation patterns."
+        ),
+        "description_technical": (
+            "Case-insensitive substring match. Days classified as"
+            " 'wfh' get separate pattern analysis if >5 days in"
+            " window, else merge with workday."
+        ),
+        "category": "Calendar",
+    },
+    {
+        "key": "calendar.source",
+        "default_value": "google",
+        "value_type": "select",
+        "label": "Calendar Source",
+        "description": "Which calendar to check for events.",
+        "description_layman": (
+            "Where ARIA reads your calendar from. Google uses the gog"
+            " CLI tool, HA uses a Home Assistant calendar entity."
+        ),
+        "description_technical": (
+            "Calendar data source. 'google' uses gog CLI subprocess,"
+            " 'ha' uses HA calendar entity via REST API. 'none'"
+            " disables calendar integration."
+        ),
+        "category": "Calendar",
+        "options": "google,ha,none",
+    },
+    {
+        "key": "calendar.entity_id",
+        "default_value": "",
+        "value_type": "string",
+        "label": "HA Calendar Entity",
+        "description": "HA calendar entity ID (if using HA calendar).",
+        "description_layman": (
+            "The Home Assistant calendar entity to check. Only needed if calendar source is set to 'ha'."
+        ),
+        "description_technical": (
+            "HA entity_id of a calendar entity, e.g."
+            " 'calendar.holidays'. Used when calendar.source='ha'."
+            " Queried via GET /api/calendars/{entity_id}."
+        ),
+        "category": "Calendar",
+    },
+    # ── Phase 3: Normalizer ────────────────────────────────────────────
+    {
+        "key": "normalizer.environmental_correlation_threshold",
+        "default_value": "0.7",
+        "value_type": "number",
+        "label": "Environmental Correlation Threshold",
+        "description": "How strongly time must correlate with light/sun to prefer sensor trigger.",
+        "description_layman": (
+            "If your actions strongly correlate with sunrise/sunset"
+            " or light levels, ARIA will suggest using a sensor"
+            " trigger instead of a time trigger."
+        ),
+        "description_technical": (
+            "Pearson r threshold for environmental correlation."
+            " Above this, prefer sun/illuminance trigger over time."
+            " Range 0.3-0.95, default 0.7."
+        ),
+        "category": "Normalizer",
+        "min_value": 0.3,
+        "max_value": 0.95,
+        "step": 0.05,
+    },
+    {
+        "key": "normalizer.adaptive_window_max_sigma",
+        "default_value": "90",
+        "value_type": "number",
+        "label": "Max Timing Variance (min)",
+        "description": "If timing varies more than this many minutes, skip time condition.",
+        "description_layman": (
+            "If you do something at wildly different times each day,"
+            " ARIA won't add a time restriction to the automation."
+            " This sets the threshold for 'wildly different'."
+        ),
+        "description_technical": (
+            "Standard deviation threshold in minutes for adaptive"
+            " time windows. If σ > this value, skip_time_condition"
+            " is True and no time condition is generated."
+            " Range 30-180, default 90."
+        ),
+        "category": "Normalizer",
+        "min_value": 30,
+        "max_value": 180,
+        "step": 10,
+    },
 ]
 
 
