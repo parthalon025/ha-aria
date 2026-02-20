@@ -249,6 +249,18 @@ body {
   border-width: 0;
 }
 
+/* Clickable data affordance — terminal-style hover */
+.clickable-data {
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  border-left: 2px solid transparent;
+  padding-left: 4px;
+}
+.clickable-data:hover {
+  background: var(--bg-surface-raised);
+  border-left-color: var(--accent);
+}
+
 /* Callout / info box */
 .t-callout {
   background: var(--bg-surface);
