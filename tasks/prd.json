@@ -1,0 +1,84 @@
+{
+  "feature": "Phase 1: Event Store + Entity Graph",
+  "design_doc": "docs/plans/2026-02-20-aria-roadmap-2-design.md",
+  "created": "2026-02-20",
+  "tasks": [
+    {
+      "id": "P1-01",
+      "title": "EventStore class with SQLite schema",
+      "description": "Create aria/shared/event_store.py with SQLite WAL-mode database, state_change_events table, and indexes.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -c \"from aria.shared.event_store import EventStore; print('import ok')\"",
+      "passes": false
+    },
+    {
+      "id": "P1-02",
+      "title": "EventStore write and read methods",
+      "description": "Add insert_event(), query_events(start, end), query_by_entity(entity_id, start, end), query_by_area(area_id, start, end), query_by_domain(domain, start, end), count_events(start, end).",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/shared/test_event_store.py -v --timeout=30 -q",
+      "passes": false
+    },
+    {
+      "id": "P1-03",
+      "title": "EventStore retention and pruning",
+      "description": "Add prune_before(cutoff_date) method. Configurable retention via hub config key 'events.retention_days' (default 90).",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/shared/test_event_store.py::test_prune_events -v --timeout=30 -q",
+      "passes": false
+    },
+    {
+      "id": "P1-04",
+      "title": "EntityGraph class with resolution methods",
+      "description": "Create aria/shared/entity_graph.py with get_area(entity_id), get_device(entity_id), entities_in_area(area_id), entities_by_domain(domain). Reads from discovery cache.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/shared/test_entity_graph.py -v --timeout=30 -q",
+      "passes": false
+    },
+    {
+      "id": "P1-05",
+      "title": "Wire EntityGraph into hub core",
+      "description": "IntelligenceHub creates and holds an EntityGraph instance. EntityGraph refreshes on cache_updated events for entities/devices/areas.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_hub_entity_graph.py -v --timeout=30 -q",
+      "passes": false
+    },
+    {
+      "id": "P1-06",
+      "title": "Wire EventStore into hub core",
+      "description": "IntelligenceHub creates and holds an EventStore instance. EventStore initialized on hub startup, closed on shutdown.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_hub_event_store.py -v --timeout=30 -q",
+      "passes": false
+    },
+    {
+      "id": "P1-07",
+      "title": "Activity monitor persists events to EventStore",
+      "description": "In _handle_state_changed(), after building the event dict, also write to hub.event_store.insert_event() with resolved device_id and area_id from hub.entity_graph.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_activity_event_persistence.py -v --timeout=30 -q",
+      "passes": false
+    },
+    {
+      "id": "P1-08",
+      "title": "EventStore pruning timer in hub",
+      "description": "Hub schedules daily pruning task that calls event_store.prune_before() using retention_days from config.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_hub_event_store.py::test_pruning_timer -v --timeout=30 -q",
+      "passes": false
+    },
+    {
+      "id": "P1-09",
+      "title": "EventStore query API endpoints",
+      "description": "Add GET /api/events?start=&end=&entity_id=&area_id=&domain=&limit= to hub API. Returns JSON array of events.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_api_events.py -v --timeout=30 -q",
+      "passes": false
+    },
+    {
+      "id": "P1-10",
+      "title": "Integration test: full event flow",
+      "description": "End-to-end test: simulate state_changed via activity_monitor -> verify event persisted in EventStore -> verify queryable via API -> verify EntityGraph resolves area correctly.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/integration/test_event_flow.py -v --timeout=60 -q",
+      "passes": false
+    },
+    {
+      "id": "P1-11",
+      "title": "Existing test suite passes",
+      "description": "All existing ~1584 tests still pass after Phase 1 changes. No regressions.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/ --timeout=120 -x -q",
+      "passes": false
+    }
+  ]
+}
