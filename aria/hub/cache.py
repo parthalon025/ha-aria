@@ -131,6 +131,11 @@ class CacheManager:
             )
         """)
 
+        # Migration: add description columns (idempotent)
+        for col in ("description_layman", "description_technical"):
+            with contextlib.suppress(Exception):
+                await self._conn.execute(f"ALTER TABLE config ADD COLUMN {col} TEXT")
+
         # Phase 2: Entity curation
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS entity_curation (
@@ -850,6 +855,8 @@ class CacheManager:
         max_value: float | None = None,
         options: str | None = None,
         step: float | None = None,
+        description_layman: str | None = None,
+        description_technical: str | None = None,
     ) -> bool:
         """Insert a config default if the key doesn't already exist.
 
@@ -866,6 +873,8 @@ class CacheManager:
             max_value: Maximum for number types.
             options: Comma-separated options for select type.
             step: Step increment for number sliders.
+            description_layman: Plain English explanation for non-technical users.
+            description_technical: Detailed technical explanation with ranges and edge cases.
 
         Returns:
             True if inserted, False if key already existed.
@@ -877,8 +886,9 @@ class CacheManager:
         cursor = await self._conn.execute(
             """INSERT OR IGNORE INTO config
                (key, value, default_value, value_type, label, description,
-                category, min_value, max_value, options, step, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                category, min_value, max_value, options, step,
+                description_layman, description_technical, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 key,
                 default_value,
@@ -891,6 +901,8 @@ class CacheManager:
                 max_value,
                 options,
                 step,
+                description_layman,
+                description_technical,
                 now,
             ),
         )
@@ -1292,6 +1304,8 @@ class CacheManager:
             "max_value": row["max_value"],
             "options": row["options"],
             "step": row["step"],
+            "description_layman": row["description_layman"],
+            "description_technical": row["description_technical"],
             "updated_at": row["updated_at"],
         }
 
