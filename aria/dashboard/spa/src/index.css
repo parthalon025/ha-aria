@@ -424,29 +424,57 @@ body {
   }
 }
 
-/* ── SUPERHOT page banner loop ── */
+/* ── SUPERHOT page banner ── */
+/* Inspired by SUPERHOT's piOS terminal (Norton Commander aesthetic),
+   crystalline red/white/black palette, CRT phosphor glow, and
+   the iconic "SUPER HOT" repeating mantra. */
 
 @keyframes sh-banner-scan {
   0%   { left: -20%; opacity: 0; }
-  10%  { opacity: 0.6; }
-  90%  { opacity: 0.6; }
+  10%  { opacity: 0.7; }
+  90%  { opacity: 0.7; }
   100% { left: 120%; opacity: 0; }
 }
 
 @keyframes sh-banner-glow {
-  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
-  50%      { filter: drop-shadow(0 0 6px var(--accent)); }
+  0%, 100% { filter: drop-shadow(0 0 2px var(--accent)) drop-shadow(0 0 0 transparent); }
+  50%      { filter: drop-shadow(0 0 6px var(--accent)) drop-shadow(0 0 12px var(--accent-glow)); }
+}
+
+@keyframes sh-crt-flicker {
+  0%   { opacity: 0.97; }
+  50%  { opacity: 1; }
+  100% { opacity: 0.98; }
 }
 
 .page-banner-sh {
   position: relative;
   overflow: hidden;
+  padding: 0.75rem 1rem;
+  background: var(--bg-terminal);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  animation: sh-crt-flicker 4s ease-in-out infinite;
 }
 
-.page-banner-sh svg {
-  animation: sh-banner-glow 4s ease-in-out infinite;
+/* CRT scanline stripes across banner (piOS signature) */
+.page-banner-sh::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 2;
 }
 
+/* Horizontal scan beam sweep */
 .page-banner-sh::after {
   content: '';
   position: absolute;
@@ -457,18 +485,75 @@ body {
   background: linear-gradient(90deg, transparent, var(--accent), transparent);
   opacity: 0;
   pointer-events: none;
+  z-index: 3;
   animation: sh-banner-scan 6s linear infinite;
 }
 
+/* SVG pixel text — CRT phosphor glow */
+.page-banner-sh svg {
+  position: relative;
+  z-index: 1;
+  animation: sh-banner-glow 4s ease-in-out infinite;
+}
+
+/* Subtitle text — monospace terminal feel */
+.page-banner-sh p {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+/* Dark mode enhancements — stronger glow on dark backgrounds */
+[data-theme="dark"] .page-banner-sh {
+  background: var(--bg-terminal);
+  border-color: var(--border-subtle);
+  border-left-color: var(--accent);
+}
+
+[data-theme="dark"] .page-banner-sh::before {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.02) 2px,
+    rgba(255, 255, 255, 0.02) 4px
+  );
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .page-banner-sh svg { animation: none; }
+  .page-banner-sh { animation: none; }
+  .page-banner-sh svg { animation: none; filter: drop-shadow(0 0 4px var(--accent)); }
   .page-banner-sh::after { animation: none; display: none; }
 }
 
-@media (max-width: 639px) {
-  .page-banner-sh::after { display: none; }
-  .page-banner-sh svg { animation: none; }
+/* ── CRT scanline overlay (full page, piOS-inspired) ── */
+.crt-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.015) 2px,
+    rgba(0, 0, 0, 0.015) 4px
+  );
 }
+
+[data-theme="dark"] .crt-overlay {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.008) 2px,
+    rgba(255, 255, 255, 0.008) 4px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-overlay { display: none; }
+}
+
 
 /* ── New ambient animations ── */
 
@@ -677,14 +762,6 @@ body {
 /* ── Responsive motion rules ── */
 
 /* Phone: Tier 1 OFF, Tier 2 partial, Tier 3 partial */
-@media (max-width: 639px) {
-  .t1-scan-sweep, .t1-grid-pulse, .t1-border-shimmer,
-  .t1-data-stream, .t1-scan-line, .t1-pulse-ring {
-    animation: none;
-  }
-  .t-section-header::after { animation: none; }
-  .t3-border-alert { animation: none; border-left-color: var(--accent-warm); }
-}
 
 /* Tablet: Tier 1 reduced */
 @media (min-width: 640px) and (max-width: 1023px) {

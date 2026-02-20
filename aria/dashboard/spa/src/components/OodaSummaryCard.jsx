@@ -1,12 +1,33 @@
 /**
  * Clickable summary card for each OODA destination on the Home page.
- * Shows a brief metric and links to the full page.
+ * Shatters into fragments on click (SUPERHOT style), then navigates.
  */
+import { useRef, useCallback } from 'preact/hooks';
+import { shatterElement } from 'superhot-ui';
+
 export default function OodaSummaryCard({ title, subtitle, metric, metricLabel, href, accentColor }) {
   const color = accentColor || 'var(--accent)';
+  const cardRef = useRef(null);
+  const shattering = useRef(false);
+
+  const handleClick = useCallback((ev) => {
+    ev.preventDefault();
+    if (shattering.current || !cardRef.current) return;
+    shattering.current = true;
+
+    shatterElement(cardRef.current, {
+      fragments: 8,
+      onComplete: () => {
+        window.location.hash = href.startsWith('#') ? href.slice(1) : href;
+      },
+    });
+  }, [href]);
+
   return (
     <a
+      ref={cardRef}
       href={href}
+      onClick={handleClick}
       class="t-frame t-card-hover block"
       style="text-decoration: none; padding: 16px 20px; cursor: pointer;"
     >
