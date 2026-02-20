@@ -400,8 +400,11 @@ class ActivityMonitor(Module):
         self._activity_buffer.append(event)
         self._recent_events.append(event)
 
+        # Extract HA context for manual vs automated discrimination
+        ws_context = (new_state or {}).get("context")
+
         # Persist to EventStore (non-blocking)
-        self._persist_to_event_store(event, attrs)
+        self._persist_to_event_store(event, attrs, ws_context=ws_context)
 
         # Early flush if buffer grows too large (prevents unbounded memory use)
         if len(self._activity_buffer) >= 5000:
@@ -446,7 +449,7 @@ class ActivityMonitor(Module):
         # Maybe trigger snapshot
         self._maybe_trigger_snapshot()
 
-    def _persist_to_event_store(self, event: dict, attrs: dict):
+    def _persist_to_event_store(self, event: dict, attrs: dict, ws_context: dict | None = None):
         """Fire-and-forget persist of a state_changed event to EventStore."""
         if not (hasattr(self.hub, "event_store") and self.hub.event_store):
             return
@@ -458,6 +461,12 @@ class ActivityMonitor(Module):
                 area_id = self.hub.entity_graph.get_area(eid)
                 device_info = self.hub.entity_graph.get_device(eid)
                 device_id = device_info.get("device_id") if device_info else None
+
+            # Extract context_parent_id for manual vs automated discrimination
+            context_parent_id = None
+            if ws_context:
+                context_parent_id = ws_context.get("parent_id")
+
             loop = asyncio.get_running_loop()
             task = loop.create_task(
                 self.hub.event_store.insert_event(
@@ -469,6 +478,7 @@ class ActivityMonitor(Module):
                     device_id=device_id,
                     area_id=area_id,
                     attributes_json=json.dumps(attrs) if attrs else None,
+                    context_parent_id=context_parent_id,
                 )
             )
             task.add_done_callback(
