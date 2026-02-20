@@ -30,9 +30,9 @@ class EntityGraph:
         areas: list[dict[str, Any]],
     ) -> None:
         """Rebuild the graph from fresh discovery data."""
-        self._entities = entities
-        self._devices = devices
-        self._areas = areas
+        self._entities = dict(entities)
+        self._devices = dict(devices)
+        self._areas = list(areas)
         self._rebuild_area_index()
         logger.debug(
             "EntityGraph updated: %d entities, %d devices, %d areas",
@@ -52,7 +52,7 @@ class EntityGraph:
     def _resolve_area(self, entity: dict[str, Any]) -> str | None:
         """Resolve area for an entity: direct area_id, then device fallback."""
         # Entity-level area takes priority
-        if entity.get("area_id"):
+        if entity.get("area_id") is not None:
             return entity["area_id"]
         # Fall back to device's area
         device_id = entity.get("device_id")
@@ -77,7 +77,7 @@ class EntityGraph:
 
     def entities_in_area(self, area_id: str) -> list[dict[str, Any]]:
         """Get all entities in an area."""
-        return self._area_index.get(area_id, [])
+        return list(self._area_index.get(area_id, []))
 
     def entities_by_domain(self, domain: str) -> list[dict[str, Any]]:
         """Get all entities of a specific domain."""

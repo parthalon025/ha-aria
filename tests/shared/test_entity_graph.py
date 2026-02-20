@@ -100,6 +100,36 @@ def test_all_areas(graph):
     assert "kitchen" in area_ids
 
 
+def test_get_area_orphan_entity(graph):
+    """Entity with no device_id and no area_id returns None."""
+    graph._entities["sensor.orphan"] = {"entity_id": "sensor.orphan", "device_id": None, "area_id": None}
+    assert graph.get_area("sensor.orphan") is None
+
+
+def test_get_device_unknown_device(graph):
+    """Entity with device_id not in devices dict returns None."""
+    graph._entities["sensor.mystery"] = {"entity_id": "sensor.mystery", "device_id": "dev_unknown", "area_id": None}
+    assert graph.get_device("sensor.mystery") is None
+
+
+def test_empty_graph():
+    """Fresh EntityGraph before update() returns safe defaults."""
+    g = EntityGraph()
+    assert g.get_area("anything") is None
+    assert g.get_device("anything") is None
+    assert g.entities_in_area("anywhere") == []
+    assert g.entities_by_domain("light") == []
+    assert g.all_areas() == []
+    assert g.entity_count == 0
+
+
+def test_counter_properties(graph):
+    """Counter properties reflect current graph state."""
+    assert graph.entity_count == 3
+    assert graph.device_count == 3
+    assert graph.area_count == 2
+
+
 def test_update_refreshes_data(graph, sample_entities, sample_devices):
     """Calling update() refreshes the graph."""
     new_entities = {
