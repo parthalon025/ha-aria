@@ -1092,6 +1092,63 @@ class MLEngine(Module):
             now.isoformat(),
         )
 
+    async def _get_dynamic_targets(self) -> dict[str, Any]:
+        """Discover per-area and per-domain prediction targets from EventStore.
+
+        Queries 7 days of events, counts activity per area/domain, and creates
+        targets for areas with >100 events and key domains with >100 events.
+
+        Returns dict mapping target_name to extractor function:
+            {"area_kitchen_activity": lambda segment: segment["per_area_activity"].get("kitchen", 0)}
+        """
+        _MIN_EVENTS = 100
+
+        if not getattr(self.hub, "event_store", None):
+            return {}
+
+        now = datetime.now(tz=UTC)
+        start = (now - timedelta(days=7)).isoformat()
+        end = now.isoformat()
+
+        try:
+            events = await self.hub.event_store.query_events(start, end)
+        except Exception as e:
+            self.logger.warning("Failed to query events for dynamic targets: %s", e)
+            return {}
+
+        if not events:
+            return {}
+
+        # Count events per area
+        from collections import Counter
+
+        area_counts: Counter = Counter()
+        domain_counts: Counter = Counter()
+        for event in events:
+            area = event.get("area_id")
+            if area:
+                area_counts[area] += 1
+            domain_counts[event.get("domain", "")] += 1
+
+        targets: dict[str, Any] = {}
+
+        # Per-area targets (areas with sufficient activity)
+        for area, count in area_counts.items():
+            if count >= _MIN_EVENTS:
+                area_key = area
+                targets[f"area_{area_key}_activity"] = lambda seg, a=area_key: seg.get("per_area_activity", {}).get(
+                    a, 0
+                )
+
+        # Per-domain targets (key domains with sufficient activity)
+        for domain, count in domain_counts.items():
+            if count >= _MIN_EVENTS and domain:
+                targets[f"domain_{domain}_event_count"] = lambda seg, d=domain: seg.get("per_domain_counts", {}).get(
+                    d, 0
+                )
+
+        return targets
+
     def _extract_target(self, snapshot: dict[str, Any], target: str) -> float | None:
         """Extract target value from snapshot.
 
