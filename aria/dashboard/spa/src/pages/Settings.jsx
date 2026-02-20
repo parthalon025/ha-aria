@@ -15,7 +15,7 @@ function groupByCategory(configs) {
   return groups;
 }
 
-function ParamControl({ config, onUpdate }) {
+function ParamControl({ config, onUpdate, descMode }) {
   const [value, setValue] = useState(config.value);
   const [saving, setSaving] = useState(false);
   const timerRef = useRef(null);
@@ -61,9 +61,12 @@ function ParamControl({ config, onUpdate }) {
           <a href={`#/detail/config/${config.key}`} class="clickable-data text-sm font-medium" style="color: var(--text-secondary); text-decoration: none;">{config.label || config.key}</a>
           {saving && <span class="text-xs" style="color: var(--accent)">Saving...</span>}
         </div>
-        {config.description && (
-          <p class="text-xs mt-0.5" style="color: var(--text-tertiary)">{config.description}</p>
-        )}
+        {(() => {
+          const desc = descMode === 'simple'
+            ? (config.description_layman || config.description)
+            : (config.description_technical || config.description);
+          return desc ? <p class="text-xs mt-0.5" style="color: var(--text-tertiary)">{desc}</p> : null;
+        })()}
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
         {vtype === 'number' && (
@@ -128,7 +131,7 @@ function ParamControl({ config, onUpdate }) {
   );
 }
 
-function CategorySection({ category, configs, onUpdate }) {
+function CategorySection({ category, configs, onUpdate, descMode }) {
   const [open, setOpen] = useState(true);
 
   return (
@@ -143,7 +146,7 @@ function CategorySection({ category, configs, onUpdate }) {
       {open && (
         <div class="px-4 pb-3">
           {configs.map((c) => (
-            <ParamControl key={c.key} config={c} onUpdate={onUpdate} />
+            <ParamControl key={c.key} config={c} onUpdate={onUpdate} descMode={descMode} />
           ))}
         </div>
       )}
@@ -155,6 +158,7 @@ export default function Settings() {
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [descMode, setDescMode] = useState('simple');
 
   async function fetchConfigs() {
     try {
@@ -200,9 +204,19 @@ export default function Settings() {
     <div class="space-y-6 animate-page-enter">
       <PageBanner page="SETTINGS" subtitle={`${configs.length} parameters across ${Object.keys(groups).length} categories.${modified > 0 ? ` ${modified} modified from defaults.` : ''}`} />
 
+      <div class="flex items-center justify-end mb-2">
+        <button
+          class="text-xs px-3 py-1.5"
+          style={`border-radius: var(--radius); border: 1px solid var(--border-subtle); color: var(--text-secondary); background: var(--bg-surface); cursor: pointer;`}
+          onClick={() => setDescMode(mode => mode === 'simple' ? 'technical' : 'simple')}
+        >
+          {descMode === 'simple' ? 'Show Technical' : 'Show Simple'}
+        </button>
+      </div>
+
       <div class="space-y-4">
         {Object.entries(groups).map(([cat, items]) => (
-          <CategorySection key={cat} category={cat} configs={items} onUpdate={fetchConfigs} />
+          <CategorySection key={cat} category={cat} configs={items} onUpdate={fetchConfigs} descMode={descMode} />
         ))}
       </div>
     </div>
