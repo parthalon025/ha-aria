@@ -115,3 +115,11 @@ Starting Batch 1: Foundation (Tasks 1-3)
 - Fixed test assertions: solo toggle detection is independent of sequence pairing — tests correctly check only sequence results (chain > 1) when asserting window exclusion.
 - Commits: e70b5e7, 068b52e
 - Suite: 1842 passed, 15 skipped, 0 failures
+
+## Batch 7: YAML Generation (Tasks 18-21) — COMPLETE
+- Task 18: Created aria/automation/trigger_builder.py — domain→trigger type mapping (binary_sensor→state, sensor→numeric_state), YAML state quoting (on/off/yes/no/true/false/home/not_home), debounce duration, stable trigger ID generation — 17 tests
+- Task 19: Created aria/automation/condition_builder.py — additive conditions: weekday from day_type (workday/weekend), presence from person entities in area, illuminance for light actions with sensor in area. SAFETY_CONDITIONS dict for future injection. — 11 tests
+- Task 20: Created aria/automation/action_builder.py — domain-aware service selection (light.turn_on, switch.turn_on, etc.), area targeting preference over entity lists, restricted domain flagging (lock/alarm/cover). OFF_STATES mapping for turn_off service selection. — 14 tests
+- Task 21: Created aria/automation/template_engine.py (AutomationTemplate) — coordinates trigger+condition+action builders into full HA automation dict. Mode selection (single/queued/parallel), deterministic ID generation (MD5 suffix), human-readable alias and metadata description. — 16 tests
+- Commits: 59c4948, c2535f7, 5420e3a, a286c8c
+- Suite: 1900 passed, 15 skipped, 0 failures
