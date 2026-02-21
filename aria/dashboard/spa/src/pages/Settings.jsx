@@ -155,19 +155,10 @@ function CategorySection({ category, configs, onUpdate, descMode }) {
   );
 }
 
+// Extended labels for Settings — supplements the shared DOMAIN_LABELS from utils
+import { DOMAIN_LABELS as BASE_DOMAIN_LABELS } from './intelligence/utils.jsx';
 const DOMAIN_LABELS = {
-  light: 'Lights',
-  switch: 'Switches',
-  binary_sensor: 'Binary Sensors',
-  sensor: 'Sensors',
-  lock: 'Locks',
-  media_player: 'Media Players',
-  cover: 'Covers',
-  climate: 'Climate',
-  vacuum: 'Vacuum',
-  person: 'People',
-  device_tracker: 'Trackers',
-  fan: 'Fans',
+  ...BASE_DOMAIN_LABELS,
   automation: 'Automations',
   script: 'Scripts',
   input_boolean: 'Input Booleans',
@@ -218,13 +209,13 @@ function DataFilteringSection() {
     fetchJson('/api/config').then((cfgData) => {
       const cfgs = cfgData.configs || [];
       for (const c of cfgs) {
-        if (c.key === 'filter.excluded_areas' && c.value) {
+        if (c.key === 'filter.exclude_areas' && c.value) {
           setExcludedAreas(new Set(c.value.split(',').map((s) => s.trim()).filter(Boolean)));
         }
-        if (c.key === 'filter.excluded_domains' && c.value) {
+        if (c.key === 'filter.exclude_domains' && c.value) {
           setExcludedDomains(new Set(c.value.split(',').map((s) => s.trim()).filter(Boolean)));
         }
-        if (c.key === 'filter.excluded_entities' && c.value) {
+        if (c.key === 'filter.exclude_entities' && c.value) {
           setExcludedEntities(new Set(c.value.split(',').map((s) => s.trim()).filter(Boolean)));
         }
       }
@@ -295,7 +286,7 @@ function DataFilteringSection() {
       const next = new Set(prev);
       if (next.has(areaId)) next.delete(areaId);
       else next.add(areaId);
-      saveFilters('filter.excluded_areas', next);
+      saveFilters('filter.exclude_areas', next);
       return next;
     });
   }
@@ -305,7 +296,7 @@ function DataFilteringSection() {
       const next = new Set(prev);
       if (next.has(domain)) next.delete(domain);
       else next.add(domain);
-      saveFilters('filter.excluded_domains', next);
+      saveFilters('filter.exclude_domains', next);
       return next;
     });
   }
@@ -315,7 +306,7 @@ function DataFilteringSection() {
       const next = new Set(prev);
       if (next.has(entityId)) next.delete(entityId);
       else next.add(entityId);
-      saveFilters('filter.excluded_entities', next);
+      saveFilters('filter.exclude_entities', next);
       return next;
     });
   }

@@ -17,6 +17,40 @@ function statusStyle(status) {
   }
 }
 
+const STATUS_ICONS = {
+  approved: '\u2713',
+  rejected: '\u2717',
+  deferred: '\u23F8',
+  pending: '\u25CF',
+};
+
+/** Detect conflicts: overlapping triggers/entities between suggestions. */
+function detectConflicts(suggestion, allSuggestions) {
+  const conflicts = [];
+  const entities = suggestion.entities || [];
+  const trigger = suggestion.trigger || '';
+  if (!entities.length && !trigger) return conflicts;
+
+  for (const other of allSuggestions) {
+    if (other.id === suggestion.id) continue;
+    if ((other.status || 'pending').toLowerCase() === 'rejected') continue;
+
+    const otherEntities = other.entities || [];
+    const overlap = entities.filter((ent) => otherEntities.includes(ent));
+    const triggerMatch = trigger && other.trigger && trigger === other.trigger;
+
+    if (overlap.length > 0 || triggerMatch) {
+      conflicts.push({
+        name: other.name || 'Unnamed',
+        reason: overlap.length > 0
+          ? `Shares ${overlap.length} entit${overlap.length === 1 ? 'y' : 'ies'}: ${overlap.slice(0, 3).join(', ')}${overlap.length > 3 ? '...' : ''}`
+          : 'Same trigger',
+      });
+    }
+  }
+  return conflicts;
+}
+
 /** Confidence tier badge with semantic coloring */
 function ConfidenceBadge({ confidence }) {
   const pct = Math.round((confidence ?? 0) * 100);
@@ -74,10 +108,12 @@ function HealthBar({ approved, rejected, deferred, total }) {
   );
 }
 
-function RecommendationCard({ suggestion, onAction, onUndo, updating, undoable }) {
+function RecommendationCard({ suggestion, onAction, onUndo, updating, undoable, allSuggestions }) {
   const status = (suggestion.status || 'pending').toLowerCase();
-  const hasConflict = suggestion.conflict_warning || suggestion.conflicts_with;
-  const isGapFill = suggestion.gap_fill || suggestion.fills_gap;
+  const isGapFill = suggestion.gap_fill || suggestion.fills_gap || suggestion.coverage_gap;
+  const gapLabel = suggestion.gap_fill || suggestion.coverage_gap;
+  const icon = STATUS_ICONS[status] || STATUS_ICONS.pending;
+  const conflicts = allSuggestions ? detectConflicts(suggestion, allSuggestions) : [];
 
   return (
     <div class="t-frame clickable-data" data-label={suggestion.name || 'recommendation'} style="padding: 1.25rem; cursor: pointer;" onClick={() => { window.location.hash = `#/detail/suggestion/${suggestion.id || suggestion.name || 'unknown'}`; }}>
@@ -85,11 +121,15 @@ function RecommendationCard({ suggestion, onAction, onUndo, updating, undoable }
         <div class="flex items-center gap-2 min-w-0">
           <span class="text-base font-bold truncate" style="color: var(--text-primary)">{suggestion.name || 'Unnamed'}</span>
           {isGapFill && (
-            <span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0" style="background: var(--accent-glow); color: var(--accent);">Gap Fill</span>
+            <span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0" style="background: var(--accent-glow); color: var(--accent);">
+              Gap fill{typeof gapLabel === 'string' ? `: ${gapLabel}` : ''}
+            </span>
           )}
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
-          <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium" style={statusStyle(status)}>{status}</span>
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={statusStyle(status)}>
+            <span>{icon}</span> {status}
+          </span>
           {undoable && (
             <button
               onClick={(evt) => { evt.stopPropagation(); onUndo(suggestion.id); }}
@@ -97,16 +137,18 @@ function RecommendationCard({ suggestion, onAction, onUndo, updating, undoable }
               style="background: var(--bg-surface-raised); color: var(--accent); border: 1px solid var(--border-subtle); cursor: pointer;"
               title="Undo last action"
             >
-              Undo
+              {'\u21A9'} Undo
             </button>
           )}
         </div>
       </div>
 
-      {hasConflict && (
-        <div class="flex items-center gap-1.5 mb-2 px-2 py-1.5 rounded text-xs" style="background: var(--status-warning-glow); color: var(--status-warning);">
-          <span>{'\u26A0'}</span>
-          <span>{suggestion.conflict_warning || `May conflict with: ${suggestion.conflicts_with}`}</span>
+      {conflicts.length > 0 && (
+        <div class="mb-2 px-2 py-1.5 rounded text-xs" style="background: var(--status-warning-glow); border: 1px solid var(--status-warning); color: var(--status-warning);">
+          <span class="font-bold">{'\u26A0'} Conflict{conflicts.length > 1 ? 's' : ''}:</span>
+          {conflicts.map((conflict, ci) => (
+            <span key={ci}> {conflict.name} ({conflict.reason}){ci < conflicts.length - 1 ? ',' : ''}</span>
+          ))}
         </div>
       )}
 
@@ -283,6 +325,7 @@ export default function Decide() {
                     onUndo={handleUndo}
                     updating={updating}
                     undoable={!!undoHistory[sug.id]}
+                    allSuggestions={displaySuggestions}
                   />
                 ))}
               </div>
@@ -310,6 +353,7 @@ export default function Decide() {
                     onUndo={handleUndo}
                     updating={updating}
                     undoable={!!undoHistory[sug.id]}
+                    allSuggestions={displaySuggestions}
                   />
                 ))}
               </div>
