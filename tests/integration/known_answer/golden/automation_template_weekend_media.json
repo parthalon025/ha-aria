@@ -1,0 +1,15 @@
+{
+  "id": "aria_living_room_motion_0ea49382",
+  "alias": "Living Room: Living Room Motion \u2192 Living Room Tv",
+  "mode": "single",
+  "trigger_count": 1,
+  "condition_count": 2,
+  "action_count": 1,
+  "has_description": true,
+  "trigger_entity": "binary_sensor.living_room_motion",
+  "action_entities": [
+    "media_player.living_room_tv"
+  ],
+  "area_id": "living_room",
+  "day_type": "weekend"
+}

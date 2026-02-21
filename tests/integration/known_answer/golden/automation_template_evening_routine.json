@@ -1,0 +1,16 @@
+{
+  "id": "aria_alice_2db7668c",
+  "alias": "Living Room: Alice \u2192 Living Room Lamp and Living Room Ceiling",
+  "mode": "single",
+  "trigger_count": 1,
+  "condition_count": 2,
+  "action_count": 1,
+  "has_description": true,
+  "trigger_entity": "person.alice",
+  "action_entities": [
+    "light.living_room_ceiling",
+    "light.living_room_lamp"
+  ],
+  "area_id": "living_room",
+  "day_type": "workday"
+}

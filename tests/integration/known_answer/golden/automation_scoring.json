@@ -1,0 +1,32 @@
+{
+  "evening_routine": {
+    "combined_score": 0.63,
+    "source": "pattern",
+    "confidence": 0.88,
+    "recency_weight": 0.95
+  },
+  "gap_hallway_light": {
+    "combined_score": 0.364,
+    "source": "gap",
+    "confidence": 0.78,
+    "recency_weight": 0.65
+  },
+  "motion_light": {
+    "combined_score": 0.636,
+    "source": "pattern",
+    "confidence": 0.92,
+    "recency_weight": 0.88
+  },
+  "multi_action_bedroom": {
+    "combined_score": 0.55,
+    "source": "pattern",
+    "confidence": 0.82,
+    "recency_weight": 0.7
+  },
+  "weekend_media": {
+    "combined_score": 0.535,
+    "source": "pattern",
+    "confidence": 0.75,
+    "recency_weight": 0.8
+  }
+}

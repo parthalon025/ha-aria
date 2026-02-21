@@ -1,0 +1,82 @@
+{
+  "suggestion_count": 5,
+  "suggestions": [
+    {
+      "suggestion_id": "8c6558cb39fff2db",
+      "source": "pattern",
+      "combined_score": 0.535,
+      "shadow_status": "new",
+      "status": "pending",
+      "trigger_entity": "binary_sensor.living_room_motion",
+      "action_entities": [
+        "media_player.living_room_tv"
+      ],
+      "area_id": "living_room",
+      "day_type": "weekend",
+      "automation_id": "aria_living_room_motion_0ea49382",
+      "automation_mode": "single"
+    },
+    {
+      "suggestion_id": "8dc76e8081b19192",
+      "source": "pattern",
+      "combined_score": 0.55,
+      "shadow_status": "new",
+      "status": "pending",
+      "trigger_entity": "binary_sensor.bedroom_motion",
+      "action_entities": [
+        "fan.bedroom_fan",
+        "light.bedroom_lamp"
+      ],
+      "area_id": "bedroom",
+      "day_type": "all",
+      "automation_id": "aria_bedroom_motion_1e00d81f",
+      "automation_mode": "single"
+    },
+    {
+      "suggestion_id": "9601ea063f1603cb",
+      "source": "pattern",
+      "combined_score": 0.63,
+      "shadow_status": "new",
+      "status": "pending",
+      "trigger_entity": "person.alice",
+      "action_entities": [
+        "light.living_room_ceiling",
+        "light.living_room_lamp"
+      ],
+      "area_id": "living_room",
+      "day_type": "workday",
+      "automation_id": "aria_alice_2db7668c",
+      "automation_mode": "single"
+    },
+    {
+      "suggestion_id": "a4423de9617320e5",
+      "source": "pattern",
+      "combined_score": 0.636,
+      "shadow_status": "new",
+      "status": "pending",
+      "trigger_entity": "binary_sensor.kitchen_motion",
+      "action_entities": [
+        "light.kitchen_ceiling"
+      ],
+      "area_id": "kitchen",
+      "day_type": "workday",
+      "automation_id": "aria_kitchen_motion_9590e422",
+      "automation_mode": "single"
+    },
+    {
+      "suggestion_id": "b72e0f6f6e231877",
+      "source": "gap",
+      "combined_score": 0.364,
+      "shadow_status": "new",
+      "status": "pending",
+      "trigger_entity": "binary_sensor.hallway_motion",
+      "action_entities": [
+        "light.hallway_sconce"
+      ],
+      "area_id": "hallway",
+      "day_type": "all",
+      "automation_id": "aria_hallway_motion_80f9c32d",
+      "automation_mode": "single"
+    }
+  ]
+}

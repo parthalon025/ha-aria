@@ -1,0 +1,15 @@
+{
+  "id": "aria_hallway_motion_80f9c32d",
+  "alias": "Hallway: Hallway Motion \u2192 Hallway Sconce",
+  "mode": "single",
+  "trigger_count": 1,
+  "condition_count": 0,
+  "action_count": 1,
+  "has_description": true,
+  "trigger_entity": "binary_sensor.hallway_motion",
+  "action_entities": [
+    "light.hallway_sconce"
+  ],
+  "area_id": "hallway",
+  "day_type": "all"
+}

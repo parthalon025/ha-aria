@@ -1,0 +1,16 @@
+{
+  "id": "aria_bedroom_motion_1e00d81f",
+  "alias": "Bedroom: Bedroom Motion \u2192 Bedroom Lamp and Bedroom Fan",
+  "mode": "single",
+  "trigger_count": 1,
+  "condition_count": 0,
+  "action_count": 2,
+  "has_description": true,
+  "trigger_entity": "binary_sensor.bedroom_motion",
+  "action_entities": [
+    "fan.bedroom_fan",
+    "light.bedroom_lamp"
+  ],
+  "area_id": "bedroom",
+  "day_type": "all"
+}
