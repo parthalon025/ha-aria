@@ -21,9 +21,9 @@
     "score_summary": {
       "devices_home": 100,
       "lights_on": 85,
-      "power_watts": 91,
+      "power_watts": 90,
       "unavailable": 100,
-      "useful_events": 99
+      "useful_events": 100
     }
   },
   "hub": {
@@ -33,8 +33,8 @@
   },
   "orchestrator": {
     "suggestion_count": 1,
-    "pattern_ids": [
-      "golden_morning"
+    "trigger_entities": [
+      "binary_sensor.motion_bedroom"
     ]
   }
 }

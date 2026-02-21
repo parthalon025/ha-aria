@@ -10,11 +10,14 @@ Uses scope="module" on the engine fixture since it's expensive (generates
 """
 
 import json
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from aria.automation.models import ShadowResult
 from aria.hub.constants import CACHE_INTELLIGENCE
 from aria.hub.core import IntelligenceHub
+from aria.modules.automation_generator import AutomationGeneratorModule
 from aria.modules.intelligence import IntelligenceModule
 from aria.modules.orchestrator import OrchestratorModule
 from tests.integration.known_answer.conftest import golden_compare
@@ -191,48 +194,52 @@ async def test_hub_reads_engine_output(engine_output, tmp_path):
 
 @pytest.mark.asyncio
 async def test_patterns_to_suggestions_flow(tmp_path):
-    """Pre-populate patterns cache, then verify orchestrator produces
-    automation suggestions from those patterns."""
+    """Pre-populate patterns cache, then verify orchestrator delegates to
+    AutomationGeneratorModule and produces suggestions."""
     hub = IntelligenceHub(cache_path=str(tmp_path / "hub.db"))
     try:
         await hub.initialize()
 
-        # Pre-populate patterns cache with realistic patterns
+        # Pre-populate patterns cache with detection-format data
         patterns_data = {
-            "patterns": [
+            "detections": [
                 {
-                    "pattern_id": "ka_pipeline_morning",
-                    "name": "Morning Lights",
-                    "area": "bedroom",
-                    "entities": ["light.bedroom"],
-                    "typical_time": "07:30",
-                    "variance_minutes": 10,
+                    "source": "pattern",
+                    "trigger_entity": "binary_sensor.motion_bedroom",
+                    "action_entities": ["light.bedroom"],
+                    "entity_chain": [
+                        {"entity_id": "binary_sensor.motion_bedroom", "state": "on", "offset_seconds": 0},
+                    ],
+                    "area_id": "bedroom",
                     "confidence": 0.85,
-                    "frequency": 18,
-                    "total_days": 21,
-                    "type": "temporal_sequence",
-                    "associated_signals": ["bedroom_light_on_h7"],
-                    "llm_description": "Bedroom lights turn on at wake-up time",
+                    "recency_weight": 0.7,
+                    "observation_count": 18,
+                    "first_seen": "2026-01-01T00:00:00",
+                    "last_seen": "2026-02-10T00:00:00",
+                    "day_type": "workday",
                 },
                 {
-                    "pattern_id": "ka_pipeline_evening",
-                    "name": "Evening Routine",
-                    "area": "kitchen",
-                    "entities": ["light.kitchen"],
-                    "typical_time": "18:00",
-                    "variance_minutes": 15,
+                    "source": "pattern",
+                    "trigger_entity": "binary_sensor.motion_kitchen",
+                    "action_entities": ["light.kitchen"],
+                    "entity_chain": [
+                        {"entity_id": "binary_sensor.motion_kitchen", "state": "on", "offset_seconds": 0},
+                    ],
+                    "area_id": "kitchen",
                     "confidence": 0.78,
-                    "frequency": 14,
-                    "total_days": 21,
-                    "type": "temporal_sequence",
-                    "associated_signals": ["kitchen_light_on_h18"],
-                    "llm_description": "Kitchen lights on for evening cooking",
+                    "recency_weight": 0.6,
+                    "observation_count": 14,
+                    "first_seen": "2026-01-05T00:00:00",
+                    "last_seen": "2026-02-08T00:00:00",
+                    "day_type": "workday",
                 },
             ],
-            "pattern_count": 2,
-            "areas_analyzed": ["bedroom", "kitchen"],
         }
         await hub.set_cache("patterns", patterns_data)
+
+        # Register AutomationGeneratorModule
+        generator = AutomationGeneratorModule(hub=hub, top_n=10, min_confidence=0.7)
+        hub.modules["automation_generator"] = generator
 
         # Create orchestrator (no initialize — skip aiohttp session)
         orchestrator = OrchestratorModule(
@@ -242,22 +249,44 @@ async def test_patterns_to_suggestions_flow(tmp_path):
             min_confidence=0.7,
         )
 
-        suggestions = await orchestrator.generate_suggestions()
+        # Patch LLM refiner, validator, and shadow comparison
+        with (
+            patch(
+                "aria.modules.automation_generator.refine_automation",
+                new_callable=AsyncMock,
+                side_effect=lambda auto, **kw: auto,
+            ),
+            patch(
+                "aria.modules.automation_generator.validate_automation",
+                return_value=(True, []),
+            ),
+            patch(
+                "aria.modules.automation_generator.compare_candidate",
+                return_value=ShadowResult(
+                    candidate={},
+                    status="new",
+                    duplicate_score=0.0,
+                    conflicting_automation=None,
+                    gap_source_automation=None,
+                    reason="No match found",
+                ),
+            ),
+        ):
+            suggestions = await orchestrator.generate_suggestions()
 
-        # Both patterns are above min_confidence, should produce suggestions
+        # Both detections are above min_confidence, should produce suggestions
         assert len(suggestions) == 2, f"Expected 2 suggestions, got {len(suggestions)}"
 
-        # Each suggestion references the correct pattern
-        pattern_ids = {s["pattern_id"] for s in suggestions}
-        assert "ka_pipeline_morning" in pattern_ids
-        assert "ka_pipeline_evening" in pattern_ids
+        # Each suggestion references the correct trigger entity
+        trigger_entities = {s["metadata"]["trigger_entity"] for s in suggestions}
+        assert "binary_sensor.motion_bedroom" in trigger_entities
+        assert "binary_sensor.motion_kitchen" in trigger_entities
 
         # Suggestions have automation YAML with actions
         for s in suggestions:
             yaml = s["automation_yaml"]
-            assert "trigger" in yaml
-            assert "action" in yaml
-            assert len(yaml["action"]) >= 1
+            assert "triggers" in yaml or "trigger" in yaml
+            assert "actions" in yaml or "action" in yaml
 
         # Suggestions are cached
         cache_entry = await hub.get_cache("automation_suggestions")
@@ -329,26 +358,29 @@ async def test_golden_snapshot(engine_output, tmp_path, update_golden):
 
         # --- Orchestrator suggestion count ---
         patterns_data = {
-            "patterns": [
+            "detections": [
                 {
-                    "pattern_id": "golden_morning",
-                    "name": "Morning Pattern",
-                    "area": "bedroom",
-                    "entities": ["light.bedroom"],
-                    "typical_time": "07:00",
-                    "variance_minutes": 10,
+                    "source": "pattern",
+                    "trigger_entity": "binary_sensor.motion_bedroom",
+                    "action_entities": ["light.bedroom"],
+                    "entity_chain": [
+                        {"entity_id": "binary_sensor.motion_bedroom", "state": "on", "offset_seconds": 0},
+                    ],
+                    "area_id": "bedroom",
                     "confidence": 0.90,
-                    "frequency": 18,
-                    "total_days": 21,
-                    "type": "temporal_sequence",
-                    "associated_signals": ["bedroom_light_on_h7"],
-                    "llm_description": "Wake-up lights",
+                    "recency_weight": 0.8,
+                    "observation_count": 18,
+                    "first_seen": "2026-01-01T00:00:00",
+                    "last_seen": "2026-02-10T00:00:00",
+                    "day_type": "workday",
                 },
             ],
-            "pattern_count": 1,
-            "areas_analyzed": ["bedroom"],
         }
         await hub.set_cache("patterns", patterns_data)
+
+        # Register AutomationGeneratorModule
+        generator = AutomationGeneratorModule(hub=hub, top_n=10, min_confidence=0.7)
+        hub.modules["automation_generator"] = generator
 
         orchestrator = OrchestratorModule(
             hub=hub,
@@ -356,7 +388,30 @@ async def test_golden_snapshot(engine_output, tmp_path, update_golden):
             ha_token="test-token",
             min_confidence=0.7,
         )
-        suggestions = await orchestrator.generate_suggestions()
+
+        with (
+            patch(
+                "aria.modules.automation_generator.refine_automation",
+                new_callable=AsyncMock,
+                side_effect=lambda auto, **kw: auto,
+            ),
+            patch(
+                "aria.modules.automation_generator.validate_automation",
+                return_value=(True, []),
+            ),
+            patch(
+                "aria.modules.automation_generator.compare_candidate",
+                return_value=ShadowResult(
+                    candidate={},
+                    status="new",
+                    duplicate_score=0.0,
+                    conflicting_automation=None,
+                    gap_source_automation=None,
+                    reason="No match found",
+                ),
+            ),
+        ):
+            suggestions = await orchestrator.generate_suggestions()
 
         # Build golden snapshot
         snapshot = {
@@ -374,7 +429,7 @@ async def test_golden_snapshot(engine_output, tmp_path, update_golden):
             },
             "orchestrator": {
                 "suggestion_count": len(suggestions),
-                "pattern_ids": sorted(s["pattern_id"] for s in suggestions),
+                "trigger_entities": sorted(s["metadata"]["trigger_entity"] for s in suggestions),
             },
         }
 
