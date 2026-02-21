@@ -108,3 +108,10 @@ Starting Batch 1: Foundation (Tasks 1-3)
 - PLR0913 noqa for __init__ (6 configurable params) and _build_pattern (decomposed helper).
 - Commit: 4ca819c
 - Suite: 1824 passed, 15 skipped, 0 failures
+
+## Batch 6: Gap Analyzer (Tasks 16-17) — COMPLETE
+- Task 16: Created aria/modules/anomaly_gap.py (AnomalyGapAnalyzer) — two detection modes: sequence mining (paired entity chains within time windows, counted across days) and solo toggles (single entity repeatedly toggled on N+ distinct days). Configurable window, min observations, confidence threshold. Exponential decay recency weighting. — 12 tests
+- Task 17: Added filter_covered_gaps() cross-reference method — builds trigger→action coverage map from HA automations, filters sequence gaps on trigger+action overlap, filters solo gaps when entity is already an action target. Handles list/dict/legacy entity_id formats in HA automation schema. — 6 tests
+- Fixed test assertions: solo toggle detection is independent of sequence pairing — tests correctly check only sequence results (chain > 1) when asserting window exclusion.
+- Commits: e70b5e7, 068b52e
+- Suite: 1842 passed, 15 skipped, 0 failures
