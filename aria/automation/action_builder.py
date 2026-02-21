@@ -131,10 +131,23 @@ def _all_entities_in_area(entities: list[str], area_entities: list[str]) -> bool
 
 
 def _get_area_entities(area_id: str | None, entity_graph: object) -> list[str]:
-    """Get entities in an area from the entity graph."""
+    """Get entity IDs in an area from the entity graph.
+
+    EntityGraph.entities_in_area returns list[dict] with 'entity_id' keys.
+    This helper extracts the string IDs.
+    """
     if not area_id:
         return []
     try:
-        return entity_graph.entities_in_area(area_id)  # type: ignore[union-attr]
+        raw = entity_graph.entities_in_area(area_id)  # type: ignore[union-attr]
+        result = []
+        for item in raw:
+            if isinstance(item, str):
+                result.append(item)
+            elif isinstance(item, dict):
+                eid = item.get("entity_id", "")
+                if eid:
+                    result.append(eid)
+        return result
     except Exception:
         return []

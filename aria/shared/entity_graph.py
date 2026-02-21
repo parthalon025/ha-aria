@@ -83,6 +83,10 @@ class EntityGraph:
         """Get all entities of a specific domain."""
         return [{**e, "entity_id": eid} for eid, e in self._entities.items() if eid.startswith(f"{domain}.")]
 
+    def has_entity(self, entity_id: str) -> bool:
+        """Check whether an entity exists in the graph."""
+        return entity_id in self._entities
+
     def all_areas(self) -> list[dict[str, Any]]:
         """Get all known areas."""
         return list(self._areas)

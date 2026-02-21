@@ -242,6 +242,7 @@ class CapabilityRegistry:
         else:
             # Static fallback — import module classes directly
             from aria.modules.activity_monitor import ActivityMonitor
+            from aria.modules.automation_generator import AutomationGeneratorModule
             from aria.modules.discovery import DiscoveryModule
             from aria.modules.intelligence import IntelligenceModule
             from aria.modules.ml_engine import MLEngine
@@ -256,6 +257,7 @@ class CapabilityRegistry:
                 MLEngine,
                 PatternRecognition,
                 TrajectoryClassifier,
+                AutomationGeneratorModule,
                 OrchestratorModule,
                 ShadowEngine,
                 IntelligenceModule,
