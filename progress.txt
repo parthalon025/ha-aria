@@ -99,3 +99,12 @@ Starting Batch 1: Foundation (Tasks 1-3)
 - Refactored co_occurrence.py to satisfy ruff complexity limits (extracted 8 helper functions from main algorithm).
 - Commits: 5fd26b9, 9f436aa
 - Suite: 1797 passed, 15 skipped, 0 failures
+
+## Batch 5: Pattern Engine Rewrite (Tasks 13-15) — COMPLETE
+- Task 13: Rewrote aria/modules/patterns.py — replaced logbook file reading with EventStore queries (area_event_summary → query_by_area). Removed log_dir parameter, _parse_snapshot_to_sequences, _parse_events_to_sequences, _extract_area_from_name. Added EntityGraph integration for area resolution. Preserved DTW clustering and Apriori association rule algorithms.
+- Task 14: Added per-day-type pattern detection — events segmented by workday/weekend via _classify_day_simple(), _build_daily_sequences(). Each pattern tagged with day_type. Vacation days excluded. Analysis runs separately per (area, day_type) segment.
+- Task 15: Added enriched output fields — entity_chain (most common event ordering), trigger_entity (first in chain), first_seen/last_seen (temporal bounds), source_event_count. Added periodic scheduling via hub.schedule_task() with configurable interval from patterns.analysis_interval config.
+- Rewrote tests/hub/test_patterns.py (35 tests) and tests/integration/known_answer/test_patterns_ka.py (3 tests) for EventStore-based architecture. Updated golden snapshot.
+- PLR0913 noqa for __init__ (6 configurable params) and _build_pattern (decomposed helper).
+- Commit: 4ca819c
+- Suite: 1824 passed, 15 skipped, 0 failures
