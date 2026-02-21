@@ -3266,6 +3266,354 @@ CONFIG_DEFAULTS: list[dict[str, Any]] = [
         "max_value": 180,
         "step": 10,
     },
+    # ── I&W Framework ─────────────────────────────────────────────────────────
+    {
+        "key": "iw.discovery_interval_hours",
+        "default_value": "6",
+        "value_type": "number",
+        "label": "I&W Discovery Interval (hours)",
+        "description": "How often ARIA runs behavioral state discovery.",
+        "description_layman": (
+            "How many hours between each round of pattern discovery."
+            " Lower values find new routines faster; higher values use"
+            " fewer system resources."
+        ),
+        "description_technical": (
+            "Interval in hours between I&W discovery cycles."
+            " Range 1-24, default 6. Each cycle scans recent history"
+            " for candidate behavioral states and updates lifecycle stages."
+        ),
+        "category": "I&W Framework",
+        "min_value": 1,
+        "max_value": 24,
+    },
+    {
+        "key": "iw.min_discovery_confidence",
+        "default_value": "0.60",
+        "value_type": "number",
+        "label": "I&W Min Discovery Confidence",
+        "description": "Minimum confidence score for a candidate behavioral state to be seeded.",
+        "description_layman": (
+            "How confident ARIA must be before saving a new pattern."
+            " Higher values mean fewer but more reliable patterns."
+        ),
+        "description_technical": (
+            "Minimum composite confidence threshold (0.3-0.95, default 0.60)"
+            " for a candidate to enter the seed lifecycle. Below this,"
+            " candidates are discarded without being stored."
+        ),
+        "category": "I&W Framework",
+        "min_value": 0.3,
+        "max_value": 0.95,
+    },
+    {
+        "key": "iw.min_match_ratio",
+        "default_value": "0.50",
+        "value_type": "number",
+        "label": "I&W Min Match Ratio",
+        "description": "Minimum fraction of confirming indicators that must match to count an observation.",
+        "description_layman": (
+            "What fraction of expected signals must appear for ARIA to"
+            " consider a routine as 'happening'. Lower values are more"
+            " lenient; higher values are stricter."
+        ),
+        "description_technical": (
+            "Threshold for ActiveState.match_ratio (0.2-0.9, default 0.50)."
+            " Observations with match_ratio below this are not counted"
+            " toward consistency or observation_count."
+        ),
+        "category": "I&W Framework",
+        "min_value": 0.2,
+        "max_value": 0.9,
+    },
+    {
+        "key": "iw.min_observations_seed",
+        "default_value": "3",
+        "value_type": "number",
+        "label": "I&W Seed Min Observations",
+        "description": "Observations required before a seed state can advance.",
+        "description_layman": ("How many times ARIA must see a pattern before it leaves the 'newly discovered' stage."),
+        "description_technical": ("Minimum observation_count for seed→emerging promotion. Range 1-10, default 3."),
+        "category": "I&W Framework",
+        "min_value": 1,
+        "max_value": 10,
+    },
+    {
+        "key": "iw.min_observations_emerging",
+        "default_value": "7",
+        "value_type": "number",
+        "label": "I&W Emerging Min Observations",
+        "description": "Observations required to advance from emerging to confirmed.",
+        "description_layman": (
+            "How many times ARIA must observe a pattern before it is considered 'confirmed' as a real routine."
+        ),
+        "description_technical": ("Minimum observation_count for emerging→confirmed promotion. Range 3-20, default 7."),
+        "category": "I&W Framework",
+        "min_value": 3,
+        "max_value": 20,
+    },
+    {
+        "key": "iw.min_consistency_emerging",
+        "default_value": "0.60",
+        "value_type": "number",
+        "label": "I&W Emerging Min Consistency",
+        "description": "Minimum average match ratio required for emerging promotion.",
+        "description_layman": (
+            "How reliably a pattern must repeat before ARIA confirms it."
+            " Higher values mean only very regular patterns are confirmed."
+        ),
+        "description_technical": (
+            "Minimum consistency (running average of match_ratio) for"
+            " emerging→confirmed promotion. Range 0.3-0.9, default 0.60."
+        ),
+        "category": "I&W Framework",
+        "min_value": 0.3,
+        "max_value": 0.9,
+    },
+    {
+        "key": "iw.min_observations_confirmed",
+        "default_value": "15",
+        "value_type": "number",
+        "label": "I&W Confirmed Min Observations",
+        "description": "Observations required to advance from confirmed to mature.",
+        "description_layman": (
+            "How many total sightings a routine needs before ARIA treats it as a deeply established habit."
+        ),
+        "description_technical": ("Minimum observation_count for confirmed→mature promotion. Range 7-50, default 15."),
+        "category": "I&W Framework",
+        "min_value": 7,
+        "max_value": 50,
+    },
+    {
+        "key": "iw.min_consistency_confirmed",
+        "default_value": "0.70",
+        "value_type": "number",
+        "label": "I&W Confirmed Min Consistency",
+        "description": "Minimum average match ratio required for mature promotion.",
+        "description_layman": (
+            "How reliably a confirmed pattern must repeat before it becomes a 'mature' routine that ARIA fully trusts."
+        ),
+        "description_technical": ("Minimum consistency for confirmed→mature promotion. Range 0.4-0.95, default 0.70."),
+        "category": "I&W Framework",
+        "min_value": 0.4,
+        "max_value": 0.95,
+    },
+    {
+        "key": "iw.min_observations_mature",
+        "default_value": "30",
+        "value_type": "number",
+        "label": "I&W Mature Min Observations",
+        "description": "Total observations required to reach the mature lifecycle stage.",
+        "description_layman": (
+            "The milestone at which ARIA considers a routine fully mature"
+            " and stable enough for high-confidence automation suggestions."
+        ),
+        "description_technical": (
+            "Minimum observation_count for confirmed→mature promotion. Range 15-100, default 30."
+        ),
+        "category": "I&W Framework",
+        "min_value": 15,
+        "max_value": 100,
+    },
+    {
+        "key": "iw.min_consistency_mature",
+        "default_value": "0.80",
+        "value_type": "number",
+        "label": "I&W Mature Min Consistency",
+        "description": "Minimum average match ratio required to reach the mature stage.",
+        "description_layman": (
+            "How consistently a pattern must occur to be fully trusted."
+            " Only the most reliable routines reach this stage."
+        ),
+        "description_technical": (
+            "Minimum consistency for a state to be classified as mature. Range 0.5-0.98, default 0.80."
+        ),
+        "category": "I&W Framework",
+        "min_value": 0.5,
+        "max_value": 0.98,
+    },
+    {
+        "key": "iw.min_density_emerging",
+        "default_value": "0.3",
+        "value_type": "number",
+        "label": "I&W Emerging Min Density",
+        "description": "Minimum observation density (observations per eligible day) for emerging promotion.",
+        "description_layman": (
+            "How often a pattern must appear relative to how often it"
+            " could appear. Prevents rare events from being called routines."
+        ),
+        "description_technical": (
+            "Observations per eligible day threshold for emerging promotion."
+            " Range 0.1-1.0, default 0.3. At 0.3: must appear at least"
+            " 3 out of every 10 eligible days."
+        ),
+        "category": "I&W Framework",
+        "min_value": 0.1,
+        "max_value": 1.0,
+    },
+    {
+        "key": "iw.min_density_confirmed",
+        "default_value": "0.5",
+        "value_type": "number",
+        "label": "I&W Confirmed Min Density",
+        "description": "Minimum observation density required for confirmed promotion.",
+        "description_layman": (
+            "How regularly a confirmed pattern must keep appearing to"
+            " stay confirmed. Below this, it risks going dormant."
+        ),
+        "description_technical": (
+            "Observations per eligible day threshold for confirmed→mature."
+            " Range 0.2-1.0, default 0.5. At 0.5: must appear at least"
+            " every other eligible day."
+        ),
+        "category": "I&W Framework",
+        "min_value": 0.2,
+        "max_value": 1.0,
+    },
+    {
+        "key": "iw.dormant_days",
+        "default_value": "30",
+        "value_type": "number",
+        "label": "I&W Dormant Threshold (days)",
+        "description": "Days without observation before a state transitions to dormant.",
+        "description_layman": (
+            "How long a routine can go unobserved before ARIA marks it"
+            " as inactive. Helps detect seasonal or changing habits."
+        ),
+        "description_technical": (
+            "If last_seen is more than this many days ago, the state transitions to dormant. Range 7-90, default 30."
+        ),
+        "category": "I&W Framework",
+        "min_value": 7,
+        "max_value": 90,
+    },
+    {
+        "key": "iw.retired_days",
+        "default_value": "90",
+        "value_type": "number",
+        "label": "I&W Retired Threshold (days)",
+        "description": "Days without observation before a dormant state is retired.",
+        "description_layman": (
+            "How long an inactive routine stays in memory before ARIA permanently stops tracking it."
+        ),
+        "description_technical": (
+            "If last_seen is more than this many days ago and state is"
+            " dormant, transition to retired. Range 30-365, default 90."
+        ),
+        "category": "I&W Framework",
+        "min_value": 30,
+        "max_value": 365,
+    },
+    {
+        "key": "iw.max_composites",
+        "default_value": "20",
+        "value_type": "number",
+        "label": "I&W Max Composite States",
+        "description": "Maximum number of composite behavioral states ARIA will maintain.",
+        "description_layman": (
+            "Composite routines combine simpler patterns into larger ones"
+            " (e.g. 'morning routine'). This caps how many ARIA tracks."
+        ),
+        "description_technical": (
+            "Hard cap on composite BSD count. Composites with lowest"
+            " observation_count are pruned when limit is exceeded."
+            " Range 5-50, default 20."
+        ),
+        "category": "I&W Framework",
+        "min_value": 5,
+        "max_value": 50,
+    },
+    {
+        "key": "iw.backtest_days",
+        "default_value": "90",
+        "value_type": "number",
+        "label": "I&W Backtest Window (days)",
+        "description": "Days of history used for behavioral state backtesting.",
+        "description_layman": (
+            "How far back ARIA looks when testing whether a pattern is"
+            " genuinely reliable before suggesting automations."
+        ),
+        "description_technical": (
+            "History window for backtest evaluation. Range 30-365,"
+            " default 90. Larger windows require more memory and CPU."
+        ),
+        "category": "I&W Framework",
+        "min_value": 30,
+        "max_value": 365,
+    },
+    {
+        "key": "iw.backtest_holdout_ratio",
+        "default_value": "0.30",
+        "value_type": "number",
+        "label": "I&W Backtest Holdout Ratio",
+        "description": "Fraction of backtest data reserved for validation (not used in training).",
+        "description_layman": (
+            "Portion of history ARIA sets aside to test its predictions"
+            " objectively. A larger holdout gives more honest accuracy estimates."
+        ),
+        "description_technical": (
+            "Train/test split holdout fraction. Range 0.15-0.40, default 0.30. Applied to the backtest_days window."
+        ),
+        "category": "I&W Framework",
+        "min_value": 0.15,
+        "max_value": 0.40,
+    },
+    {
+        "key": "iw.backtest_min_f1",
+        "default_value": "0.65",
+        "value_type": "number",
+        "label": "I&W Backtest Min F1 Score",
+        "description": "Minimum F1 score on holdout data required to pass backtest.",
+        "description_layman": (
+            "The accuracy bar a pattern must clear before ARIA will"
+            " suggest it for automation. Higher values are more selective."
+        ),
+        "description_technical": (
+            "Minimum F1 score (harmonic mean of precision/recall) on"
+            " holdout set for backtest_result.passed=True."
+            " Range 0.4-0.9, default 0.65."
+        ),
+        "category": "I&W Framework",
+        "min_value": 0.4,
+        "max_value": 0.9,
+    },
+    {
+        "key": "iw.detector_window_seconds",
+        "default_value": "60",
+        "value_type": "number",
+        "label": "I&W Detector Window (seconds)",
+        "description": "Time window in which confirming indicators must arrive after the trigger.",
+        "description_layman": (
+            "How many seconds after a trigger event ARIA waits for"
+            " other expected signals to confirm a routine is happening."
+        ),
+        "description_technical": (
+            "ActiveState window duration. Confirming indicators not"
+            " observed within this window are counted as pending (missed)."
+            " Range 30-300, default 60."
+        ),
+        "category": "I&W Framework",
+        "min_value": 30,
+        "max_value": 300,
+    },
+    {
+        "key": "iw.cold_start_replay_minutes",
+        "default_value": "60",
+        "value_type": "number",
+        "label": "I&W Cold-Start Replay (minutes)",
+        "description": "Minutes of recent state history replayed on startup to seed active detectors.",
+        "description_layman": (
+            "When ARIA restarts, how far back it looks to catch up on events that happened while it was offline."
+        ),
+        "description_technical": (
+            "On initialize(), the detector replays the last N minutes of"
+            " HA state history to hydrate ActiveState windows and avoid"
+            " cold-start blind spots. Range 15-180, default 60."
+        ),
+        "category": "I&W Framework",
+        "min_value": 15,
+        "max_value": 180,
+    },
 ]
 
 
