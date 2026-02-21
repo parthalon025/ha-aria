@@ -91,3 +91,11 @@ Starting Batch 1: Foundation (Tasks 1-3)
 - Task 9: Added segment_by_day_type() to EventNormalizer — splits events into day-type pools, vacation excluded — 7 tests
 - Commits: 065dee3, b2b354b, 7019f0a
 - Suite: 1775 passed, 15 skipped, 0 failures
+
+## Batch 4: Normalizer Advanced (Tasks 10-12) — COMPLETE
+- Task 10: Created aria/shared/co_occurrence.py (find_co_occurring_sets) — order-independent entity set clustering within time windows, pair→merge algorithm, BehavioralCluster dataclass — 8 tests
+- Task 11: Added compute_adaptive_window() to co_occurrence.py — median ± 2σ time-of-day, skip_time_condition flag — 6 tests
+- Task 12: Created aria/shared/environmental_correlator.py (correlate_with_environment) — Pearson r for sun position and illuminance time correlation, MIN_DATA_POINTS=3 — 8 tests. Fixed test: illuminance uses time-of-day correlation (not value correlation).
+- Refactored co_occurrence.py to satisfy ruff complexity limits (extracted 8 helper functions from main algorithm).
+- Commits: 5fd26b9, 9f436aa
+- Suite: 1797 passed, 15 skipped, 0 failures
