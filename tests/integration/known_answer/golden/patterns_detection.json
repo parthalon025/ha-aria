@@ -1,52 +1,65 @@
 {
   "patterns": [
     {
-      "pattern_id": "bedroom_cluster_1",
+      "pattern_id": "bedroom_workday_cluster_1",
       "area": "bedroom",
+      "day_type": "workday",
       "typical_time": "21:57",
       "frequency": 2,
       "confidence": 0.5,
       "associated_signals": [
-        "bedroom_light_off_h22",
-        "bedroom_light_on_h22"
+        "light_off_h22",
+        "light_on_h22"
       ],
-      "llm_description": "Morning routine"
+      "llm_description": "Morning routine",
+      "has_entity_chain": true,
+      "has_trigger_entity": true
     },
     {
-      "pattern_id": "bedroom_cluster_2",
+      "pattern_id": "bedroom_workday_cluster_2",
       "area": "bedroom",
+      "day_type": "workday",
       "typical_time": "22:07",
       "frequency": 2,
       "confidence": 0.5,
       "associated_signals": [
-        "bedroom_light_off_h22",
-        "bedroom_light_on_h22"
+        "light_off_h22",
+        "light_on_h22"
       ],
-      "llm_description": "Morning routine"
+      "llm_description": "Morning routine",
+      "has_entity_chain": true,
+      "has_trigger_entity": true
     },
     {
-      "pattern_id": "kitchen_cluster_1",
+      "pattern_id": "kitchen_workday_cluster_1",
       "area": "kitchen",
+      "day_type": "workday",
       "typical_time": "07:00",
       "frequency": 3,
       "confidence": 0.75,
       "associated_signals": [
-        "kitchen_light_on_h7",
-        "kitchen_motion_on_h7"
+        "binary_sensor_on_h7",
+        "light_on_h7",
+        "switch_on_h7"
       ],
-      "llm_description": "Morning routine"
+      "llm_description": "Morning routine",
+      "has_entity_chain": true,
+      "has_trigger_entity": true
     },
     {
-      "pattern_id": "living_cluster_1",
-      "area": "living",
+      "pattern_id": "living_room_workday_cluster_1",
+      "area": "living_room",
+      "day_type": "workday",
       "typical_time": "18:28",
       "frequency": 3,
       "confidence": 0.75,
       "associated_signals": [
-        "living_light_off_h23",
-        "living_light_on_h18"
+        "light_off_h23",
+        "light_on_h18"
       ],
-      "llm_description": "Morning routine"
+      "llm_description": "Morning routine",
+      "has_entity_chain": true,
+      "has_trigger_entity": true
     }
   ],
   "pattern_count": 4
