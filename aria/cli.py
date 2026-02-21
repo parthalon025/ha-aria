@@ -45,6 +45,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_watchdog_parser(subparsers)
     _add_capabilities_parser(subparsers)
     _add_audit_parser(subparsers)
+    _add_automation_parsers(subparsers)
 
     return parser
 
@@ -151,6 +152,35 @@ def _add_audit_parser(subparsers):
     tail_parser.add_argument("--severity-min", default="info")
 
 
+def _add_automation_parsers(subparsers):
+    """Add automation pipeline subcommand parsers."""
+    # aria patterns — show detected patterns
+    pat_parser = subparsers.add_parser("patterns", help="Show detected behavioral patterns")
+    pat_parser.add_argument("--json", action="store_true", dest="json_output", help="Output as JSON")
+    pat_parser.add_argument("--limit", type=int, default=20, help="Max patterns to show")
+
+    # aria gaps — show detected automation gaps
+    gap_parser = subparsers.add_parser("gaps", help="Show detected automation gaps")
+    gap_parser.add_argument("--json", action="store_true", dest="json_output", help="Output as JSON")
+    gap_parser.add_argument("--limit", type=int, default=20, help="Max gaps to show")
+
+    # aria suggest — show current suggestions
+    sug_parser = subparsers.add_parser("suggest", help="Show automation suggestions")
+    sug_parser.add_argument("--json", action="store_true", dest="json_output", help="Output as JSON")
+    sug_parser.add_argument("--status", choices=["pending", "approved", "rejected"], help="Filter by status")
+
+    # aria shadow — shadow comparison subcommands
+    shadow_parser = subparsers.add_parser("shadow", help="Shadow comparison commands")
+    shadow_sub = shadow_parser.add_subparsers(dest="shadow_command")
+    shadow_sub.add_parser("sync", help="Trigger HA automation sync")
+    shadow_sub.add_parser("status", help="Show shadow comparison status")
+    shadow_sub.add_parser("compare", help="Compare suggestions vs HA automations")
+
+    # aria rollback — rollback last suggestion action
+    rb_parser = subparsers.add_parser("rollback", help="Rollback automation actions")
+    rb_parser.add_argument("--last", action="store_true", help="Rollback the last approved suggestion")
+
+
 def main():
     parser = _build_parser()
     args = parser.parse_args()
@@ -200,6 +230,16 @@ def _dispatch(args):
         _watchdog(args)
     elif args.command == "audit":
         _audit(args)
+    elif args.command == "patterns":
+        _patterns(args)
+    elif args.command == "gaps":
+        _gaps(args)
+    elif args.command == "suggest":
+        _suggest(args)
+    elif args.command == "shadow":
+        _shadow(args)
+    elif args.command == "rollback":
+        _rollback(args)
     else:
         print(f"Unknown command: {args.command}")
         sys.exit(1)
@@ -987,6 +1027,255 @@ def _print_audit_results(results, json_output: bool = False):
         print(" | ".join(vals))
     if len(keys) > 5:
         print(f"\n({len(keys) - 5} more columns not shown. Use --json for full output.)")
+
+
+def _hub_api_get(path: str) -> dict | None:
+    """GET a JSON endpoint from the running hub. Returns None on failure."""
+    import json
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:8001{path}", method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        return None
+
+
+def _hub_api_post(path: str) -> dict | None:
+    """POST to a JSON endpoint on the running hub. Returns None on failure."""
+    import json
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:8001{path}", method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        return None
+
+
+def _hub_api_delete(path: str) -> dict | None:
+    """DELETE a JSON endpoint on the running hub. Returns None on failure."""
+    import json
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:8001{path}", method="DELETE")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        return None
+
+
+def _patterns(args):
+    """Show detected behavioral patterns from the hub cache."""
+    import json
+
+    data = _hub_api_get("/api/cache/patterns")
+    if not data:
+        print("No pattern data available. Is the hub running?")
+        sys.exit(1)
+
+    patterns_data = data.get("data", data)
+    detections = patterns_data.get("detections", [])
+
+    if args.json_output:
+        print(json.dumps(detections[: args.limit], indent=2))
+        return
+
+    if not detections:
+        print("No patterns detected yet.")
+        return
+
+    print(f"Detected Patterns ({min(len(detections), args.limit)} of {len(detections)})")
+    print("=" * 60)
+    for det in detections[: args.limit]:
+        trigger = det.get("trigger_entity", "?")
+        confidence = det.get("confidence", 0)
+        source = det.get("source", "?")
+        count = det.get("observation_count", 0)
+        print(f"  {trigger:<40} conf={confidence:.2f}  src={source}  obs={count}")
+
+
+def _gaps(args):
+    """Show detected automation gaps from the hub cache."""
+    import json
+
+    data = _hub_api_get("/api/cache/gaps")
+    if not data:
+        print("No gap data available. Is the hub running?")
+        sys.exit(1)
+
+    gaps_data = data.get("data", data)
+    detections = gaps_data.get("detections", [])
+
+    if args.json_output:
+        print(json.dumps(detections[: args.limit], indent=2))
+        return
+
+    if not detections:
+        print("No automation gaps detected yet.")
+        return
+
+    print(f"Detected Gaps ({min(len(detections), args.limit)} of {len(detections)})")
+    print("=" * 60)
+    for det in detections[: args.limit]:
+        trigger = det.get("trigger_entity", "?")
+        confidence = det.get("confidence", 0)
+        area = det.get("area_id", "?")
+        print(f"  {trigger:<40} conf={confidence:.2f}  area={area}")
+
+
+def _suggest(args):
+    """Show automation suggestions from the hub cache."""
+    import json
+
+    data = _hub_api_get("/api/cache/automation_suggestions")
+    if not data:
+        print("No suggestion data available. Is the hub running?")
+        sys.exit(1)
+
+    sug_data = data.get("data", data)
+    suggestions = sug_data.get("suggestions", [])
+
+    if args.status:
+        suggestions = [s for s in suggestions if s.get("status") == args.status]
+
+    if args.json_output:
+        print(json.dumps(suggestions, indent=2))
+        return
+
+    if not suggestions:
+        print("No suggestions available.")
+        return
+
+    print(f"Automation Suggestions ({len(suggestions)})")
+    print("=" * 70)
+    for s in suggestions:
+        sid = s.get("suggestion_id", "?")[:12]
+        trigger = s.get("metadata", {}).get("trigger_entity", "?")
+        score = s.get("combined_score", 0)
+        status = s.get("status", "?")
+        shadow = s.get("shadow_status", "?")
+        print(f"  [{sid}] {trigger:<35} score={score:.2f}  {status:<10} shadow={shadow}")
+
+
+def _shadow(args):
+    """Handle shadow subcommands."""
+    cmd = getattr(args, "shadow_command", None)
+
+    if cmd == "sync":
+        _shadow_sync()
+    elif cmd == "status":
+        _shadow_status()
+    elif cmd == "compare":
+        _shadow_compare()
+    else:
+        print("Usage: aria shadow {sync|status|compare}")
+        sys.exit(1)
+
+
+def _shadow_sync():
+    """Trigger HA automation sync via the API."""
+    print("Syncing HA automations...")
+    result = _hub_api_post("/api/shadow/sync")
+    if not result:
+        print("Sync failed. Is the hub running?")
+        sys.exit(1)
+
+    if result.get("success"):
+        count = result.get("count", 0)
+        changes = result.get("changes", 0)
+        print(f"Sync complete: {count} automations fetched, {changes} changed")
+    else:
+        print(f"Sync failed: {result.get('error', 'unknown error')}")
+        sys.exit(1)
+
+
+def _shadow_status():
+    """Show shadow comparison status."""
+
+    data = _hub_api_get("/api/shadow/status")
+    if not data:
+        print("Cannot get shadow status. Is the hub running?")
+        sys.exit(1)
+
+    print("Shadow Comparison Status")
+    print("=" * 40)
+    print(f"  HA automations:    {data.get('ha_automations_count', 0)}")
+    print(f"  Last synced:       {data.get('ha_automations_last_synced', 'never')}")
+    print(f"  Suggestions:       {data.get('suggestions_count', 0)}")
+    print(f"  Last generated:    {data.get('suggestions_last_generated', 'never')}")
+    print(f"  Pipeline stage:    {data.get('pipeline_stage', '?')}")
+
+
+def _shadow_compare():
+    """Show shadow comparison results."""
+
+    data = _hub_api_get("/api/shadow/compare")
+    if not data:
+        print("Cannot get comparison data. Is the hub running?")
+        sys.exit(1)
+
+    comparisons = data.get("comparisons", [])
+    if not comparisons:
+        print("No comparisons available.")
+        return
+
+    print(f"Shadow Comparison ({len(comparisons)} suggestions vs {data.get('total_ha_automations', 0)} HA automations)")
+    print("=" * 70)
+    for c in comparisons:
+        trigger = c.get("trigger_entity", "?")
+        shadow = c.get("shadow_status", "?")
+        reason = c.get("shadow_reason", "")
+        print(f"  {trigger:<35} {shadow:<12} {reason}")
+
+    counts = data.get("status_counts", {})
+    if counts:
+        print(f"\nSummary: {', '.join(f'{k}={v}' for k, v in counts.items())}")
+
+
+def _rollback(args):
+    """Rollback the last approved suggestion."""
+
+    if not args.last:
+        print("Usage: aria rollback --last")
+        sys.exit(1)
+
+    # Get suggestions and find the most recently approved one
+    data = _hub_api_get("/api/cache/automation_suggestions")
+    if not data:
+        print("No suggestion data available. Is the hub running?")
+        sys.exit(1)
+
+    sug_data = data.get("data", data)
+    suggestions = sug_data.get("suggestions", [])
+    approved = [s for s in suggestions if s.get("status") == "approved"]
+
+    if not approved:
+        print("No approved suggestions to rollback.")
+        sys.exit(1)
+
+    # Sort by created_at descending, take the most recent
+    approved.sort(key=lambda s: s.get("created_at", ""), reverse=True)
+    target = approved[0]
+    sid = target.get("suggestion_id", "?")
+    trigger = target.get("metadata", {}).get("trigger_entity", "?")
+
+    # Delete it via the API
+    result = _hub_api_delete(f"/api/automations/{sid}")
+    if not result:
+        print(f"Failed to rollback suggestion {sid}")
+        sys.exit(1)
+
+    if result.get("status") == "deleted":
+        print(f"Rolled back suggestion {sid[:12]} ({trigger})")
+        print(f"  Remaining suggestions: {result.get('remaining', '?')}")
+    else:
+        print(f"Unexpected response: {result}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
