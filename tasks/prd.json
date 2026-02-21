@@ -1,84 +1,112 @@
 {
-  "feature": "Phase 1: Event Store + Entity Graph",
-  "design_doc": "docs/plans/2026-02-20-aria-roadmap-2-design.md",
-  "created": "2026-02-20",
+  "feature": "Phase 4: I&W Framework + Organic Capabilities + Synthetic Testing",
+  "design_doc": "docs/plans/2026-02-21-phase4-iw-framework-design.md",
+  "created": "2026-02-21",
   "tasks": [
     {
-      "id": "P1-01",
-      "title": "EventStore class with SQLite schema",
-      "description": "Create aria/shared/event_store.py with SQLite WAL-mode database, state_change_events table, and indexes.",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -c \"from aria.shared.event_store import EventStore; print('import ok')\"",
-      "passes": true
+      "id": "P4-01",
+      "title": "Data models — Indicator, BehavioralStateDefinition, BehavioralStateTracker, ActiveState",
+      "description": "Create aria/iw/models.py with frozen Indicator (3 modes: state_change, quiet_period, threshold), frozen BehavioralStateDefinition (trigger, preconditions, confirming, deviations, composite_of), mutable BehavioralStateTracker (lifecycle, observations, backtest_result, automation linkage), and ActiveState (match tracking with match_ratio property). All with JSON serialization/deserialization.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_models.py -v --timeout=30 -q",
+      "passes": false
     },
     {
-      "id": "P1-02",
-      "title": "EventStore write and read methods",
-      "description": "Add insert_event(), query_events(start, end), query_by_entity(entity_id, start, end), query_by_area(area_id, start, end), query_by_domain(domain, start, end), count_events(start, end).",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/shared/test_event_store.py -v --timeout=30 -q",
-      "passes": true
+      "id": "P4-02",
+      "title": "Hub.db schema — behavioral_state_definitions, behavioral_state_trackers, state_co_activations tables",
+      "description": "Add three tables to hub.db via hub core initialization. definitions table stores JSON-serialized indicator chains. trackers table stores lifecycle state and observation stats. co_activations table tracks pairwise state co-occurrence counts. Include CRUD methods on a BehavioralStateStore class.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_store.py -v --timeout=30 -q",
+      "passes": false
     },
     {
-      "id": "P1-03",
-      "title": "EventStore retention and pruning",
-      "description": "Add prune_before(cutoff_date) method. Configurable retention via hub config key 'events.retention_days' (default 90).",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/shared/test_event_store.py::test_prune_events -v --timeout=30 -q",
-      "passes": true
+      "id": "P4-03",
+      "title": "Config entries — 20 iw.* settings with layman/technical descriptions",
+      "description": "Add all 20 iw.* config entries to config_defaults.py with proper categories, ranges, and dual descriptions. Entries: discovery_interval_hours, min_discovery_confidence, min_match_ratio, min_observations_seed/emerging/confirmed/mature, min_consistency_emerging/confirmed/mature, min_density_emerging/confirmed, dormant_days, retired_days, max_composites, backtest_days, backtest_holdout_ratio, backtest_min_f1, detector_window_seconds, cold_start_replay_minutes.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -c \"from aria.hub.config_defaults import CONFIG_DEFAULTS; iw = [c for c in CONFIG_DEFAULTS if c['key'].startswith('iw.')]; assert len(iw) >= 20, f'Only {len(iw)} iw config entries'; print(f'{len(iw)} iw config entries OK')\"",
+      "passes": false
     },
     {
-      "id": "P1-04",
-      "title": "EntityGraph class with resolution methods",
-      "description": "Create aria/shared/entity_graph.py with get_area(entity_id), get_device(entity_id), entities_in_area(area_id), entities_by_domain(domain). Reads from discovery cache.",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/shared/test_entity_graph.py -v --timeout=30 -q",
-      "passes": true
+      "id": "P4-04",
+      "title": "Discovery engine — sequence mining + indicator chain construction + dedup/merge",
+      "description": "Create aria/iw/discovery.py with DiscoveryEngine class. Stage 1: consume patterns.py detect_patterns() + anomaly_gap.py analyze_gaps() output. Stage 2: construct indicator chains (trigger, confirming with adaptive windows from co_occurrence, preconditions with quiet_period detection, deviations). Stage 3: deduplicate against existing definitions using 60% indicator overlap threshold. Deterministic IDs.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_discovery.py -v --timeout=60 -q",
+      "passes": false
     },
     {
-      "id": "P1-05",
-      "title": "Wire EntityGraph into hub core",
-      "description": "IntelligenceHub creates and holds an EntityGraph instance. EntityGraph refreshes on cache_updated events for entities/devices/areas.",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_hub_entity_graph.py -v --timeout=30 -q",
-      "passes": true
+      "id": "P4-05",
+      "title": "Real-time detector — event subscriber with entity-indexed O(1) lookup and ActiveState tracking",
+      "description": "Create aria/iw/detector.py as a hub Module. Subscribes to state_changed with domain filtering. Maintains entity_index for O(1) per-event lookup. Tracks ActiveStates in memory. Records observations when match_ratio exceeds threshold at window expiry. Handles person state transitions (terminates person-attributed ActiveStates on departure). Timer-based expiry check (configurable interval).",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_detector.py -v --timeout=60 -q",
+      "passes": false
     },
     {
-      "id": "P1-06",
-      "title": "Wire EventStore into hub core",
-      "description": "IntelligenceHub creates and holds an EventStore instance. EventStore initialized on hub startup, closed on shutdown.",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_hub_event_store.py -v --timeout=30 -q",
-      "passes": true
+      "id": "P4-06",
+      "title": "Detector cold-start replay from EventStore",
+      "description": "On detector initialize(), replay last N minutes (iw.cold_start_replay_minutes) of EventStore through the detection pipeline to reconstruct in-progress ActiveStates. Handles empty EventStore gracefully.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_detector.py -k cold_start -v --timeout=30 -q",
+      "passes": false
     },
     {
-      "id": "P1-07",
-      "title": "Activity monitor persists events to EventStore",
-      "description": "In _handle_state_changed(), after building the event dict, also write to hub.event_store.insert_event() with resolved device_id and area_id from hub.entity_graph.",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_activity_event_persistence.py -v --timeout=30 -q",
-      "passes": true
+      "id": "P4-07",
+      "title": "Lifecycle manager — promotion, demotion, observation density, vacation exclusion",
+      "description": "Create aria/iw/lifecycle.py with LifecycleManager class. Promotion rules with observation count + consistency + density checks. Demotion rules with vacation-aware dormancy (uses day_classifier). Automation rejection feedback loop (first rejection: +10% threshold, second: demote to seed). Lifecycle history tracking.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_lifecycle.py -v --timeout=30 -q",
+      "passes": false
     },
     {
-      "id": "P1-08",
-      "title": "EventStore pruning timer in hub",
-      "description": "Hub schedules daily pruning task that calls event_store.prune_before() using retention_days from config.",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_hub_event_store.py::test_pruning_timer -v --timeout=30 -q",
-      "passes": true
+      "id": "P4-08",
+      "title": "Backtest engine — historical replay, holdout validation, counterfactual test",
+      "description": "Create aria/iw/backtest.py with BacktestEngine class. Three test types: (1) historical replay with manual actions as proxy ground truth from gap analyzer, computing precision/recall/F1; (2) stratified holdout validation by day_type with drift scoring; (3) counterfactual test using Phase 3 template engine to simulate automation outcomes. Adaptive F1 threshold (max of 0.65 and consistency-0.10). All three must pass for emerging→confirmed gate.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_backtest.py -v --timeout=60 -q",
+      "passes": false
     },
     {
-      "id": "P1-09",
-      "title": "EventStore query API endpoints",
-      "description": "Add GET /api/events?start=&end=&entity_id=&area_id=&domain=&limit= to hub API. Returns JSON array of events.",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/hub/test_api_events.py -v --timeout=30 -q",
-      "passes": true
+      "id": "P4-09",
+      "title": "Composite state detection — co-activation tracking + ordered clustering",
+      "description": "Create aria/iw/composite.py with CompositeDetector class. Tracks co-activations after each observation. Uses co_occurrence.find_co_occurring_sets() on state activation events. Proposes composites when co-activation ≥ 5 and rate ≥ 60%. Runs discovery on activation events for ordering. Max 20 composites with LRU pruning. Composites enter lifecycle at seed.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_composite.py -v --timeout=30 -q",
+      "passes": false
     },
     {
-      "id": "P1-10",
-      "title": "Integration test: full event flow",
-      "description": "End-to-end test: simulate state_changed via activity_monitor -> verify event persisted in EventStore -> verify queryable via API -> verify EntityGraph resolves area correctly.",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/integration/test_event_flow.py -v --timeout=60 -q",
-      "passes": true
+      "id": "P4-10",
+      "title": "Synthetic event simulator — pattern injection with Gaussian jitter and noise profiles",
+      "description": "Create aria/iw/synthetic.py with EventSimulator class. inject_pattern() generates events with configurable consistency, Gaussian timing jitter, and three noise profiles (random, periodic, bursty). Writes to temporary SQLite. Known-answer design: injected patterns at known confidence should be discoverable.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_synthetic.py -v --timeout=30 -q",
+      "passes": false
     },
     {
-      "id": "P1-11",
-      "title": "Existing test suite passes",
-      "description": "All existing ~1584 tests still pass after Phase 1 changes. No regressions.",
-      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/ --timeout=120 -x -q",
-      "passes": true
+      "id": "P4-11",
+      "title": "Hyperparameter sweep framework with baseline comparison",
+      "description": "Add HyperparameterSweep class to aria/iw/synthetic.py. Runs pipeline with different config values, reports quality metrics relative to current production baseline. CLI integration: aria sweep --param <key> --values <csv>. Uses isolated SQLite + fresh detector instances.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_synthetic.py -k sweep -v --timeout=60 -q",
+      "passes": false
+    },
+    {
+      "id": "P4-12",
+      "title": "Wire into hub core — detector module registration, discovery scheduling, lifecycle hooks",
+      "description": "Register IWDetector as a hub module in core.py. Schedule discovery engine on configurable interval. Wire lifecycle manager to automation generator (Phase 3) for confirmed states. Wire observation recording to lifecycle evaluation. Add behavioral_states cache key for dashboard consumption.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_hub_integration.py -v --timeout=60 -q",
+      "passes": false
+    },
+    {
+      "id": "P4-13",
+      "title": "API endpoints — behavioral states CRUD, active states, backtest trigger",
+      "description": "Add /api/behavioral-states (list, lifecycle filter), /api/behavioral-states/{id} (detail + tracker), /api/behavioral-states/active (current ActiveStates), /api/behavioral-states/{id}/backtest (trigger backtest), /api/behavioral-states/{id}/feedback (approve/reject). Wire to hub API registration.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/iw/test_api.py -v --timeout=30 -q",
+      "passes": false
+    },
+    {
+      "id": "P4-14",
+      "title": "Integration tests — discovery→detector→lifecycle→automation end-to-end flow",
+      "description": "Create end-to-end integration test: inject synthetic events → run discovery → verify definitions created → replay events through detector → verify observations recorded → verify lifecycle promotions → verify automation suggestion generated at confirmed stage. Plus full regression suite passes.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/integration/test_iw_flow.py -v --timeout=120 -q",
+      "passes": false
+    },
+    {
+      "id": "P4-15",
+      "title": "Full regression — all existing tests still pass",
+      "description": "Run full test suite to confirm no regressions from Phase 4 additions. Update any affected test counts or config defaults counts.",
+      "acceptance": "cd /home/justin/Documents/projects/ha-aria && .venv/bin/python -m pytest tests/ --timeout=120 -x -q 2>&1 | tail -1 | grep -q 'passed' && echo 'PASS'",
+      "passes": false
     }
   ]
 }
