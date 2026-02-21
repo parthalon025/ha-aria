@@ -858,3 +858,99 @@ class TestPatternSensor:
 
         # Should not raise
         await module.update_pattern_detection_sensor("Test", "p1", 0.5)
+
+
+# ============================================================================
+# Immediate Cache Update on Approval (Task 26)
+# ============================================================================
+
+
+class TestImmediateCacheUpdateOnApproval:
+    """Test that approved automations are immediately added to ha_automations cache."""
+
+    @pytest.mark.asyncio
+    async def test_approval_updates_ha_automations_cache(self, module, hub):
+        """Approving a suggestion adds the automation to ha_automations cache."""
+        await seed_patterns(hub, [make_pattern(confidence=0.9)])
+        suggestions = await module.generate_suggestions()
+        suggestion_id = suggestions[0]["suggestion_id"]
+
+        # Mock _create_automation to succeed
+        module._create_automation = AsyncMock(
+            return_value={
+                "success": True,
+                "automation_id": f"pattern_{suggestion_id}",
+            }
+        )
+        module._session = MagicMock()
+
+        result = await module.approve_suggestion(suggestion_id)
+        assert result["success"] is True
+
+        # Verify ha_automations cache was updated
+        ha_cache = await hub.get_cache("ha_automations")
+        assert ha_cache is not None
+        automations = ha_cache["data"]["automations"]
+        assert len(automations) >= 1
+        # The automation should be in the cache with the correct ID
+        auto_ids = [a.get("id") for a in automations]
+        assert f"pattern_{suggestion_id}" in auto_ids
+
+    @pytest.mark.asyncio
+    async def test_approval_preserves_existing_ha_automations(self, module, hub):
+        """Approving a suggestion doesn't remove existing ha_automations."""
+        # Pre-populate ha_automations cache
+        await hub.set_cache(
+            "ha_automations",
+            {
+                "automations": [
+                    {"id": "existing_auto", "alias": "Existing", "trigger": [], "action": [], "condition": []},
+                ],
+                "count": 1,
+                "last_sync": "2026-01-01T00:00:00",
+            },
+        )
+
+        await seed_patterns(hub, [make_pattern(confidence=0.9)])
+        suggestions = await module.generate_suggestions()
+        suggestion_id = suggestions[0]["suggestion_id"]
+
+        module._create_automation = AsyncMock(
+            return_value={
+                "success": True,
+                "automation_id": f"pattern_{suggestion_id}",
+            }
+        )
+        module._session = MagicMock()
+
+        await module.approve_suggestion(suggestion_id)
+
+        ha_cache = await hub.get_cache("ha_automations")
+        automations = ha_cache["data"]["automations"]
+        assert len(automations) == 2
+        auto_ids = [a.get("id") for a in automations]
+        assert "existing_auto" in auto_ids
+        assert f"pattern_{suggestion_id}" in auto_ids
+
+    @pytest.mark.asyncio
+    async def test_approval_cache_update_on_failed_creation_still_tracks(self, module, hub):
+        """When automation creation fails, ha_automations cache is NOT updated."""
+        await seed_patterns(hub, [make_pattern(confidence=0.9)])
+        suggestions = await module.generate_suggestions()
+        suggestion_id = suggestions[0]["suggestion_id"]
+
+        # Mock _create_automation to fail
+        module._create_automation = AsyncMock(
+            return_value={
+                "success": False,
+                "error": "HTTP 500",
+            }
+        )
+        module._session = MagicMock()
+
+        result = await module.approve_suggestion(suggestion_id)
+        assert result["success"] is False
+
+        # ha_automations cache should NOT be updated on failure
+        ha_cache = await hub.get_cache("ha_automations")
+        assert ha_cache is None

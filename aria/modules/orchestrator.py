@@ -366,6 +366,9 @@ class OrchestratorModule(Module):
             # 6. Track created automation
             await self._track_created_automation(automation_id, suggestion_id)
 
+            # 6b. Immediately add to ha_automations cache (prevents re-suggestion)
+            await self._update_ha_automations_cache(automation_id, automation_yaml)
+
             # 7. Publish approval event
             await self.hub.publish(
                 "automation_approved",
@@ -532,6 +535,51 @@ class OrchestratorModule(Module):
 
         # Save tracking data
         await self.hub.set_cache("created_automations", tracking_data)
+
+    async def _update_ha_automations_cache(self, automation_id: str, automation_yaml: dict[str, Any]):
+        """Immediately add approved automation to ha_automations cache.
+
+        Prevents re-suggestion before the next sync cycle by ensuring
+        the shadow comparison engine sees the new automation.
+
+        Args:
+            automation_id: Unique automation identifier
+            automation_yaml: Automation configuration
+        """
+        # Load existing ha_automations cache
+        ha_cache = await self.hub.get_cache("ha_automations")
+        automations = list(ha_cache["data"].get("automations", [])) if ha_cache and "data" in ha_cache else []
+
+        # Build the automation entry
+        automation_entry = {
+            "id": automation_id,
+            **automation_yaml,
+        }
+
+        # Replace existing or append
+        replaced = False
+        for i, existing in enumerate(automations):
+            if existing.get("id") == automation_id:
+                automations[i] = automation_entry
+                replaced = True
+                break
+
+        if not replaced:
+            automations.append(automation_entry)
+
+        # Update cache
+        await self.hub.set_cache(
+            "ha_automations",
+            {
+                "automations": automations,
+                "count": len(automations),
+                "last_sync": ha_cache["data"].get("last_sync", "") if ha_cache and "data" in ha_cache else "",
+                "changes_since_last": 1,
+            },
+            {"source": "orchestrator_approval"},
+        )
+
+        self.logger.info(f"Added automation {automation_id} to ha_automations cache")
 
     async def update_pattern_detection_sensor(self, pattern_name: str, pattern_id: str, confidence: float):
         """Update HA virtual sensor for pattern detection events.
