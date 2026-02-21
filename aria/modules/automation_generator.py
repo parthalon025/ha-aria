@@ -250,12 +250,12 @@ class AutomationGeneratorModule(Module):
 
         patterns_cache = await self.hub.get_cache("patterns")
         if patterns_cache and "data" in patterns_cache:
-            raw = patterns_cache["data"].get("detections", [])
+            raw = patterns_cache["data"].get("patterns") or patterns_cache["data"].get("detections", [])
             detections.extend(self._parse_detections(raw))
 
         gaps_cache = await self.hub.get_cache("gaps")
         if gaps_cache and "data" in gaps_cache:
-            raw = gaps_cache["data"].get("detections", [])
+            raw = gaps_cache["data"].get("gaps") or gaps_cache["data"].get("detections", [])
             detections.extend(self._parse_detections(raw))
 
         return detections

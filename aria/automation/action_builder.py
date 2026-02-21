@@ -4,7 +4,11 @@ Generates HA action dicts from DetectionResult action entities and area context.
 Prefers area targeting when all entities are in the same area.
 """
 
+import logging
+
 from aria.automation.models import DetectionResult
+
+logger = logging.getLogger(__name__)
 
 # Domains that require explicit approval before automation.
 RESTRICTED_DOMAINS = frozenset({"lock", "alarm_control_panel", "cover"})
@@ -149,5 +153,6 @@ def _get_area_entities(area_id: str | None, entity_graph: object) -> list[str]:
                 if eid:
                     result.append(eid)
         return result
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to resolve entities in area %s: %s", area_id, exc)
         return []

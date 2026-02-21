@@ -39,9 +39,17 @@ function ObjectDisplay({ obj }) {
 }
 
 function AutomationCard({ suggestion, onStatusChange, updating }) {
-  const confidence = suggestion.confidence ?? 0;
+  // Map backend field names: combined_score (0-1), metadata.confidence, automation_yaml.*
+  const yaml = suggestion.automation_yaml || {};
+  const confidence = suggestion.combined_score ?? (suggestion.metadata || {}).confidence ?? suggestion.confidence ?? 0;
   const pct = Math.round(confidence * 100);
   const status = (suggestion.status || 'pending').toLowerCase();
+  const sid = suggestion.suggestion_id || suggestion.id;
+  const name = yaml.alias || yaml.description || suggestion.source || 'Unnamed automation';
+  const description = yaml.description || suggestion.shadow_reason || '';
+  const triggers = yaml.triggers || yaml.trigger || [];
+  const conditions = yaml.conditions || yaml.condition || [];
+  const actions = yaml.actions || yaml.action || [];
 
   const borderStyle = status === 'approved'
     ? 'border-left: 4px solid var(--status-healthy);'
@@ -50,18 +58,18 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
       : '';
 
   return (
-    <div class="t-frame" data-label={suggestion.name || suggestion.trigger || 'suggestion'} style={`padding: 1.25rem; ${borderStyle}`}>
+    <div class="t-frame" data-label={name} style={`padding: 1.25rem; ${borderStyle}`}>
       {/* Header */}
       <div class="flex items-center justify-between mb-2">
-        <h3 class="text-base font-bold" style="color: var(--text-primary)">{suggestion.name || 'Unnamed automation'}</h3>
+        <h3 class="text-base font-bold" style="color: var(--text-primary)">{name}</h3>
         <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium" style={statusStyle(status)}>
           {status}
         </span>
       </div>
 
       {/* Description */}
-      {suggestion.description && (
-        <p class="text-sm mb-3" style="color: var(--text-secondary)">{suggestion.description}</p>
+      {description && (
+        <p class="text-sm mb-3" style="color: var(--text-secondary)">{description}</p>
       )}
 
       {/* Confidence bar */}
@@ -79,19 +87,19 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
       </div>
 
       {/* Trigger */}
-      {suggestion.trigger && (
+      {triggers.length > 0 && (
         <div class="mb-3">
           <h4 class="text-xs font-semibold uppercase tracking-wide mb-1" style="color: var(--text-tertiary)">Trigger</h4>
-          <ObjectDisplay obj={suggestion.trigger} />
+          {triggers.map((t, i) => <ObjectDisplay key={i} obj={t} />)}
         </div>
       )}
 
       {/* Conditions */}
-      {suggestion.conditions && suggestion.conditions.length > 0 && (
+      {conditions.length > 0 && (
         <div class="mb-3">
           <h4 class="text-xs font-semibold uppercase tracking-wide mb-1" style="color: var(--text-tertiary)">Conditions</h4>
           <div class="space-y-1">
-            {suggestion.conditions.map((cond, i) => (
+            {conditions.map((cond, i) => (
               <ObjectDisplay key={i} obj={cond} />
             ))}
           </div>
@@ -99,34 +107,22 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
       )}
 
       {/* Actions */}
-      {suggestion.actions && suggestion.actions.length > 0 && (
+      {actions.length > 0 && (
         <div class="mb-3">
           <h4 class="text-xs font-semibold uppercase tracking-wide mb-1" style="color: var(--text-tertiary)">Actions</h4>
           <div class="space-y-1">
-            {suggestion.actions.map((action, i) => (
-              <ObjectDisplay key={i} obj={action} />
+            {actions.map((act, i) => (
+              <ObjectDisplay key={i} obj={act} />
             ))}
           </div>
         </div>
-      )}
-
-      {/* YAML preview */}
-      {suggestion.yaml && (
-        <details class="mb-3">
-          <summary class="text-sm cursor-pointer" style="color: var(--accent)">
-            Show YAML
-          </summary>
-          <pre class="mt-2 p-3 text-xs overflow-x-auto" style="background: var(--bg-inset); color: var(--text-primary); border-radius: var(--radius); font-family: var(--font-mono)">
-            {suggestion.yaml}
-          </pre>
-        </details>
       )}
 
       {/* Approve / Reject buttons */}
       {status === 'pending' && (
         <div class="flex gap-2 mt-4">
           <button
-            onClick={() => onStatusChange(suggestion.id, 'approved')}
+            onClick={() => onStatusChange(sid, 'approved')}
             disabled={updating}
             class="t-btn px-4 py-1.5 text-sm font-medium disabled:opacity-50 transition-colors"
             style="background: var(--status-healthy); color: var(--text-inverse); border: none;"
@@ -134,7 +130,7 @@ function AutomationCard({ suggestion, onStatusChange, updating }) {
             Approve
           </button>
           <button
-            onClick={() => onStatusChange(suggestion.id, 'rejected')}
+            onClick={() => onStatusChange(sid, 'rejected')}
             disabled={updating}
             class="t-btn px-4 py-1.5 text-sm font-medium disabled:opacity-50 transition-colors"
             style="background: var(--status-error); color: var(--text-inverse); border: none;"
@@ -166,8 +162,8 @@ export default function Automations() {
   // Apply local status overrides
   const displaySuggestions = useComputed(() => {
     return suggestions.map((s) => {
-      if (localStatuses[s.id]) {
-        return { ...s, status: localStatuses[s.id] };
+      if (localStatuses[s.suggestion_id || s.id]) {
+        return { ...s, status: localStatuses[s.suggestion_id || s.id] };
       }
       return s;
     });
@@ -183,7 +179,7 @@ export default function Automations() {
     try {
       // Build updated suggestions array with new status
       const updatedSuggestions = suggestions.map((s) =>
-        s.id === id ? { ...s, status: newStatus } : s
+        (s.suggestion_id || s.id) === id ? { ...s, status: newStatus } : s
       );
       const updatedData = {
         ...(data.data || {}),
@@ -287,7 +283,7 @@ export default function Automations() {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-children">
           {displaySuggestions.map((sug, i) => (
             <AutomationCard
-              key={sug.id || i}
+              key={sug.suggestion_id || sug.id || i}
               suggestion={sug}
               onStatusChange={handleStatusChange}
               updating={updating}

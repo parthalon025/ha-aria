@@ -64,10 +64,11 @@ def _fetch_presence_cache():
     # Fallback: direct SQLite read
     db_path = str(Path.home() / "ha-logs" / "intelligence" / "cache" / "hub.db")
     try:
-        conn = sqlite3.connect(db_path, timeout=5)
-        cursor = conn.execute("SELECT data FROM cache WHERE category = ?", ("presence",))
-        row = cursor.fetchone()
-        conn.close()
+        from contextlib import closing
+
+        with closing(sqlite3.connect(db_path, timeout=5)) as conn:
+            cursor = conn.execute("SELECT data FROM cache WHERE category = ?", ("presence",))
+            row = cursor.fetchone()
         if row:
             data = json.loads(row[0])
             return data.get("data", data) if isinstance(data, dict) else None

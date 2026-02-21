@@ -713,11 +713,11 @@ def _get_cache_category_count(hub_health, intelligence_dir) -> int:
     if db_path.exists():
         try:
             import sqlite3
+            from contextlib import closing
 
-            conn = sqlite3.connect(str(db_path))
-            cursor = conn.execute("SELECT COUNT(*) FROM cache")
-            count = cursor.fetchone()[0]
-            conn.close()
+            with closing(sqlite3.connect(str(db_path))) as conn:
+                cursor = conn.execute("SELECT COUNT(*) FROM cache")
+                count = cursor.fetchone()[0]
             return count
         except Exception:
             pass

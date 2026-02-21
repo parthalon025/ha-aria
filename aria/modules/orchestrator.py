@@ -205,7 +205,7 @@ class OrchestratorModule(Module):
                 {
                     "suggestion_id": suggestion_id,
                     "automation_id": automation_id,
-                    "pattern_id": suggestion["pattern_id"],
+                    "pattern_id": suggestion.get("metadata", {}).get("pattern_id", suggestion.get("source", "")),
                 },
             )
 
@@ -252,7 +252,11 @@ class OrchestratorModule(Module):
 
         # 4. Publish rejection event
         await self.hub.publish(
-            "automation_rejected", {"suggestion_id": suggestion_id, "pattern_id": suggestion["pattern_id"]}
+            "automation_rejected",
+            {
+                "suggestion_id": suggestion_id,
+                "pattern_id": suggestion.get("metadata", {}).get("pattern_id", suggestion.get("source", "")),
+            },
         )
 
         self.logger.info(f"Suggestion {suggestion_id} rejected")

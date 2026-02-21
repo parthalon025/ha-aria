@@ -4,8 +4,12 @@ Generates additive HA conditions based on detected patterns and area context.
 Conditions are optional enrichments — an automation is valid without any.
 """
 
+import logging
+
 from aria.automation.models import DetectionResult
 from aria.automation.trigger_builder import _quote_state
+
+logger = logging.getLogger(__name__)
 
 # Safety conditions injected by default per action service domain.
 # Each entry: (condition_type, description) used to generate condition dicts.
@@ -132,5 +136,6 @@ def _get_area_entities(area_id: str | None, entity_graph: object) -> list[str]:
                 if eid:
                     result.append(eid)
         return result
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to resolve entities in area %s: %s", area_id, exc)
         return []

@@ -287,7 +287,7 @@ def _new_result(
 def _extract_trigger_signature(automation: dict[str, Any]) -> set[str]:
     """Extract a set of trigger signatures for comparison."""
     signatures = set()
-    for trigger in automation.get("trigger", []):
+    for trigger in automation.get("triggers") or automation.get("trigger", []):
         platform = trigger.get("platform", "")
         if platform == "state":
             entity_id = trigger.get("entity_id", "")
@@ -309,7 +309,7 @@ def _extract_target_entities(
 ) -> set[str]:
     """Extract the set of target entity IDs, resolving area_id via EntityGraph."""
     entities = set()
-    for action in automation.get("action", []):
+    for action in automation.get("actions") or automation.get("action", []):
         target = action.get("target", {})
         if not target:
             continue
@@ -337,7 +337,7 @@ def _resolve_area_entities(
     area_id = target.get("area_id")
     if not area_id or not entity_graph:
         return
-    service = action.get("service", "")
+    service = action.get("service", "") or action.get("action", "")
     domain = service.split(".")[0] if "." in service else ""
     for ent in entity_graph.entities_in_area(area_id):
         eid = ent.get("entity_id", "")
@@ -347,7 +347,11 @@ def _resolve_area_entities(
 
 def _extract_services(automation: dict[str, Any]) -> set[str]:
     """Extract the set of service calls from an automation."""
-    return {action.get("service", "") for action in automation.get("action", []) if action.get("service")}
+    return {
+        (action.get("service", "") or action.get("action", ""))
+        for action in (automation.get("actions") or automation.get("action", []))
+        if action.get("service") or action.get("action")
+    }
 
 
 def _extract_areas(
@@ -356,7 +360,7 @@ def _extract_areas(
 ) -> set[str]:
     """Extract the set of target areas from an automation."""
     areas = set()
-    for action in automation.get("action", []):
+    for action in automation.get("actions") or automation.get("action", []):
         target = action.get("target", {})
         if not target:
             continue
@@ -409,8 +413,8 @@ def _check_parameter_conflict(
 
     Returns a conflict reason string or None if no conflict.
     """
-    for cand_action in candidate.get("action", []):
-        cand_service = cand_action.get("service", "")
+    for cand_action in candidate.get("actions") or candidate.get("action", []):
+        cand_service = cand_action.get("service", "") or cand_action.get("action", "")
         cand_data = cand_action.get("data", {})
         if not cand_data:
             continue
@@ -426,8 +430,8 @@ def _check_action_params(
     existing: dict[str, Any],
 ) -> str | None:
     """Check one candidate action's params against all existing actions."""
-    for ex_action in existing.get("action", []):
-        if ex_action.get("service", "") != cand_service:
+    for ex_action in existing.get("actions") or existing.get("action", []):
+        if (ex_action.get("service", "") or ex_action.get("action", "")) != cand_service:
             continue
         ex_data = ex_action.get("data", {})
         if not ex_data:
