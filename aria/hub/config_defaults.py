@@ -2689,6 +2689,44 @@ CONFIG_DEFAULTS: list[dict[str, Any]] = [
         "max_value": 60,
         "step": 1,
     },
+    {
+        "key": "gap.window_minutes",
+        "default_value": "10",
+        "value_type": "number",
+        "label": "Gap Pairing Window (min)",
+        "description": "Time window for pairing manual actions.",
+        "description_layman": (
+            "If you do two things within this many minutes, ARIA considers them related."
+            " For example, turning on the kitchen light then the coffee maker within 10 minutes."
+        ),
+        "description_technical": (
+            "Maximum time gap between consecutive manual events to be considered part of the same"
+            " behavioral sequence. Range 1-60 minutes, default 10."
+        ),
+        "category": "Gap Analyzer",
+        "min_value": 1,
+        "max_value": 60,
+        "step": 1,
+    },
+    {
+        "key": "gap.max_chain_length",
+        "default_value": "5",
+        "value_type": "number",
+        "label": "Max Chain Length",
+        "description": "Maximum entities in a detected manual action chain.",
+        "description_layman": (
+            "The longest sequence of manual actions ARIA will track."
+            " '3' means ARIA looks for patterns like 'light → coffee → blinds' but not longer."
+        ),
+        "description_technical": (
+            "Maximum entities in a single detected manual sequence."
+            " Longer chains are pruned to this length. Range 2-10, default 5."
+        ),
+        "category": "Gap Analyzer",
+        "min_value": 2,
+        "max_value": 10,
+        "step": 1,
+    },
     # ── Phase 3: Automation Generator ──────────────────────────────────
     {
         "key": "automation.max_suggestions_per_cycle",

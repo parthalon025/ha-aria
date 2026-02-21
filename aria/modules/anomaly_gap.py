@@ -17,12 +17,12 @@ from aria.hub.core import IntelligenceHub, Module
 
 logger = logging.getLogger(__name__)
 
-# Default config values
+# Default config values — must match keys in config_defaults.py
 DEFAULT_WINDOW_MINUTES = 10
-DEFAULT_MIN_OBSERVATIONS = 5
+DEFAULT_MIN_OCCURRENCES = 15
 DEFAULT_MAX_CHAIN_LENGTH = 5
-DEFAULT_ANALYSIS_DAYS = 30
-DEFAULT_MIN_CONFIDENCE = 0.5
+DEFAULT_MIN_DAYS = 14
+DEFAULT_MIN_CONSISTENCY = 0.6
 
 
 class AnomalyGapAnalyzer(Module):
@@ -36,18 +36,21 @@ class AnomalyGapAnalyzer(Module):
     def __init__(self, hub: IntelligenceHub):
         super().__init__("anomaly_gap", hub)
         self.window_minutes = DEFAULT_WINDOW_MINUTES
-        self.min_observations = DEFAULT_MIN_OBSERVATIONS
+        self.min_observations = DEFAULT_MIN_OCCURRENCES
         self.max_chain_length = DEFAULT_MAX_CHAIN_LENGTH
-        self.analysis_days = DEFAULT_ANALYSIS_DAYS
-        self.min_confidence = DEFAULT_MIN_CONFIDENCE
+        self.analysis_days = DEFAULT_MIN_DAYS
+        self.min_confidence = DEFAULT_MIN_CONSISTENCY
 
     async def _load_config(self):
-        """Load config values from hub cache."""
+        """Load config values from hub cache.
+
+        Keys must match config_defaults.py exactly (Lesson #45).
+        """
         self.window_minutes = await self.hub.cache.get_config_value("gap.window_minutes", DEFAULT_WINDOW_MINUTES)
-        self.min_observations = await self.hub.cache.get_config_value("gap.min_observations", DEFAULT_MIN_OBSERVATIONS)
+        self.min_observations = await self.hub.cache.get_config_value("gap.min_occurrences", DEFAULT_MIN_OCCURRENCES)
         self.max_chain_length = await self.hub.cache.get_config_value("gap.max_chain_length", DEFAULT_MAX_CHAIN_LENGTH)
-        self.analysis_days = await self.hub.cache.get_config_value("gap.analysis_days", DEFAULT_ANALYSIS_DAYS)
-        self.min_confidence = await self.hub.cache.get_config_value("gap.min_confidence", DEFAULT_MIN_CONFIDENCE)
+        self.analysis_days = await self.hub.cache.get_config_value("gap.min_days", DEFAULT_MIN_DAYS)
+        self.min_confidence = await self.hub.cache.get_config_value("gap.min_consistency", DEFAULT_MIN_CONSISTENCY)
 
     async def analyze_gaps(self) -> list[DetectionResult]:
         """Run full gap analysis pipeline.
@@ -398,6 +401,7 @@ class AnomalyGapAnalyzer(Module):
         try:
             return self.hub.entity_graph.get_area(entity_id)
         except Exception:
+            self.logger.debug("Failed to resolve area for %s via entity graph", entity_id)
             return None
 
     def _compute_recency(self, last_seen: str) -> float:

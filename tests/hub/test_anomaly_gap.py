@@ -203,7 +203,7 @@ class TestConfigIntegration:
 
         # Override config to require 20 observations
         async def config_side_effect(key, default=None):
-            if key == "gap.min_observations":
+            if key == "gap.min_occurrences":
                 return 20
             return default
 
