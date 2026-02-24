@@ -179,3 +179,19 @@ Test baseline: 2101 tests passing (after rebase on main)
 - Quiet period preconditions: gap_before_trigger_seconds >4h → quiet_period indicator
 - Tests: 2183 passed, 15 skipped, 0 failures
 - Quality gate: PASSED (attempt 2 — fixed pre-existing lint E501 in docs/archive/test_lag_features.py)
+
+## Batch 3: Real-Time Detector + Cold Start (P4-05, P4-06) — COMPLETE
+- Created aria/iw/detector.py: IWDetector(Module) with entity-indexed O(1) event routing
+- Created tests/iw/test_detector.py (12 tests: 9 detector + 3 cold-start)
+- Entity index: dict mapping entity_id → list of definitions for O(1) lookup on state_changed
+- Domain filter: subscribes only to domains present in loaded definitions (lesson #39)
+- Subscriber lifecycle: callback ref stored on self, unsubscribe in shutdown() (lesson #37)
+- ActiveState management: trigger creates, confirming updates matched set, window expiry evaluates
+- Window expiry: match_ratio >= threshold → observation recorded via tracker, else discarded
+- Person departure: person.X goes away → terminates all person-attributed ActiveStates
+- Definition refresh: reload from store, rebuild entity index and domain set
+- Cold-start replay: queries EventStore for recent events (configurable iw.cold_start_replay_minutes),
+  feeds through _on_state_changed() in timestamp order to reconstruct ActiveStates on restart
+- Commits: df25cd8 (P4-05), c3cb705 (P4-06)
+- Tests: 2195 passed, 15 skipped, 0 failures
+- Quality gate: PASSED
