@@ -932,7 +932,7 @@ git commit -m "test: full regression passes with Phase 4 I&W framework (P4-15)"
 
 ---
 
-## Final Integration Wiring Batch (Batch 11)
+## Batch 11: Final Integration Wiring
 
 Per Code Factory rule (#53): plans with 3+ batches MUST include a final integration wiring batch.
 
