@@ -167,3 +167,15 @@ Test baseline: 2101 tests passing (after rebase on main)
 - BehavioralStateStore takes db_path string, not connection object
 - Lifecycle transitions: use tracker.transition_lifecycle(new_state, timestamp)
 - ActiveState.confirm_indicator(entity_id) moves pending→matched atomically
+
+## Batch 2: Discovery Engine (P4-04) — COMPLETE
+- Created aria/iw/discovery.py: DiscoveryEngine with 3-stage pipeline
+  (gather sources → build indicator chains → deduplicate/merge)
+- Created tests/iw/test_discovery.py (11 tests)
+- Added missing aria/iw/__init__.py and tests/iw/__init__.py
+- Pipeline: patterns.detect_patterns() + anomaly_gap.analyze_gaps() → BehavioralStateDefinitions
+- Deduplication: Jaccard similarity >60% merges definitions (higher confidence wins)
+- Deterministic IDs: sha256(trigger + sorted(confirming) + areas + day_types)
+- Quiet period preconditions: gap_before_trigger_seconds >4h → quiet_period indicator
+- Tests: 2183 passed, 15 skipped, 0 failures
+- Quality gate: PASSED
