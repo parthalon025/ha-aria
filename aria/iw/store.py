@@ -7,10 +7,13 @@ model to_dict()/from_dict() methods.
 from __future__ import annotations
 
 import json
+import logging
 
 import aiosqlite
 
 from aria.iw.models import BehavioralStateDefinition, BehavioralStateTracker
+
+logger = logging.getLogger(__name__)
 
 
 class BehavioralStateStore:
@@ -65,7 +68,8 @@ class BehavioralStateStore:
 
     async def save_definition(self, definition: BehavioralStateDefinition) -> None:
         """Insert or replace a behavioral state definition."""
-        assert self._conn is not None
+        if not self._conn:
+            raise RuntimeError("BehavioralStateStore not initialized — call initialize() first")
         data_json = json.dumps(definition.to_dict())
         await self._conn.execute(
             "INSERT OR REPLACE INTO behavioral_state_definitions (id, name, data_json) VALUES (?, ?, ?)",
@@ -75,7 +79,8 @@ class BehavioralStateStore:
 
     async def get_definition(self, definition_id: str) -> BehavioralStateDefinition | None:
         """Retrieve a single definition by id, or None if not found."""
-        assert self._conn is not None
+        if not self._conn:
+            raise RuntimeError("BehavioralStateStore not initialized — call initialize() first")
         async with self._conn.execute(
             "SELECT data_json FROM behavioral_state_definitions WHERE id = ?",
             (definition_id,),
@@ -87,14 +92,16 @@ class BehavioralStateStore:
 
     async def list_definitions(self) -> list[BehavioralStateDefinition]:
         """Return all definitions."""
-        assert self._conn is not None
+        if not self._conn:
+            raise RuntimeError("BehavioralStateStore not initialized — call initialize() first")
         async with self._conn.execute("SELECT data_json FROM behavioral_state_definitions") as cursor:
             rows = await cursor.fetchall()
         return [BehavioralStateDefinition.from_dict(json.loads(r["data_json"])) for r in rows]
 
     async def delete_definition(self, definition_id: str) -> None:
         """Delete a definition and cascade to its tracker and co-activations."""
-        assert self._conn is not None
+        if not self._conn:
+            raise RuntimeError("BehavioralStateStore not initialized — call initialize() first")
         await self._conn.execute(
             "DELETE FROM behavioral_state_definitions WHERE id = ?",
             (definition_id,),
@@ -113,7 +120,8 @@ class BehavioralStateStore:
 
     async def save_tracker(self, tracker: BehavioralStateTracker) -> None:
         """Insert or replace a behavioral state tracker."""
-        assert self._conn is not None
+        if not self._conn:
+            raise RuntimeError("BehavioralStateStore not initialized — call initialize() first")
         data_json = json.dumps(tracker.to_dict())
         await self._conn.execute(
             "INSERT OR REPLACE INTO behavioral_state_trackers (definition_id, data_json) VALUES (?, ?)",
@@ -123,7 +131,8 @@ class BehavioralStateStore:
 
     async def get_tracker(self, definition_id: str) -> BehavioralStateTracker | None:
         """Retrieve a tracker by definition_id, or None if not found."""
-        assert self._conn is not None
+        if not self._conn:
+            raise RuntimeError("BehavioralStateStore not initialized — call initialize() first")
         async with self._conn.execute(
             "SELECT data_json FROM behavioral_state_trackers WHERE definition_id = ?",
             (definition_id,),
@@ -135,7 +144,8 @@ class BehavioralStateStore:
 
     async def list_trackers(self, lifecycle_filter: str | None = None) -> list[BehavioralStateTracker]:
         """Return all trackers, optionally filtered by lifecycle state."""
-        assert self._conn is not None
+        if not self._conn:
+            raise RuntimeError("BehavioralStateStore not initialized — call initialize() first")
         async with self._conn.execute("SELECT data_json FROM behavioral_state_trackers") as cursor:
             rows = await cursor.fetchall()
         trackers = [BehavioralStateTracker.from_dict(json.loads(r["data_json"])) for r in rows]
@@ -150,7 +160,8 @@ class BehavioralStateStore:
 
         Stores pairs in canonical order (a_id < b_id) to avoid duplicates.
         """
-        assert self._conn is not None
+        if not self._conn:
+            raise RuntimeError("BehavioralStateStore not initialized — call initialize() first")
         # Canonical order so (A,B) and (B,A) map to the same row
         state_a, state_b = (a_id, b_id) if a_id <= b_id else (b_id, a_id)
         await self._conn.execute(
@@ -168,7 +179,8 @@ class BehavioralStateStore:
 
         Each entry is (state_a_id, state_b_id, count).
         """
-        assert self._conn is not None
+        if not self._conn:
+            raise RuntimeError("BehavioralStateStore not initialized — call initialize() first")
         async with self._conn.execute(
             "SELECT state_a_id, state_b_id, count FROM state_co_activations WHERE count >= ?",
             (min_count,),

@@ -1,4 +1,4 @@
-"""Tests for aria.iw.models — TDD: written before implementation."""
+"""Tests for aria.iw.models — behavioral state data models."""
 
 from __future__ import annotations
 
@@ -57,13 +57,14 @@ class TestIndicatorQuietPeriod:
         assert ind.mode == "quiet_period"
         assert ind.quiet_seconds == 300
 
-    def test_quiet_period_defaults(self) -> None:
-        ind = Indicator(
-            entity_id="sensor.x",
-            role="trigger",
-            mode="quiet_period",
-        )
-        assert ind.quiet_seconds is None
+    def test_quiet_period_missing_seconds_raises(self) -> None:
+        """#146: quiet_period mode requires quiet_seconds."""
+        with pytest.raises(ValueError, match="quiet_seconds"):
+            Indicator(
+                entity_id="sensor.x",
+                role="trigger",
+                mode="quiet_period",
+            )
 
 
 class TestIndicatorThreshold:
@@ -89,6 +90,26 @@ class TestIndicatorThreshold:
         )
         assert ind.threshold_direction == "below"
 
+    def test_threshold_missing_value_raises(self) -> None:
+        """#146: threshold mode requires threshold_value."""
+        with pytest.raises(ValueError, match="threshold_value"):
+            Indicator(
+                entity_id="sensor.x",
+                role="trigger",
+                mode="threshold",
+                threshold_direction="above",
+            )
+
+    def test_threshold_missing_direction_raises(self) -> None:
+        """#146: threshold mode requires threshold_direction."""
+        with pytest.raises(ValueError, match="threshold_direction"):
+            Indicator(
+                entity_id="sensor.x",
+                role="trigger",
+                mode="threshold",
+                threshold_value=50.0,
+            )
+
 
 class TestIndicatorValidation:
     def test_invalid_role_raises(self) -> None:
@@ -105,6 +126,25 @@ class TestIndicatorValidation:
                 entity_id="sensor.x",
                 role="trigger",
                 mode="bad_mode",
+            )
+
+    def test_confidence_out_of_range_raises(self) -> None:
+        """#146: confidence must be [0.0, 1.0]."""
+        with pytest.raises(ValueError, match="confidence"):
+            Indicator(
+                entity_id="sensor.x",
+                role="trigger",
+                mode="state_change",
+                confidence=1.5,
+            )
+
+    def test_confidence_negative_raises(self) -> None:
+        with pytest.raises(ValueError, match="confidence"):
+            Indicator(
+                entity_id="sensor.x",
+                role="trigger",
+                mode="state_change",
+                confidence=-0.1,
             )
 
     def test_frozen_immutability(self) -> None:
@@ -228,6 +268,80 @@ class TestBehavioralStateDefinition:
         assert restored.composite_of == bsd.composite_of
         assert len(restored.confirming) == 1
 
+    def test_empty_id_raises(self) -> None:
+        """#145: id must be non-empty."""
+        trigger = self._trigger()
+        with pytest.raises(ValueError, match="id"):
+            BehavioralStateDefinition(
+                id="",
+                name="Test",
+                trigger=trigger,
+                trigger_preconditions=[],
+                confirming=[],
+                deviations=[],
+                areas=frozenset(),
+                day_types=frozenset(),
+                person_attribution=None,
+                typical_duration_minutes=0.0,
+                expected_outcomes=(),
+            )
+
+    def test_wrong_trigger_role_raises(self) -> None:
+        """#145: trigger indicator must have role='trigger'."""
+        bad_trigger = Indicator(entity_id="sensor.x", role="confirming", mode="state_change")
+        with pytest.raises(ValueError, match="trigger must have role='trigger'"):
+            BehavioralStateDefinition(
+                id="bsd-bad",
+                name="Bad",
+                trigger=bad_trigger,
+                trigger_preconditions=[],
+                confirming=[],
+                deviations=[],
+                areas=frozenset(),
+                day_types=frozenset(),
+                person_attribution=None,
+                typical_duration_minutes=0.0,
+                expected_outcomes=(),
+            )
+
+    def test_wrong_confirming_role_raises(self) -> None:
+        """#145: confirming indicators must have role='confirming'."""
+        trigger = self._trigger()
+        bad_confirming = Indicator(entity_id="sensor.x", role="trigger", mode="state_change")
+        with pytest.raises(ValueError, match="confirming indicator must have role='confirming'"):
+            BehavioralStateDefinition(
+                id="bsd-bad",
+                name="Bad",
+                trigger=trigger,
+                trigger_preconditions=[],
+                confirming=[bad_confirming],
+                deviations=[],
+                areas=frozenset(),
+                day_types=frozenset(),
+                person_attribution=None,
+                typical_duration_minutes=0.0,
+                expected_outcomes=(),
+            )
+
+    def test_wrong_deviation_role_raises(self) -> None:
+        """#145: deviation indicators must have role='deviation'."""
+        trigger = self._trigger()
+        bad_deviation = Indicator(entity_id="sensor.x", role="trigger", mode="state_change")
+        with pytest.raises(ValueError, match="deviation indicator must have role='deviation'"):
+            BehavioralStateDefinition(
+                id="bsd-bad",
+                name="Bad",
+                trigger=trigger,
+                trigger_preconditions=[],
+                confirming=[],
+                deviations=[bad_deviation],
+                areas=frozenset(),
+                day_types=frozenset(),
+                person_attribution=None,
+                typical_duration_minutes=0.0,
+                expected_outcomes=(),
+            )
+
 
 # ── BehavioralStateTracker ────────────────────────────────────────────────────
 
@@ -288,6 +402,71 @@ class TestBehavioralStateTracker:
         assert abs(restored.consistency - tracker.consistency) < 1e-9
 
 
+class TestBehavioralStateTrackerLifecycle:
+    """#147: Lifecycle state machine validation."""
+
+    def test_valid_transition_seed_to_emerging(self) -> None:
+        tracker = BehavioralStateTracker(definition_id="bsd-001")
+        tracker.transition_lifecycle("emerging", "2026-01-01T08:00:00")
+        assert tracker.lifecycle == "emerging"
+
+    def test_valid_transition_emerging_to_confirmed(self) -> None:
+        tracker = BehavioralStateTracker(definition_id="bsd-001", lifecycle="emerging")
+        tracker.transition_lifecycle("confirmed", "2026-01-01T08:00:00")
+        assert tracker.lifecycle == "confirmed"
+
+    def test_valid_transition_confirmed_to_mature(self) -> None:
+        tracker = BehavioralStateTracker(definition_id="bsd-001", lifecycle="confirmed")
+        tracker.transition_lifecycle("mature", "2026-01-01T08:00:00")
+        assert tracker.lifecycle == "mature"
+
+    def test_valid_transition_mature_to_dormant(self) -> None:
+        tracker = BehavioralStateTracker(definition_id="bsd-001", lifecycle="mature")
+        tracker.transition_lifecycle("dormant", "2026-01-01T08:00:00")
+        assert tracker.lifecycle == "dormant"
+
+    def test_valid_transition_dormant_to_emerging(self) -> None:
+        tracker = BehavioralStateTracker(definition_id="bsd-001", lifecycle="dormant")
+        tracker.transition_lifecycle("emerging", "2026-01-01T08:00:00")
+        assert tracker.lifecycle == "emerging"
+
+    def test_invalid_transition_mature_to_seed(self) -> None:
+        tracker = BehavioralStateTracker(definition_id="bsd-001", lifecycle="mature")
+        with pytest.raises(ValueError, match="Invalid lifecycle transition"):
+            tracker.transition_lifecycle("seed", "2026-01-01T08:00:00")
+
+    def test_invalid_transition_retired_to_anything(self) -> None:
+        tracker = BehavioralStateTracker(definition_id="bsd-001", lifecycle="retired")
+        with pytest.raises(ValueError, match="Invalid lifecycle transition"):
+            tracker.transition_lifecycle("seed", "2026-01-01T08:00:00")
+
+    def test_invalid_target_lifecycle_raises(self) -> None:
+        tracker = BehavioralStateTracker(definition_id="bsd-001")
+        with pytest.raises(ValueError, match="lifecycle"):
+            tracker.transition_lifecycle("invalid", "2026-01-01T08:00:00")
+
+    def test_transition_records_history(self) -> None:
+        tracker = BehavioralStateTracker(definition_id="bsd-001")
+        tracker.transition_lifecycle("emerging", "2026-01-01T08:00:00")
+        assert len(tracker.lifecycle_history) == 1
+        assert tracker.lifecycle_history[0]["from"] == "seed"
+        assert tracker.lifecycle_history[0]["to"] == "emerging"
+        assert tracker.lifecycle_history[0]["timestamp"] == "2026-01-01T08:00:00"
+
+    def test_rejection_demotion_emerging_to_seed(self) -> None:
+        """emerging can go back to seed on rejection."""
+        tracker = BehavioralStateTracker(definition_id="bsd-001", lifecycle="emerging")
+        tracker.transition_lifecycle("seed", "2026-01-01T08:00:00")
+        assert tracker.lifecycle == "seed"
+
+    def test_any_state_can_retire(self) -> None:
+        """All non-retired states should be able to transition to retired."""
+        for lc in ("seed", "emerging", "confirmed", "mature", "dormant"):
+            tracker = BehavioralStateTracker(definition_id="bsd-001", lifecycle=lc)
+            tracker.transition_lifecycle("retired", "2026-01-01T08:00:00")
+            assert tracker.lifecycle == "retired"
+
+
 # ── ActiveState ───────────────────────────────────────────────────────────────
 
 
@@ -322,3 +501,88 @@ class TestActiveState:
             window_expires="2026-01-01T08:01:00",
         )
         assert active.match_ratio == 1.0
+
+
+class TestActiveStateInvariants:
+    """#144: ActiveState disjointness and confirm_indicator."""
+
+    def test_disjoint_invariant_enforced(self) -> None:
+        with pytest.raises(ValueError, match="disjoint"):
+            ActiveState(
+                definition_id="bsd-001",
+                trigger_time="2026-01-01T08:00:00",
+                matched_confirming=["light.x"],
+                pending_confirming=["light.x", "light.y"],
+                window_expires="2026-01-01T08:01:00",
+            )
+
+    def test_confirm_indicator_moves_to_matched(self) -> None:
+        active = ActiveState(
+            definition_id="bsd-001",
+            trigger_time="2026-01-01T08:00:00",
+            matched_confirming=[],
+            pending_confirming=["light.x", "light.y"],
+            window_expires="2026-01-01T08:01:00",
+        )
+        active.confirm_indicator("light.x")
+        assert "light.x" in active.matched_confirming
+        assert "light.x" not in active.pending_confirming
+        assert abs(active.match_ratio - 0.5) < 1e-9
+
+    def test_confirm_indicator_not_pending_raises(self) -> None:
+        active = ActiveState(
+            definition_id="bsd-001",
+            trigger_time="2026-01-01T08:00:00",
+            matched_confirming=["light.x"],
+            pending_confirming=["light.y"],
+            window_expires="2026-01-01T08:01:00",
+        )
+        with pytest.raises(ValueError, match="not in pending_confirming"):
+            active.confirm_indicator("light.z")
+
+    def test_confirm_all_indicators(self) -> None:
+        active = ActiveState(
+            definition_id="bsd-001",
+            trigger_time="2026-01-01T08:00:00",
+            matched_confirming=[],
+            pending_confirming=["light.x", "light.y"],
+            window_expires="2026-01-01T08:01:00",
+        )
+        active.confirm_indicator("light.x")
+        active.confirm_indicator("light.y")
+        assert active.match_ratio == 1.0
+        assert len(active.pending_confirming) == 0
+
+
+class TestStoreGuard:
+    """#185: BehavioralStateStore raises RuntimeError when not initialized."""
+
+    @pytest.mark.asyncio
+    async def test_save_definition_without_init_raises(self) -> None:
+        from aria.iw.store import BehavioralStateStore
+
+        store = BehavioralStateStore("/tmp/nonexistent.db")
+        trigger = Indicator(entity_id="sensor.x", role="trigger", mode="state_change")
+        defn = BehavioralStateDefinition(
+            id="test",
+            name="Test",
+            trigger=trigger,
+            trigger_preconditions=[],
+            confirming=[],
+            deviations=[],
+            areas=frozenset(),
+            day_types=frozenset(),
+            person_attribution=None,
+            typical_duration_minutes=0.0,
+            expected_outcomes=(),
+        )
+        with pytest.raises(RuntimeError, match="not initialized"):
+            await store.save_definition(defn)
+
+    @pytest.mark.asyncio
+    async def test_list_definitions_without_init_raises(self) -> None:
+        from aria.iw.store import BehavioralStateStore
+
+        store = BehavioralStateStore("/tmp/nonexistent.db")
+        with pytest.raises(RuntimeError, match="not initialized"):
+            await store.list_definitions()

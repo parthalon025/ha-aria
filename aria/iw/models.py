@@ -11,6 +11,14 @@ from dataclasses import dataclass, field
 _VALID_ROLES = {"trigger", "confirming", "deviation"}
 _VALID_MODES = {"state_change", "quiet_period", "threshold"}
 _VALID_LIFECYCLES = {"seed", "emerging", "confirmed", "mature", "dormant", "retired"}
+_VALID_TRANSITIONS: dict[str, set[str]] = {
+    "seed": {"emerging", "retired"},
+    "emerging": {"confirmed", "dormant", "seed", "retired"},
+    "confirmed": {"mature", "dormant", "seed", "retired"},
+    "mature": {"dormant", "retired"},
+    "dormant": {"emerging", "retired"},
+    "retired": set(),
+}
 
 
 @dataclass(frozen=True)
@@ -35,6 +43,16 @@ class Indicator:
             raise ValueError(f"role must be one of {sorted(_VALID_ROLES)}, got {self.role!r}")
         if self.mode not in _VALID_MODES:
             raise ValueError(f"mode must be one of {sorted(_VALID_MODES)}, got {self.mode!r}")
+        # Cross-validate mode-specific required fields (#146)
+        if self.mode == "threshold":
+            if self.threshold_value is None:
+                raise ValueError("threshold_value required when mode='threshold'")
+            if self.threshold_direction not in ("above", "below"):
+                raise ValueError("threshold_direction must be 'above' or 'below' when mode='threshold'")
+        if self.mode == "quiet_period" and not self.quiet_seconds:
+            raise ValueError("quiet_seconds required when mode='quiet_period'")
+        if not (0.0 <= self.confidence <= 1.0):
+            raise ValueError(f"confidence must be in [0.0, 1.0], got {self.confidence}")
 
     def to_dict(self) -> dict:
         """Serialize to a JSON-compatible dict."""
@@ -86,6 +104,20 @@ class BehavioralStateDefinition:
     typical_duration_minutes: float
     expected_outcomes: tuple[dict, ...]
     composite_of: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.id:
+            raise ValueError("id must be non-empty")
+        if not self.name:
+            raise ValueError("name must be non-empty")
+        if self.trigger.role != "trigger":
+            raise ValueError(f"trigger must have role='trigger', got {self.trigger.role!r}")
+        for ind in self.confirming:
+            if ind.role != "confirming":
+                raise ValueError(f"confirming indicator must have role='confirming', got {ind.role!r}")
+        for ind in self.deviations:
+            if ind.role != "deviation":
+                raise ValueError(f"deviation indicator must have role='deviation', got {ind.role!r}")
 
     def to_dict(self) -> dict:
         """Serialize to a JSON-compatible dict."""
@@ -145,6 +177,30 @@ class BehavioralStateTracker:
     def __post_init__(self) -> None:
         if self.lifecycle not in _VALID_LIFECYCLES:
             raise ValueError(f"lifecycle must be one of {sorted(_VALID_LIFECYCLES)}, got {self.lifecycle!r}")
+
+    def transition_lifecycle(self, new_lifecycle: str, timestamp: str) -> None:
+        """Transition to a new lifecycle stage with state machine validation.
+
+        Raises ValueError for invalid transitions (e.g. mature -> seed).
+        Records the transition in lifecycle_history.
+        """
+        if new_lifecycle not in _VALID_LIFECYCLES:
+            raise ValueError(f"lifecycle must be one of {sorted(_VALID_LIFECYCLES)}, got {new_lifecycle!r}")
+        valid = _VALID_TRANSITIONS.get(self.lifecycle, set())
+        if new_lifecycle not in valid:
+            raise ValueError(
+                f"Invalid lifecycle transition: {self.lifecycle!r} -> {new_lifecycle!r}. "
+                f"Valid transitions from {self.lifecycle!r}: {sorted(valid)}"
+            )
+        old = self.lifecycle
+        self.lifecycle = new_lifecycle
+        self.lifecycle_history.append(
+            {
+                "from": old,
+                "to": new_lifecycle,
+                "timestamp": timestamp,
+            }
+        )
 
     def record_observation(self, timestamp: str, match_ratio: float) -> None:
         """Record a new observation, updating count, timestamps, and consistency.
@@ -206,6 +262,18 @@ class ActiveState:
     matched_confirming: list[str]
     pending_confirming: list[str]
     window_expires: str
+
+    def __post_init__(self) -> None:
+        overlap = set(self.matched_confirming) & set(self.pending_confirming)
+        if overlap:
+            raise ValueError(f"matched_confirming and pending_confirming must be disjoint, overlap: {overlap}")
+
+    def confirm_indicator(self, entity_id: str) -> None:
+        """Move an indicator from pending to matched. Raises ValueError if not pending."""
+        if entity_id not in self.pending_confirming:
+            raise ValueError(f"{entity_id!r} is not in pending_confirming")
+        self.pending_confirming.remove(entity_id)
+        self.matched_confirming.append(entity_id)
 
     @property
     def match_ratio(self) -> float:
