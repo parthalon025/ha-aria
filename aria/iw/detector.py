@@ -69,14 +69,16 @@ class IWDetector(Module):
         self._state_changed_callback = self._on_state_changed  # lesson #37: store ref
 
     async def initialize(self) -> None:
-        """Load definitions, build indexes, subscribe to events, start expiry timer."""
+        """Load definitions, build indexes, replay cold-start events, subscribe, start timer."""
         await self._load_definitions()
+        await self._cold_start_replay()
         self.hub.subscribe("state_changed", self._state_changed_callback)
         self._expiry_task = asyncio.create_task(self._expiry_loop())
         self.logger.info(
-            "IWDetector initialized: %d definitions, %d indexed entities, domains=%s",
+            "IWDetector initialized: %d definitions, %d indexed entities, %d replayed ActiveStates, domains=%s",
             len(self._definitions),
             len(self._entity_index),
+            len(self._active_states),
             sorted(self._domain_set),
         )
 
@@ -224,6 +226,35 @@ class IWDetector(Module):
             "Definitions refreshed: %d definitions, %d indexed entities",
             len(self._definitions),
             len(self._entity_index),
+        )
+
+    async def _cold_start_replay(self) -> None:
+        """Replay recent events from EventStore to reconstruct ActiveStates after restart.
+
+        Queries EventStore for events in the last `iw.cold_start_replay_minutes`,
+        then feeds each through `_on_state_changed()` in timestamp order.
+        This addresses lesson #5: event-driven state machines must seed current state on startup.
+        """
+        if not hasattr(self.hub, "event_store") or self.hub.event_store is None:
+            return
+
+        replay_minutes = await self.hub.cache.get_config_value("iw.cold_start_replay_minutes", 15)
+        now = datetime.now(UTC)
+        start = (now - timedelta(minutes=replay_minutes)).isoformat()
+        end = now.isoformat()
+
+        events = await self.hub.event_store.query_events(start, end)
+        if not events:
+            self.logger.debug("Cold-start replay: no events in last %d minutes", replay_minutes)
+            return
+
+        for event in events:
+            await self._on_state_changed(event)
+
+        self.logger.info(
+            "Cold-start replay: processed %d events, created %d ActiveState(s)",
+            len(events),
+            len(self._active_states),
         )
 
     async def _load_definitions(self) -> None:

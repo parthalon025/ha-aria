@@ -438,3 +438,100 @@ class TestDefinitionRefresh:
         assert "binary_sensor.motion_bedroom" in detector._entity_index
 
         await detector.shutdown()
+
+
+# ── Task 6 Tests: Cold-start replay ──────────────────────────────────────
+
+
+class TestColdStartReplaysRecentEvents:
+    """test_cold_start_replays_recent_events — events in EventStore → ActiveStates reconstructed."""
+
+    @pytest.mark.asyncio
+    async def test_cold_start_replays_recent_events(self) -> None:
+        from aria.iw.detector import IWDetector
+
+        defn = _make_definition()
+        hub = _make_hub()
+        store = _make_store([defn])
+
+        # Simulate recent events in EventStore
+        now = datetime.now(UTC)
+        hub.event_store.query_events = AsyncMock(
+            return_value=[
+                {
+                    "entity_id": "light.kitchen",
+                    "new_state": "on",
+                    "old_state": "off",
+                    "domain": "light",
+                    "timestamp": (now - timedelta(minutes=5)).isoformat(),
+                },
+                {
+                    "entity_id": "binary_sensor.motion_kitchen",
+                    "new_state": "on",
+                    "old_state": "off",
+                    "domain": "binary_sensor",
+                    "timestamp": (now - timedelta(minutes=4)).isoformat(),
+                },
+            ]
+        )
+
+        detector = IWDetector("iw_detector", hub, store)
+        await detector.initialize()
+
+        # Cold-start replay should have created an ActiveState and confirmed it
+        assert len(detector._active_states) == 1
+        active = detector._active_states[0]
+        assert active.definition_id == "def-1"
+        assert "binary_sensor.motion_kitchen" in active.matched_confirming
+
+        await detector.shutdown()
+
+
+class TestColdStartEmptyStore:
+    """test_cold_start_empty_store — no events → no error, no ActiveStates."""
+
+    @pytest.mark.asyncio
+    async def test_cold_start_empty_store(self) -> None:
+        from aria.iw.detector import IWDetector
+
+        defn = _make_definition()
+        hub = _make_hub()
+        store = _make_store([defn])
+        # Default: hub.event_store.query_events returns []
+
+        detector = IWDetector("iw_detector", hub, store)
+        await detector.initialize()
+
+        assert len(detector._active_states) == 0
+
+        await detector.shutdown()
+
+
+class TestColdStartRespectsConfig:
+    """test_cold_start_respects_config — uses iw.cold_start_replay_minutes config value."""
+
+    @pytest.mark.asyncio
+    async def test_cold_start_respects_config(self) -> None:
+        from aria.iw.detector import IWDetector
+
+        defn = _make_definition()
+        hub = _make_hub()
+        store = _make_store([defn])
+
+        detector = IWDetector("iw_detector", hub, store)
+        await detector.initialize()
+
+        # Verify query_events was called with the right time window
+        hub.event_store.query_events.assert_called_once()
+        call_args = hub.event_store.query_events.call_args
+        start_str = call_args[1].get("start") or call_args[0][0]
+        end_str = call_args[1].get("end") or call_args[0][1]
+
+        start = datetime.fromisoformat(start_str)
+        end = datetime.fromisoformat(end_str)
+        delta = end - start
+
+        # Config default is 15 minutes — allow 1 minute tolerance
+        assert 14 <= delta.total_seconds() / 60 <= 16
+
+        await detector.shutdown()
