@@ -178,4 +178,4 @@ Test baseline: 2101 tests passing (after rebase on main)
 - Deterministic IDs: sha256(trigger + sorted(confirming) + areas + day_types)
 - Quiet period preconditions: gap_before_trigger_seconds >4h → quiet_period indicator
 - Tests: 2183 passed, 15 skipped, 0 failures
-- Quality gate: PASSED
+- Quality gate: PASSED (attempt 2 — fixed pre-existing lint E501 in docs/archive/test_lag_features.py)

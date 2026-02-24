@@ -2,8 +2,8 @@
 """Test lag features with synthetic snapshots."""
 
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Add modules to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -76,11 +76,7 @@ def test_lag_features():
     class MockHub:
         pass
 
-    engine = MLEngine(
-        hub=MockHub(),
-        models_dir="/tmp/test_models",
-        training_data_dir="/tmp"
-    )
+    engine = MLEngine(hub=MockHub(), models_dir="/tmp/test_models", training_data_dir="/tmp")
 
     # Build training dataset
     print("Building training dataset for power_watts...")
@@ -99,20 +95,33 @@ def test_lag_features():
 
     # Find lag feature indices
     lag_indices = {}
-    for name in ["prev_snapshot_power", "prev_snapshot_lights", "prev_snapshot_occupancy",
-                 "rolling_7d_power_mean", "rolling_7d_lights_mean"]:
+    for name in [
+        "prev_snapshot_power",
+        "prev_snapshot_lights",
+        "prev_snapshot_occupancy",
+        "rolling_7d_power_mean",
+        "rolling_7d_lights_mean",
+    ]:
         if name in feature_names:
             lag_indices[name] = feature_names.index(name)
 
     print("Lag feature values by sample:")
-    print(f"{'Sample':<8} {'prev_power':<12} {'prev_lights':<12} {'prev_occ':<12} {'roll_power':<12} {'roll_lights':<12} {'target':<10}")
+    print(
+        f"{'Sample':<8} {'prev_power':<12} {'prev_lights':<12} "
+        f"{'prev_occ':<12} {'roll_power':<12} {'roll_lights':<12} {'target':<10}"
+    )
     print("-" * 90)
 
     for i in range(len(X)):
         row = []
         row.append(f"{i:<8}")
-        for name in ["prev_snapshot_power", "prev_snapshot_lights", "prev_snapshot_occupancy",
-                     "rolling_7d_power_mean", "rolling_7d_lights_mean"]:
+        for name in [
+            "prev_snapshot_power",
+            "prev_snapshot_lights",
+            "prev_snapshot_occupancy",
+            "rolling_7d_power_mean",
+            "rolling_7d_lights_mean",
+        ]:
             if name in lag_indices:
                 value = X[i][lag_indices[name]]
                 row.append(f"{value:<12.1f}")
