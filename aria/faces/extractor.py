@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+import cv2
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,8 @@ def _get_app():
     """Return FaceAnalysis app, initializing on first call. Returns None if unavailable."""
     global _app, _app_import_attempted
     if _app_import_attempted:
+        if _app is None:
+            logger.debug("FaceExtractor: InsightFace unavailable (previous init failed)")
         return _app
     _app_import_attempted = True
     try:
@@ -48,8 +51,6 @@ class FaceExtractor:
         When multiple faces are present, returns the embedding for the largest face
         by bounding-box area (most likely the primary subject in surveillance footage).
         """
-        import cv2  # noqa: PLC0415
-
         app = _get_app()
         if app is None:
             logger.error("FaceExtractor: insightface not installed")
@@ -66,7 +67,7 @@ class FaceExtractor:
             face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
             vec = face.embedding.astype(np.float32)
             norm = np.linalg.norm(vec)
-            if norm == 0:
+            if norm < 1e-6:
                 return None
             return vec / norm  # L2 normalize for cosine similarity
         except Exception:
@@ -98,9 +99,9 @@ class FaceExtractor:
             sim = self.cosine_similarity(query, entry["embedding"])
             scores.setdefault(name, []).append(sim)
 
-        candidates = [
-            {"person_name": name, "confidence": float(np.mean(sims))}
-            for name, sims in scores.items()
-            if float(np.mean(sims)) >= min_threshold
-        ]
+        candidates = []
+        for name, sims in scores.items():
+            mean = float(np.mean(sims))
+            if mean >= min_threshold:
+                candidates.append({"person_name": name, "confidence": mean})
         return sorted(candidates, key=lambda x: x["confidence"], reverse=True)

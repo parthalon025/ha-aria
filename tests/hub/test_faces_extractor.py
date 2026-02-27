@@ -34,7 +34,7 @@ class TestFaceExtractorEmbedding:
 
         with (
             patch("aria.faces.extractor._get_app", return_value=_mock_app(faces_return=[face])),
-            patch("cv2.imread", return_value=MagicMock()),
+            patch("aria.faces.extractor.cv2.imread", return_value=MagicMock()),
         ):
             result = extractor.extract_embedding("/tmp/fake.jpg")
 
@@ -48,7 +48,7 @@ class TestFaceExtractorEmbedding:
         extractor = FaceExtractor()
         with (
             patch("aria.faces.extractor._get_app", return_value=_mock_app(faces_return=[])),
-            patch("cv2.imread", return_value=MagicMock()),
+            patch("aria.faces.extractor.cv2.imread", return_value=MagicMock()),
         ):
             result = extractor.extract_embedding("/tmp/fake.jpg")
         assert result is None
@@ -56,7 +56,10 @@ class TestFaceExtractorEmbedding:
     def test_returns_none_on_unreadable_image(self):
         """Returns None when cv2.imread fails (returns None)."""
         extractor = FaceExtractor()
-        with patch("aria.faces.extractor._get_app", return_value=_mock_app()), patch("cv2.imread", return_value=None):
+        with (
+            patch("aria.faces.extractor._get_app", return_value=_mock_app()),
+            patch("aria.faces.extractor.cv2.imread", return_value=None),
+        ):
             result = extractor.extract_embedding("/tmp/missing.jpg")
         assert result is None
 
@@ -65,7 +68,7 @@ class TestFaceExtractorEmbedding:
         extractor = FaceExtractor()
         with (
             patch("aria.faces.extractor._get_app", return_value=_mock_app(get_side_effect=Exception("GPU OOM"))),
-            patch("cv2.imread", return_value=MagicMock()),
+            patch("aria.faces.extractor.cv2.imread", return_value=MagicMock()),
         ):
             result = extractor.extract_embedding("/tmp/fake.jpg")
         assert result is None
@@ -90,7 +93,7 @@ class TestFaceExtractorEmbedding:
 
         with (
             patch("aria.faces.extractor._get_app", return_value=_mock_app(faces_return=[small_face, large_face])),
-            patch("cv2.imread", return_value=MagicMock()),
+            patch("aria.faces.extractor.cv2.imread", return_value=MagicMock()),
         ):
             result = extractor.extract_embedding("/tmp/fake.jpg")
 
@@ -128,3 +131,31 @@ class TestFaceExtractorEmbedding:
         assert candidates[0]["person_name"] == "justin"
         assert candidates[0]["confidence"] > 0.99
         assert candidates[1]["confidence"] < candidates[0]["confidence"]
+
+    def test_returns_none_on_near_zero_embedding(self):
+        """Returns None when embedding norm is near-zero (corrupted/quantized model output)."""
+        extractor = FaceExtractor()
+        near_zero_embedding = np.full(512, 1e-10, dtype=np.float32)
+        face = _make_face(embedding=near_zero_embedding)
+
+        with (
+            patch("aria.faces.extractor._get_app", return_value=_mock_app(faces_return=[face])),
+            patch("aria.faces.extractor.cv2.imread", return_value=MagicMock()),
+        ):
+            result = extractor.extract_embedding("/tmp/fake.jpg")
+        assert result is None
+
+    def test_get_app_cached_none_returns_none(self):
+        """_get_app returns None on repeated calls after init failure without retrying."""
+        import aria.faces.extractor as ext_mod
+
+        original_attempted = ext_mod._app_import_attempted
+        original_app = ext_mod._app
+        try:
+            ext_mod._app_import_attempted = True
+            ext_mod._app = None
+            result = ext_mod._get_app()
+            assert result is None
+        finally:
+            ext_mod._app_import_attempted = original_attempted
+            ext_mod._app = original_app
