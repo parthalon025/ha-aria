@@ -33,8 +33,8 @@ def _get_app():
         app.prepare(ctx_id=0, det_size=(640, 640))
         _app = app
         logger.info("FaceExtractor: InsightFace buffalo_l ready")
-    except (ImportError, Exception):
-        logger.error("FaceExtractor: insightface not available — face recognition disabled")
+    except Exception:
+        logger.exception("FaceExtractor: insightface not available — face recognition disabled")
         _app = None
     return _app
 
