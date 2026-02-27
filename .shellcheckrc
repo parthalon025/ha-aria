@@ -1,0 +1,7 @@
+# ShellCheck configuration
+# https://github.com/koalaman/shellcheck/wiki/Directive
+
+# Allow sourcing from paths determined at runtime
+# SC1090: Can't follow non-constant source
+# SC1091: Not following (file not found)
+disable=SC1090,SC1091
