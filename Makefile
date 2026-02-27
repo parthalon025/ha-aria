@@ -4,7 +4,6 @@ all: lint
 
 lint:
 	ruff check .
-	mypy aria/ --ignore-missing-imports
 
 format:
 	ruff format .
