@@ -16,7 +16,7 @@ export default function useSearch(data, fields, debounceMs = 200) {
   // Stabilize the fields array so inline array literals from callers don't
   // create a new reference on every render and cause infinite useMemo loops.
   const fieldsKey = Array.isArray(fields) ? fields.join('\0') : '';
-  const stableFields = useMemo(() => fields, [fieldsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stableFields = useMemo(() => fields, [fieldsKey]); // intentional dep: fieldsKey is the serialized stable key
 
   // Debounce the search term
   useEffect(() => {

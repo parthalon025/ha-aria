@@ -9,7 +9,8 @@
     "dev:js": "node esbuild.config.mjs --watch",
     "build": "npm run build:css && npm run build:js && node -e \"const fs=require('fs');const v=Date.now();fs.writeFileSync('dist/index.html',fs.readFileSync('index.html','utf8').replace(/bundle\\.css/g,'bundle.css?v='+v).replace(/bundle\\.js/g,'bundle.js?v='+v))\"",
     "build:css": "npx @tailwindcss/cli -i src/index.css -o dist/bundle.css --minify",
-    "build:js": "node esbuild.config.mjs"
+    "build:js": "node esbuild.config.mjs",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@preact/signals": "^2.8.1",
@@ -19,9 +20,13 @@
     "uplot": "^1.6.32"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/cli": "^4.0.0",
     "concurrently": "^9.1.0",
     "esbuild": "^0.27.3",
+    "eslint": "^10.0.2",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.3.0",
     "puppeteer": "^24.37.5",
     "tailwindcss": "^4.0.0"
   }
