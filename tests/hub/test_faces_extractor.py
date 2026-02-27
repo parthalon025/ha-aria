@@ -145,17 +145,11 @@ class TestFaceExtractorEmbedding:
             result = extractor.extract_embedding("/tmp/fake.jpg")
         assert result is None
 
-    def test_get_app_cached_none_returns_none(self):
+    def test_get_app_cached_none_returns_none(self, monkeypatch):
         """_get_app returns None on repeated calls after init failure without retrying."""
         import aria.faces.extractor as ext_mod
 
-        original_attempted = ext_mod._app_import_attempted
-        original_app = ext_mod._app
-        try:
-            ext_mod._app_import_attempted = True
-            ext_mod._app = None
-            result = ext_mod._get_app()
-            assert result is None
-        finally:
-            ext_mod._app_import_attempted = original_attempted
-            ext_mod._app = original_app
+        monkeypatch.setattr(ext_mod, "_app_import_attempted", True)
+        monkeypatch.setattr(ext_mod, "_app", None)
+        result = ext_mod._get_app()
+        assert result is None
