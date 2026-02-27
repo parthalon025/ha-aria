@@ -50,17 +50,12 @@ ml-extra = [
 ]
 neural-prophet = ["neuralprophet>=0.8.0"]
 gpu = ["torch>=2.0.0"]
-# Face recognition — install with: pip install -e ".[faces]" or ".[faces-gpu]"
-# faces-gpu bundles CUDA libraries via tensorflow[and-cuda]; requires NVIDIA GPU
+# Face recognition — install with: pip install -e ".[faces]"
+# CUDA support is via onnxruntime-gpu; no separate GPU extra needed
 faces = [
-    "deepface>=0.0.93",
-    "tf-keras>=2.18.0",
-    "tensorflow>=2.20.0",
-]
-faces-gpu = [
-    "deepface>=0.0.93",
-    "tf-keras>=2.18.0",
-    "tensorflow[and-cuda]>=2.20.0",
+    "insightface>=0.7.3",
+    "onnxruntime-gpu>=1.17.0",
+    "opencv-python-headless>=4.8.0",
 ]
 unifi = ["uiprotect>=10.0"]
 dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "pytest-timeout>=2.3.0", "ruff>=0.4.0", "pre-commit>=4.0.0"]
