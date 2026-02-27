@@ -35,6 +35,16 @@ def main() -> int:
         logger.error("Cannot import FaceExtractor: %s", e)
         return 1
 
+    # Initialize extractor — triggers buffalo_l download on first run (~300MB, may take 60s)
+    logger.info("Initializing InsightFace extractor...")
+    from aria.faces.extractor import _get_app  # noqa: PLC0415
+
+    if _get_app() is None:
+        logger.error("InsightFace failed to initialize — check installation")
+        return 1
+    extractor = FaceExtractor()
+    logger.info("InsightFace ready")
+
     # Load all verified labeled records BEFORE clearing
     with closing(sqlite3.connect(str(db_path))) as conn:
         rows = conn.execute("""
@@ -49,16 +59,6 @@ def main() -> int:
     if not rows:
         logger.warning("No labeled images found — nothing to migrate")
         return 0
-
-    # Initialize extractor — triggers buffalo_l download on first run (~300MB, may take 60s)
-    logger.info("Initializing InsightFace extractor...")
-    from aria.faces.extractor import _get_app  # noqa: PLC0415
-
-    if _get_app() is None:
-        logger.error("InsightFace failed to initialize — check installation")
-        return 1
-    extractor = FaceExtractor()
-    logger.info("InsightFace ready")
 
     # Clear ALL existing embeddings
     with closing(sqlite3.connect(str(db_path))) as conn:
