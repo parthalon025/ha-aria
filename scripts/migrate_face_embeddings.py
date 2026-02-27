@@ -118,6 +118,7 @@ def main() -> int:
     logger.info("InsightFace ready")
 
     rows = _load_worklist(db_path, sidecar)
+    is_resume = sidecar.exists()  # True only if sidecar already existed before this run
     logger.info("Found %d verified labeled images to re-embed", len(rows))
     if not rows:
         logger.warning("No labeled images found — nothing to migrate")
@@ -128,11 +129,14 @@ def main() -> int:
     sidecar.write_text(json.dumps(rows))
     logger.info("Work list written to %s (re-runnable if interrupted)", sidecar)
 
-    # Clear ALL existing embeddings
-    with closing(sqlite3.connect(str(db_path))) as conn:
-        deleted = conn.execute("DELETE FROM face_embeddings").rowcount
-        conn.commit()
-    logger.info("Cleared %d existing embeddings", deleted)
+    # Clear ALL existing embeddings — skipped on resume to preserve partial progress
+    if not is_resume:
+        with closing(sqlite3.connect(str(db_path))) as conn:
+            deleted = conn.execute("DELETE FROM face_embeddings").rowcount
+            conn.commit()
+        logger.info("Cleared %d existing embeddings", deleted)
+    else:
+        logger.info("Resuming from sidecar — skipping DELETE to preserve partial progress")
 
     inserted, skipped_missing, skipped_no_face = _reembed_images(db_path, rows, extractor)
 
