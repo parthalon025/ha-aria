@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from aria.hub.cache import CacheManager
 from aria.shared.entity_graph import EntityGraph
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class Module:
     """Base class for hub modules."""
 
-    CAPABILITIES: list = []  # Subclasses declare their capabilities
+    CAPABILITIES: ClassVar[list] = []  # Subclasses declare their capabilities
 
     def __init__(self, module_id: str, hub: "IntelligenceHub"):
         self.module_id = module_id

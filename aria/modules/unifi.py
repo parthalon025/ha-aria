@@ -113,9 +113,9 @@ class UniFiModule(Module):
 
         # Start loops — tracked as tasks by hub via log_task_exception pattern
         t1 = asyncio.create_task(self._network_poll_loop(), name="unifi_network_poll")
-        t1.add_done_callback(self.hub._log_task_exception)  # noqa: SLF001
+        t1.add_done_callback(self.hub._log_task_exception)
         t2 = asyncio.create_task(self._protect_ws_loop(), name="unifi_protect_ws")
-        t2.add_done_callback(self.hub._log_task_exception)  # noqa: SLF001
+        t2.add_done_callback(self.hub._log_task_exception)
 
     async def shutdown(self) -> None:
         """Close aiohttp session and disconnect Protect client."""
@@ -451,7 +451,7 @@ class UniFiModule(Module):
                     override_connection_host=True,
                 )
                 # Inject API key auth via session override
-                client._api_key = self._api_key  # noqa: SLF001 — uiprotect internal
+                client._api_key = self._api_key
                 self._protect_client = client
                 await client.update()
 

@@ -9,7 +9,7 @@ the surviving suggestions in the automation_suggestions cache.
 import hashlib
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, ClassVar
 
 from aria.automation.llm_refiner import refine_automation
 from aria.automation.models import ChainLink, DetectionResult
@@ -55,7 +55,7 @@ def compute_combined_score(detection: DetectionResult) -> float:
 class AutomationGeneratorModule(Module):
     """Coordinates the full automation suggestion pipeline."""
 
-    CAPABILITIES = [
+    CAPABILITIES: ClassVar[list] = [
         Capability(
             id="automation_generator",
             name="Automation Generator",

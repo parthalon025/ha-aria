@@ -17,16 +17,16 @@ from aria.engine.models.training import (
 )
 
 __all__ = [
-    "ModelRegistry",
     "BaseModel",
     "GradientBoostingModel",
     "IsolationForestModel",
-    "train_device_failure_model",
-    "predict_device_failures",
-    "detect_contextual_anomalies",
-    "train_all_models",
-    "train_continuous_model",
-    "predict_with_ml",
+    "ModelRegistry",
     "blend_predictions",
     "count_days_of_data",
+    "detect_contextual_anomalies",
+    "predict_device_failures",
+    "predict_with_ml",
+    "train_all_models",
+    "train_continuous_model",
+    "train_device_failure_model",
 ]

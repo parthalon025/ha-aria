@@ -17,7 +17,7 @@ import time
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import aiohttp
 
@@ -67,7 +67,7 @@ SIGNAL_STALE_S = 600  # 10 minutes with no signal = likely empty
 class PresenceModule(Module):
     """Real-time presence tracking via camera + sensor fusion."""
 
-    CAPABILITIES = [
+    CAPABILITIES: ClassVar[list] = [
         Capability(
             id="presence_tracking",
             name="Presence Tracking",

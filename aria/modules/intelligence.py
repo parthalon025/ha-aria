@@ -11,7 +11,7 @@ import os
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import aiohttp
 
@@ -93,7 +93,7 @@ METRIC_PATHS = {
 class IntelligenceModule(Module):
     """Reads ARIA engine output files and pushes to hub cache."""
 
-    CAPABILITIES = [
+    CAPABILITIES: ClassVar[list] = [
         Capability(
             id="intelligence_assembly",
             name="Intelligence Assembly",

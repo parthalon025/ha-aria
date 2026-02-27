@@ -341,7 +341,7 @@ def _fix_naive_utc(d: dict, field: str) -> None:
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     d = dict(row)
-    if "embedding" in d and d["embedding"]:
+    if d.get("embedding"):
         d["embedding"] = np.frombuffer(d["embedding"], dtype=np.float32).copy()
     _fix_naive_utc(d, "created_at")
     return d

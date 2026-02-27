@@ -378,8 +378,7 @@ def detect_capabilities(states, entity_registry, device_registry):  # noqa: C901
     ev_entities = [
         e["entity_id"]
         for e in states
-        if "battery" in e["entity_id"].lower()
-        and "vehicle" in e["entity_id"].lower()
+        if ("battery" in e["entity_id"].lower() and "vehicle" in e["entity_id"].lower())
         or "tars" in e["entity_id"].lower()
     ]
     if ev_entities:

@@ -5,4 +5,4 @@
 import aria.engine.collectors.extractors  # noqa: F401
 from aria.engine.collectors.registry import BaseCollector, CollectorRegistry
 
-__all__ = ["CollectorRegistry", "BaseCollector"]
+__all__ = ["BaseCollector", "CollectorRegistry"]

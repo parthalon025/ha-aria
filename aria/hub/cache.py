@@ -1196,7 +1196,7 @@ class CacheManager:
                 SET status = ?, human_override = TRUE,
                     decided_at = ?, decided_by = ?
                 WHERE entity_id IN ({placeholders})""",
-            [status, now, decided_by] + entity_ids,
+            [status, now, decided_by, *entity_ids],
         )
         await self._conn.commit()
         return cursor.rowcount

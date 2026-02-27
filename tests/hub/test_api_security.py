@@ -91,12 +91,12 @@ class TestConfigRedaction:
         history = data["history"]
 
         # Sensitive key should be redacted
-        sensitive_entry = [e for e in history if e["key"] == "mqtt.password"][0]
+        sensitive_entry = next(e for e in history if e["key"] == "mqtt.password")
         assert sensitive_entry["old_value"] == "***REDACTED***"
         assert sensitive_entry["new_value"] == "***REDACTED***"
 
         # Non-sensitive key should be unchanged
-        normal_entry = [e for e in history if e["key"] == "general.name"][0]
+        normal_entry = next(e for e in history if e["key"] == "general.name")
         assert normal_entry["old_value"] == "ARIA"
         assert normal_entry["new_value"] == "ARIA v2"
 

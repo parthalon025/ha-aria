@@ -11,13 +11,13 @@ from aria.engine.llm.meta_learning import (
 from aria.engine.llm.reports import generate_brief_line, generate_insight_report
 
 __all__ = [
-    "ollama_chat",
-    "strip_think_tags",
-    "generate_insight_report",
-    "generate_brief_line",
-    "parse_suggestions",
-    "apply_suggestion_to_config",
-    "validate_suggestion",
-    "run_meta_learning",
     "MAX_META_CHANGES_PER_WEEK",
+    "apply_suggestion_to_config",
+    "generate_brief_line",
+    "generate_insight_report",
+    "ollama_chat",
+    "parse_suggestions",
+    "run_meta_learning",
+    "strip_think_tags",
+    "validate_suggestion",
 ]

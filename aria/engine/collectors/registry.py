@@ -9,12 +9,13 @@ Adding a new device type:
 """
 
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 
 class CollectorRegistry:
     """Registry for data collectors using decorator-based registration."""
 
-    _collectors: dict[str, type] = {}
+    _collectors: ClassVar[dict[str, type]] = {}
 
     @classmethod
     def register(cls, name: str | None = None):

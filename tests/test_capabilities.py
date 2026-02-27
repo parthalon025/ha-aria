@@ -492,5 +492,6 @@ class TestDemandSignalDeclarations:
 
     def test_demand_signals_are_frozen(self):
         ds = DemandSignal(entity_domains=("sensor",), min_entities=5)
-        with pytest.raises((AttributeError, TypeError, Exception), match="frozen|cannot|immutable|FrozenInstanceError"):
+        frozen_pattern = r"frozen|cannot|immutable|FrozenInstanceError"
+        with pytest.raises((AttributeError, TypeError, Exception), match=frozen_pattern):
             ds.min_entities = 10

@@ -23,7 +23,7 @@ def _get_app():
         return _app
     _app_import_attempted = True
     try:
-        from insightface.app import FaceAnalysis  # noqa: PLC0415
+        from insightface.app import FaceAnalysis
 
         logger.info(
             "FaceExtractor: loading InsightFace buffalo_l"

@@ -20,7 +20,7 @@ import pickle
 import warnings
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import lightgbm as lgb
 import numpy as np
@@ -100,7 +100,7 @@ def should_full_retrain(current_trees: int, max_trees: int = 500) -> bool:
 class MLEngine(Module):
     """Machine learning prediction engine with adaptive capability mapping."""
 
-    CAPABILITIES = [
+    CAPABILITIES: ClassVar[list] = [
         Capability(
             id="ml_realtime",
             name="Real-Time ML Predictions",
@@ -1058,7 +1058,7 @@ class MLEngine(Module):
         # NOTE: Activity monitor stores timestamps as naive local time.
         # Use local time here for consistent string comparison with stored data.
         # When activity_monitor is converted to UTC, update this to match.
-        now = datetime.now()  # noqa: DTZ005 — intentional: matches activity_monitor's naive local timestamps
+        now = datetime.now()
         for hours in ROLLING_WINDOWS_HOURS:
             cutoff = (now - timedelta(hours=hours)).isoformat()
             relevant = [w for w in windows if w.get("window_start", "") >= cutoff]
@@ -1350,7 +1350,7 @@ class MLEngine(Module):
         return np.array([feature_vector], dtype=float), feature_names
 
     # Trajectory class encoding — derived from canonical source (Phase 3)
-    _TRAJECTORY_ENCODING = {cls: i for i, cls in enumerate(TRAJECTORY_CLASSES)}
+    _TRAJECTORY_ENCODING: ClassVar[dict] = {cls: i for i, cls in enumerate(TRAJECTORY_CLASSES)}
 
     def _encode_trajectory(self, trajectory: str) -> int:
         """Encode trajectory class string to integer."""

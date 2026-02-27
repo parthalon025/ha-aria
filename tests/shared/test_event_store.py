@@ -23,7 +23,7 @@ async def store(tmp_path):
 class TestInitialization:
     async def test_import(self):
         """EventStore can be imported."""
-        from aria.shared.event_store import EventStore  # noqa: F811
+        from aria.shared.event_store import EventStore
 
         assert EventStore is not None
 

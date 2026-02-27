@@ -56,7 +56,7 @@ class LabelRequest(BaseModel):
     person_name: str
 
 
-def _register_face_routes(router: APIRouter, hub: Any) -> None:  # noqa: PLR0912, C901, PLR0915
+def _register_face_routes(router: APIRouter, hub: Any) -> None:  # noqa: C901, PLR0915
     """Register /api/faces/* endpoints on the given router."""
 
     def _store():

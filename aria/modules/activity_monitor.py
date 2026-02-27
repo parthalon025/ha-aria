@@ -15,7 +15,7 @@ import sys
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import aiohttp
 
@@ -64,7 +64,7 @@ MAX_WINDOW_AGE_H = 24
 class ActivityMonitor(Module):
     """Tracks HA state changes and triggers adaptive snapshots."""
 
-    CAPABILITIES = [
+    CAPABILITIES: ClassVar[list] = [
         Capability(
             id="activity_monitoring",
             name="Activity Monitoring",

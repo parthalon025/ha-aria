@@ -102,14 +102,14 @@ def main() -> int:
 
     # Check InsightFace is available before touching the DB
     try:
-        from aria.faces.extractor import FaceExtractor  # noqa: PLC0415
+        from aria.faces.extractor import FaceExtractor
     except ImportError as e:
         logger.error("Cannot import FaceExtractor: %s", e)
         return 1
 
     # Initialize extractor — triggers buffalo_l download on first run (~300MB, may take 60s)
     logger.info("Initializing InsightFace extractor...")
-    from aria.faces.extractor import _get_app  # noqa: PLC0415
+    from aria.faces.extractor import _get_app
 
     if _get_app() is None:
         logger.error("InsightFace failed to initialize — check installation")

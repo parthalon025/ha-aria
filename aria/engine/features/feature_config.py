@@ -7,7 +7,7 @@ import copy
 from datetime import UTC, datetime
 
 # Re-exported from shared constants for backward compatibility
-from aria.shared.constants import DEFAULT_FEATURE_CONFIG  # noqa: F401
+from aria.shared.constants import DEFAULT_FEATURE_CONFIG
 
 # Required top-level sections in a valid feature config
 _REQUIRED_SECTIONS = {

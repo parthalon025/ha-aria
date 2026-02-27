@@ -15,6 +15,7 @@ import importlib
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ModelRegistry:
     """Registry for ML model classes using decorator-based registration."""
 
-    _models: dict[str, type] = {}
+    _models: ClassVar[dict[str, type]] = {}
 
     @classmethod
     def register(cls, name: str | None = None):

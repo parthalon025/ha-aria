@@ -7,7 +7,7 @@ manages approval flow, and creates virtual sensors for pattern detection events.
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, ClassVar
 
 import aiohttp
 
@@ -24,7 +24,7 @@ RESTRICTED_DOMAINS = {"lock", "cover", "alarm_control_panel"}
 class OrchestratorModule(Module):
     """Generates automation suggestions and executes approved automations."""
 
-    CAPABILITIES = [
+    CAPABILITIES: ClassVar[list] = [
         Capability(
             id="orchestrator",
             name="Automation Orchestrator",
@@ -322,10 +322,10 @@ class OrchestratorModule(Module):
 
         except aiohttp.ClientError as e:
             self.logger.error(f"HTTP request failed for automation {automation_id}: {e}")
-            return {"success": False, "error": f"Network error: {str(e)}"}
+            return {"success": False, "error": f"Network error: {e!s}"}
         except Exception as e:
             self.logger.error(f"Unexpected error creating automation {automation_id}: {e}")
-            return {"success": False, "error": f"Unexpected error: {str(e)}"}
+            return {"success": False, "error": f"Unexpected error: {e!s}"}
 
     async def _store_pending_automation(self, automation_id: str, automation_yaml: dict[str, Any]):
         """Store automation YAML in cache for manual creation.

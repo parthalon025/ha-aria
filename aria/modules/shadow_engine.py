@@ -18,7 +18,7 @@ import random
 import uuid
 from collections import defaultdict, deque
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, ClassVar
 
 from aria.capabilities import Capability, DemandSignal
 from aria.hub.constants import CACHE_ACTIVITY_LOG, CACHE_ACTIVITY_SUMMARY
@@ -203,7 +203,7 @@ class ThompsonSampler:
 class ShadowEngine(Module):
     """Shadow mode prediction engine: predict-compare-score loop."""
 
-    CAPABILITIES = [
+    CAPABILITIES: ClassVar[list] = [
         Capability(
             id="shadow_predictions",
             name="Shadow Predictions",

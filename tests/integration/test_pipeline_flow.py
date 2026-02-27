@@ -86,7 +86,7 @@ class TestIntermediateFormats:
         scores = result["scores"]
         assert "overall" in scores
         assert "metrics" in scores
-        assert isinstance(scores["overall"], (int, float))
+        assert isinstance(scores["overall"], int | float)
 
 
 class TestHubReadsEngineOutput:

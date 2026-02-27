@@ -57,7 +57,7 @@ class AutomationTemplate:
 def _generate_id(detection: DetectionResult) -> str:
     """Generate a unique, deterministic automation ID."""
     # Combine trigger + action entities for uniqueness
-    parts = [detection.trigger_entity] + sorted(detection.action_entities)
+    parts = [detection.trigger_entity, *sorted(detection.action_entities)]
     if detection.day_type:
         parts.append(detection.day_type)
     raw = "|".join(parts)

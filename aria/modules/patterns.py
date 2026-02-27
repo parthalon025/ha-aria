@@ -14,7 +14,7 @@ import logging
 import re
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 import pandas as pd
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class PatternRecognition(Module):
     """Detects behavioral patterns using clustering and association rules."""
 
-    CAPABILITIES = [
+    CAPABILITIES: ClassVar[list] = [
         Capability(
             id="pattern_detection",
             name="Pattern Detection",

@@ -12,7 +12,7 @@ import random
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import aiohttp
 
@@ -45,7 +45,7 @@ RECLASSIFY_INTERVAL = timedelta(hours=24)
 class DiscoveryModule(Module):
     """Discovers HA entities, devices, areas, and capabilities."""
 
-    CAPABILITIES = [
+    CAPABILITIES: ClassVar[list] = [
         Capability(
             id="discovery",
             name="HA Entity Discovery",

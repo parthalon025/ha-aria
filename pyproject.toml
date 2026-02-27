@@ -59,7 +59,7 @@ faces = [
     "opencv-python-headless>=4.8.0",
 ]
 unifi = ["uiprotect>=10.0"]
-dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "pytest-timeout>=2.3.0", "ruff>=0.4.0", "pre-commit>=4.0.0"]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "pytest-timeout>=2.3.0", "ruff>=0.4.0", "pre-commit>=4.0.0", "mypy>=1.8.0"]
 
 [project.urls]
 Homepage = "https://github.com/parthalon025/ha-aria"
@@ -97,8 +97,21 @@ target-version = "py312"
 exclude = ["_archived", "docs/archive"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "C901", "PLR"]
-ignore = ["PLR2004"]  # Magic value comparisons — inappropriate for ML thresholds and test assertions
+select = ["E", "F", "I", "UP", "B", "SIM", "C901", "PLR", "W", "N", "S", "RUF"]
+ignore = [
+    "PLR2004",  # Magic value comparisons — inappropriate for ML thresholds and test assertions
+    "S101",    # assert in tests — expected pattern
+    "S603",    # subprocess without shell=True — not a risk here
+    "S607",    # partial executable path — acceptable in controlled env
+    "S310",    # urlopen — all calls are to localhost:8001 (internal only)
+    "S311",    # random.uniform — used for jitter/backoff, not cryptography
+    "S608",    # SQL string construction — clauses are validated keys, not user input
+    "B008",    # function call in default arg — FastAPI/Click idiom
+    "SIM108",  # ternary operator — readability preference
+    "RUF001",  # ambiguous Unicode in strings — σ is intentional physics notation
+    "RUF002",  # ambiguous Unicode in docstrings — σ is intentional physics notation
+    "RUF003",  # ambiguous Unicode in comments
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -111,6 +124,38 @@ max-complexity = 10
 "aria/hub/audit.py" = ["PLR0913"]
 # CLI dispatch functions grow linearly with subcommands — structurally identical to api.py route registration
 "aria/cli.py" = ["C901", "PLR0912"]
+# Test files — security rules, naming conventions, ClassVar, and ML matrix variables are inapplicable
+"tests/**/*.py" = ["S", "N802", "N803", "N806", "RUF012"]
+# ML engine — uppercase matrix variables (X, Y, X_arr) and argument names are mathematical convention
+"aria/engine/models/*.py" = ["N806", "N803", "S301"]
+"aria/engine/anomaly_explainer.py" = ["N806", "N803"]
+"aria/engine/attention_explainer.py" = ["N806", "N803"]
+"aria/engine/evaluation.py" = ["N806", "N803"]
+"aria/engine/features/feature_selection.py" = ["N806", "N803"]
+"aria/engine/tuning.py" = ["N806", "N803"]
+# Capabilities — uppercase graph-coloring constants (WHITE/GRAY/BLACK) are algorithm convention
+"aria/capabilities.py" = ["N806"]
+# ML training helpers — uppercase matrix variables are mathematical convention
+"aria/engine/analysis/*.py" = ["N806", "N803", "N811"]
+# Additional ML engine files with matrix variable conventions
+"aria/engine/features/vector_builder.py" = ["N806", "N803"]
+"aria/engine/llm/meta_learning.py" = ["N806", "N803"]
+# sha1 for stable image dedup keys — not cryptographic use; N8xx for ML conventions
+"aria/faces/bootstrap.py" = ["N806", "N803", "S324"]
+# ML engine module — matrix variables + pickle for local models only
+"aria/modules/ml_engine.py" = ["N806", "N803", "S301"]
+# Module files that invoke ML utilities directly
+"aria/modules/activity_monitor.py" = ["N806", "N803"]
+"aria/modules/presence.py" = ["N806", "N803"]
+# Synthetic test helpers use ML matrix conventions
+"tests/synthetic/*.py" = ["N806", "N803"]
+# Pickle for local trained model files only — not deserializing untrusted data
+"aria/engine/storage/model_io.py" = ["S301"]
+# watchdog uses /tmp for cooldowns and missed-alert fallback — process-local, not shared
+"aria/watchdog.py" = ["S108"]
+# bare except:pass for optional config reads and WebSocket teardown — intentional fallback
+"aria/modules/patterns.py" = ["S110"]
+"bin/discover.py" = ["S110"]
 
 [tool.ruff.lint.pylint]
 max-args = 5
@@ -118,3 +163,12 @@ max-returns = 6
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+disallow_untyped_defs = false
+warn_return_any = false
+warn_unused_ignores = true
+no_implicit_optional = true

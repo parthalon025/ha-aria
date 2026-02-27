@@ -156,7 +156,7 @@ class TestInsertPrediction:
         kwargs = _make_prediction_kwargs()
         await cache.insert_prediction(**kwargs)
 
-        with pytest.raises(Exception, match="UNIQUE|duplicate|already exists"):
+        with pytest.raises(Exception, match=r"UNIQUE|duplicate|already exists"):
             await cache.insert_prediction(**kwargs)
 
     @pytest.mark.asyncio

@@ -12,7 +12,7 @@ def generate_checkpoint(
     scenario: str = "stable_couple",
     days: int = 30,
     seed: int = 42,
-    output_dir: Path | str = None,
+    output_dir: Path | str | None = None,
 ) -> dict:
     """Generate a frozen demo checkpoint."""
     output_dir = Path(output_dir)
@@ -25,7 +25,7 @@ def generate_checkpoint(
     return runner.run_full()
 
 
-def generate_all_checkpoints(base_dir: Path | str = None):
+def generate_all_checkpoints(base_dir: Path | str | None = None):
     """Generate all standard demo checkpoints."""
     if base_dir is None:
         base_dir = Path(__file__).parent / "fixtures"

@@ -602,7 +602,7 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
                 raise HTTPException(status_code=500, detail="Internal server error") from None
 
     @router.post("/api/data/label")
-    async def post_data_label(body: dict = Body(...)):  # noqa: B008
+    async def post_data_label(body: dict = Body(...)):
         """Label a data snapshot with a quality/type label (#297).
 
         Validates label against allowed values before storing.
@@ -704,7 +704,7 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
         return module.settings
 
     @router.put("/api/settings/discovery")
-    async def update_discovery_settings(body: dict = Body(...)):  # noqa: B008
+    async def update_discovery_settings(body: dict = Body(...)):
         """Update discovery settings."""
         module = hub.modules.get("organic_discovery")
         if not module:
@@ -740,7 +740,7 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
 
     # Capability prediction toggle
     @router.put("/api/capabilities/{capability_name}/can-predict")
-    async def toggle_can_predict(capability_name: str, body: dict = Body(...)):  # noqa: B008
+    async def toggle_can_predict(capability_name: str, body: dict = Body(...)):
         """Toggle can_predict flag for a capability."""
         try:
             cached = await hub.cache.get("capabilities")
@@ -823,7 +823,7 @@ def _register_feedback_routes(router: APIRouter, hub: IntelligenceHub) -> None:
 
     # Automation suggestion feedback endpoints
     @router.post("/api/automations/feedback")
-    async def record_automation_feedback(body: dict = Body(...)):  # noqa: B008
+    async def record_automation_feedback(body: dict = Body(...)):
         """Record user feedback on an automation suggestion."""
         suggestion_id = body.get("suggestion_id")
         capability_source = body.get("capability_source")
@@ -921,7 +921,7 @@ def _register_feedback_routes(router: APIRouter, hub: IntelligenceHub) -> None:
         return entry["data"].get("current_activity", {"predicted": "unknown", "confidence": 0, "method": "none"})
 
     @router.post("/api/activity/label")
-    async def post_activity_label(body: dict = Body(...)):  # noqa: B008
+    async def post_activity_label(body: dict = Body(...)):
         """Record a user-confirmed or corrected activity label."""
         actual = body.get("actual_activity", "")
         if not actual:

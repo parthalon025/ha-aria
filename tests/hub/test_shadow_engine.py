@@ -1173,7 +1173,7 @@ class TestPredictionStorage:
 
         # Should have created a window_events entry
         assert len(engine._window_events) == 1
-        pred_id = list(engine._window_events.keys())[0]
+        pred_id = next(iter(engine._window_events.keys()))
         assert engine._window_events[pred_id] == []
 
     @pytest.mark.asyncio

@@ -145,10 +145,10 @@ class CapabilityRegistry:
                     continue  # missing dep, already reported above
                 if color[dep] == GRAY:
                     cycle_start = path.index(dep)
-                    cycle = path[cycle_start:] + [dep]
+                    cycle = [*path[cycle_start:], dep]
                     errors.append(f"Cycle detected: {' -> '.join(cycle)}")
                 elif color[dep] == WHITE:
-                    dfs(dep, path + [dep])
+                    dfs(dep, [*path, dep])
             color[node] = BLACK
 
         for node in graph:

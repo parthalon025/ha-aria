@@ -11,7 +11,7 @@ Tier 3+ only — self-gates on hardware tier.
 import logging
 from collections import deque
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -32,7 +32,7 @@ _DEFAULT_WINDOW_SIZE = 6
 class TrajectoryClassifier(Module):
     """Hub module for trajectory classification and pattern analysis."""
 
-    CAPABILITIES = [
+    CAPABILITIES: ClassVar[list] = [
         Capability(
             id="trajectory_classifier",
             name="Trajectory Classifier",
