@@ -270,13 +270,14 @@ export default function PipelineSankey({ moduleStatuses, cacheData }) {
       }, 150);
     } else if (node.column === 4 && node.page) {
       // Output node — navigate to OODA page
-      window.location.hash = node.page;
+      // node.page is already a hash string like '#/observe'; assign to href to avoid double-hash
+      window.location.href = node.page;
     } else if (node.column === 0) {
       // Source node — no navigation, detail panel on hover is sufficient
       return;
     } else {
       // Module node — navigate to module detail
-      window.location.hash = `#/detail/module/${node.id}`;
+      window.location.href = `#/detail/module/${node.id}`;
     }
   }
 
