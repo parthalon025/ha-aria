@@ -7,7 +7,7 @@ from aria.engine.llm.client import ollama_chat, strip_think_tags
 
 
 def generate_insight_report(  # noqa: PLR0913 — report generation requires all context inputs
-    snapshot, anomalies, predictions, reliability, correlations, accuracy_history, config: OllamaConfig = None
+    snapshot, anomalies, predictions, reliability, correlations, accuracy_history, config: OllamaConfig | None = None
 ):
     """Generate natural language insight report via Ollama."""
     if config is None:
@@ -53,7 +53,7 @@ Rules:
     return strip_think_tags(ollama_chat(prompt, config=report_config))
 
 
-def generate_brief_line(snapshot, anomalies, predictions, accuracy_history, config: OllamaConfig = None):
+def generate_brief_line(snapshot, anomalies, predictions, accuracy_history, config: OllamaConfig | None = None):
     """Generate a single-line intelligence summary for telegram-brief."""
     parts = []
     if anomalies:

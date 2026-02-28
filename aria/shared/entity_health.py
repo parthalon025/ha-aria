@@ -1,6 +1,7 @@
 """Entity health scoring — grades entities by availability for filtering."""
 
 import logging
+from typing import Literal
 
 from aria.automation.models import EntityHealth
 
@@ -41,6 +42,7 @@ def compute_entity_health(
     # Longest outage would require timestamp analysis — simplified for now
     longest_outage = 0.0
 
+    grade: Literal["healthy", "flaky", "unreliable"]
     if availability_pct >= min_healthy_pct:
         grade = "healthy"
     elif availability_pct >= min_available_pct:

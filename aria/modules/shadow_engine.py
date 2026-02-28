@@ -210,29 +210,29 @@ class ShadowEngine(Module):
             description="Predict-compare-score loop for shadow mode evaluation of ML models.",
             module="shadow_engine",
             layer="hub",
-            config_keys=[
+            config_keys=(
                 "shadow.min_confidence",
                 "shadow.default_window_seconds",
                 "shadow.resolution_interval_s",
                 "shadow.prediction_cooldown_s",
-            ],
-            test_paths=[
+            ),
+            test_paths=(
                 "tests/hub/test_shadow_engine.py",
                 "tests/hub/test_cache_shadow.py",
                 "tests/hub/test_api_shadow.py",
-            ],
-            systemd_units=["aria-hub.service"],
+            ),
+            systemd_units=("aria-hub.service",),
             status="stable",
             added_version="1.0.0",
-            depends_on=["activity_monitoring", "discovery"],
-            demand_signals=[
+            depends_on=("activity_monitoring", "discovery"),
+            demand_signals=(
                 DemandSignal(
-                    entity_domains=["sensor", "binary_sensor", "light", "switch", "climate"],
-                    device_classes=[],
+                    entity_domains=("sensor", "binary_sensor", "light", "switch", "climate"),
+                    device_classes=(),
                     min_entities=3,
                     description="Any predictable entity groupings for shadow validation",
                 ),
-            ],
+            ),
         ),
     ]
 
@@ -719,7 +719,7 @@ class ShadowEngine(Module):
         if not domain_counts:
             return None
 
-        top_domain = max(domain_counts, key=domain_counts.get)
+        top_domain = max(domain_counts, key=lambda k: domain_counts.get(k, 0))
         total = sum(domain_counts.values())
         confidence = domain_counts[top_domain] / total if total > 0 else 0
 

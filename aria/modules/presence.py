@@ -74,14 +74,14 @@ class PresenceModule(Module):
             description="Real-time per-room presence probability from Frigate cameras and HA sensors.",
             module="presence",
             layer="hub",
-            config_keys=[
+            config_keys=(
                 "presence.mqtt_host",
                 "presence.mqtt_port",
                 "presence.mqtt_user",
                 "presence.mqtt_password",
                 "presence.camera_rooms",
-            ],
-            test_paths=["tests/hub/test_presence.py"],
+            ),
+            test_paths=("tests/hub/test_presence.py",),
         ),
     ]
 
@@ -721,12 +721,12 @@ class PresenceModule(Module):
             # Update pipeline health metrics
             now_iso = datetime.now(UTC).isoformat()
             self._face_last_processed = now_iso
-            self.hub._face_last_processed = now_iso
+            self.hub._face_last_processed = now_iso  # type: ignore[attr-defined]
 
         except Exception:
             self.logger.exception("Face pipeline error for event %s", event_id)
             self._face_pipeline_errors += 1
-            self.hub._face_pipeline_errors = self._face_pipeline_errors
+            self.hub._face_pipeline_errors = self._face_pipeline_errors  # type: ignore[attr-defined]
         finally:
             if tmp_path:
                 with contextlib.suppress(OSError):
@@ -1079,7 +1079,7 @@ class PresenceModule(Module):
             return
         # Shallow copy of the dict (not lists) to guard against dict-level mutation.
         # cross_validate_signals builds new lists internally so list contents are safe.
-        adjusted = unifi_mod.cross_validate_signals(dict(self._room_signals))
+        adjusted = unifi_mod.cross_validate_signals(dict(self._room_signals))  # type: ignore[attr-defined]
         # cross_validate_signals returns 2-tuples (sig_type, value) in the same
         # order as the input. Zip by position to reconstruct 4-tuples — this
         # correctly handles rooms with duplicate signal types (e.g. two cameras).

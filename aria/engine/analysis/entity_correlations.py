@@ -108,7 +108,7 @@ def compute_co_occurrences(logbook_entries: list, window_minutes: int = 15) -> l
     events.sort(key=lambda e: e["ts"])
 
     # Count per-entity events (for conditional probability denominator)
-    entity_counts = defaultdict(int)
+    entity_counts: dict[str, int] = defaultdict(int)
     for e in events:
         entity_counts[e["entity_id"]] += 1
 
@@ -170,7 +170,7 @@ def compute_hourly_patterns(logbook_entries: list) -> dict:
     Returns dict mapping entity_id to hourly activity distribution,
     useful for detecting "unusual time" anomalies.
     """
-    hourly = defaultdict(lambda: defaultdict(int))
+    hourly: dict[str, dict[int, int]] = defaultdict(lambda: defaultdict(int))
     for entry in logbook_entries:
         eid = entry.get("entity_id", "")
         if not _is_trackable(eid):
@@ -187,7 +187,7 @@ def compute_hourly_patterns(logbook_entries: list) -> dict:
         if total < 5:
             continue
         distribution = {h: round(c / total, 3) for h, c in sorted(hours.items())}
-        peak_hour = max(hours, key=hours.get)
+        peak_hour = max(hours, key=lambda k: hours.get(k, 0))
         patterns[eid] = {
             "total_events": total,
             "peak_hour": peak_hour,
@@ -211,7 +211,7 @@ def summarize_entity_correlations(co_occurrences: list, hourly_patterns: dict, t
     ]
 
     # Most active entities
-    entity_activity = {}
+    entity_activity: dict[str, int] = {}
     for pair in co_occurrences:
         for eid in (pair["entity_a"], pair["entity_b"]):
             entity_activity[eid] = entity_activity.get(eid, 0) + pair["count"]

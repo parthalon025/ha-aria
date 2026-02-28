@@ -100,13 +100,13 @@ class IntelligenceModule(Module):
             description="Assembles engine outputs (snapshots, baselines, predictions, ML scores) into unified cache.",
             module="intelligence",
             layer="hub",
-            config_keys=[],
-            test_paths=["tests/hub/test_intelligence.py"],
-            data_paths=["~/ha-logs/intelligence/"],
-            systemd_units=["aria-hub.service"],
+            config_keys=(),
+            test_paths=("tests/hub/test_intelligence.py",),
+            data_paths=("~/ha-logs/intelligence/",),
+            systemd_units=("aria-hub.service",),
             status="stable",
             added_version="1.0.0",
-            depends_on=[],
+            depends_on=(),
         ),
     ]
 
@@ -340,7 +340,7 @@ class IntelligenceModule(Module):
                 if schema_errors:
                     self.logger.warning(f"Snapshot schema mismatch in {f.name}: {schema_errors}")
                     continue
-                entry = {"date": f.stem}
+                entry: dict[str, Any] = {"date": f.stem}
                 for key, extractor in METRIC_PATHS.items():
                     val = extractor(raw)
                     if val is not None:

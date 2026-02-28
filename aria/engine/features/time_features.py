@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 try:
     import holidays as holidays_lib
 
-    US_HOLIDAYS = holidays_lib.US(years=range(2025, 2028))
+    US_HOLIDAYS = holidays_lib.US(years=range(2025, 2028))  # type: ignore[attr-defined]
 except ImportError:
     US_HOLIDAYS = {}
 

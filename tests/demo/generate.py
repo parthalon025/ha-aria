@@ -15,6 +15,8 @@ def generate_checkpoint(
     output_dir: Path | str | None = None,
 ) -> dict:
     """Generate a frozen demo checkpoint."""
+    if output_dir is None:
+        output_dir = Path.cwd() / "demo_checkpoints"
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 

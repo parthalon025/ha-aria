@@ -143,7 +143,7 @@ def parse_automation_suggestions(llm_response: str) -> list:
         return []
 
 
-def generate_automation_suggestions(config: AppConfig = None, store: DataStore = None) -> dict:
+def generate_automation_suggestions(config: AppConfig | None = None, store: DataStore | None = None) -> dict:
     """Generate HA automation suggestions from learned patterns.
 
     Returns dict with suggestions list and metadata.

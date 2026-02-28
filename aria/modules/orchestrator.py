@@ -31,12 +31,12 @@ class OrchestratorModule(Module):
             description="Generates HA automation suggestions from detected behavioral patterns.",
             module="orchestrator",
             layer="hub",
-            config_keys=[],
-            test_paths=["tests/hub/test_orchestrator.py"],
-            systemd_units=["aria-hub.service"],
+            config_keys=(),
+            test_paths=("tests/hub/test_orchestrator.py",),
+            systemd_units=("aria-hub.service",),
             status="stable",
             added_version="1.0.0",
-            depends_on=["trajectory_classifier"],
+            depends_on=("trajectory_classifier",),
         ),
     ]
 
@@ -114,7 +114,7 @@ class OrchestratorModule(Module):
         generator = self.hub.modules.get("automation_generator")
         if generator is not None:
             self.logger.info("Delegating suggestion generation to AutomationGeneratorModule")
-            return await generator.generate_suggestions()
+            return await generator.generate_suggestions()  # type: ignore[attr-defined]
 
         # Fallback: read existing suggestions from cache
         self.logger.warning("AutomationGeneratorModule not registered, reading cache directly")

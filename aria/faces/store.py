@@ -100,6 +100,7 @@ class FaceEmbeddingStore:
                 (person_name, blob, event_id, image_path, confidence, source, int(verified)),
             )
             conn.commit()
+            assert cur.lastrowid is not None
             return cur.lastrowid
 
     def get_embeddings_for_person(self, person_name: str) -> list[dict]:
@@ -159,6 +160,7 @@ class FaceEmbeddingStore:
                 (event_id, image_path, blob, candidates_json, priority, camera),
             )
             conn.commit()
+            assert cur.lastrowid is not None
             return cur.lastrowid
 
     def get_review_queue(self, limit: int = 20) -> list[dict]:

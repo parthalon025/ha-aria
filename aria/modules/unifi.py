@@ -41,7 +41,7 @@ class UniFiModule(Module):
         self._active_kbps: int = 100
 
         # Runtime state
-        self._session = None  # aiohttp.ClientSession
+        self._session: Any = None  # aiohttp.ClientSession
         self._protect_client = None  # uiprotect.ProtectApiClient
         self._home_away: bool = True  # True = someone home, False = all away
         self._last_client_state: dict[str, Any] = {}  # MAC → client data (last poll)

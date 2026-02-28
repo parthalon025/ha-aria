@@ -101,7 +101,13 @@ def fetch_weather(weather_config: WeatherConfig) -> str:
 
 def parse_weather(raw: str) -> dict:
     """Parse wttr.in compact format into structured dict."""
-    result = {"raw": raw, "condition": "", "temp_f": None, "humidity_pct": None, "wind_mph": None}
+    result: dict[str, int | str | None] = {
+        "raw": raw,
+        "condition": "",
+        "temp_f": None,
+        "humidity_pct": None,
+        "wind_mph": None,
+    }
     if not raw:
         return result
     m = re.search(r"([+-]?\d+)\s*°F", raw)

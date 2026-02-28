@@ -73,17 +73,17 @@ class ActivityMonitor(Module):
             ),
             module="activity_monitor",
             layer="hub",
-            config_keys=[
+            config_keys=(
                 "activity.daily_snapshot_cap",
                 "activity.snapshot_cooldown_s",
                 "activity.flush_interval_s",
                 "activity.max_window_age_h",
-            ],
-            test_paths=["tests/hub/test_activity_monitor.py"],
-            systemd_units=["aria-hub.service"],
+            ),
+            test_paths=("tests/hub/test_activity_monitor.py",),
+            systemd_units=("aria-hub.service",),
             status="stable",
             added_version="1.0.0",
-            depends_on=["discovery"],
+            depends_on=("discovery",),
         ),
     ]
 
@@ -725,7 +725,7 @@ class ActivityMonitor(Module):
                 domain_freq[d] += 1
             if not domain_freq:
                 return {}
-            top = max(domain_freq, key=domain_freq.get)
+            top = max(domain_freq, key=lambda k: domain_freq.get(k, 0))
             total = sum(domain_freq.values())
             return {
                 "predicted_next_domain": top,
@@ -738,7 +738,7 @@ class ActivityMonitor(Module):
         followers = sequence_followers.get(current_key, {})
 
         if followers:
-            top = max(followers, key=followers.get)
+            top = max(followers, key=lambda k: followers.get(k, 0))
             total = sum(followers.values())
             return {
                 "predicted_next_domain": top,
@@ -751,7 +751,7 @@ class ActivityMonitor(Module):
         domain_freq = defaultdict(int)
         for d in all_domains:
             domain_freq[d] += 1
-        top = max(domain_freq, key=domain_freq.get)
+        top = max(domain_freq, key=lambda k: domain_freq.get(k, 0))
         total = sum(domain_freq.values())
         return {
             "predicted_next_domain": top,
@@ -923,7 +923,7 @@ class ActivityMonitor(Module):
             except (ValueError, TypeError):
                 continue
 
-        anomalies = []
+        anomalies: list[dict] = []
 
         # Get counts for current hour
         current_hour_counts = hourly_counts.get(current_hour, [])

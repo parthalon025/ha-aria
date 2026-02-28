@@ -9,7 +9,7 @@ Priority order: vacation > holiday > wfh > workday (weekends stay weekend).
 
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from aria.automation.models import DayContext
 
@@ -57,8 +57,8 @@ def classify_days(
     # Build per-day event index
     day_events: dict[str, list[str]] = {}
     for event in calendar_events:
-        summaries = _expand_event_to_days(event, start, end)
-        for day_str, summary in summaries:
+        event_days = _expand_event_to_days(event, start, end)
+        for day_str, summary in event_days:
             day_events.setdefault(day_str, []).append(summary)
 
     results = []
@@ -89,7 +89,7 @@ def _classify_single_day(
     summaries: list[str],
     away: bool,
     keywords: dict[str, list[str]],
-) -> str:
+) -> Literal["workday", "weekend", "holiday", "vacation", "wfh"]:
     """Classify a single day. Priority: vacation > holiday > weekend > wfh > workday.
 
     Holidays are classified independently even on weekends — the analysis

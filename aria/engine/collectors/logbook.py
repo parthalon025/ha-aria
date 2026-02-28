@@ -15,8 +15,8 @@ def summarize_logbook(entries: list) -> dict:
     """Summarize logbook entries into counts by domain and hour."""
     total = len(entries)
     useful = 0
-    by_domain = {}
-    hourly = {}
+    by_domain: dict[str, int] = {}
+    hourly: dict[str, int] = {}
     for e in entries:
         eid = e.get("entity_id", "")
         domain = eid.split(".")[0] if "." in eid else e.get("domain", "unknown")

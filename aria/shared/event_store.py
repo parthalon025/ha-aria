@@ -240,6 +240,7 @@ class EventStore:
             (start, end),
         )
         row = await cursor.fetchone()
+        assert row is not None
         return row[0]
 
     async def query_manual_events(self, start: str, end: str, limit: int = 10000) -> list[dict]:
@@ -284,4 +285,5 @@ class EventStore:
         conn = await self._get_conn()
         cursor = await conn.execute("SELECT COUNT(*) FROM state_change_events")
         row = await cursor.fetchone()
+        assert row is not None
         return row[0]

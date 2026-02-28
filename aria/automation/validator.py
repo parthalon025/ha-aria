@@ -102,7 +102,7 @@ def _check_state_quoting(automation: dict) -> list[str]:
     Walk the entire automation dict tree looking for bool instances in
     state-relevant positions.
     """
-    errors = []
+    errors: list[str] = []
     _walk_for_booleans(automation, "automation", errors)
     return errors
 
@@ -130,7 +130,7 @@ def _check_entities_exist(automation: dict, entity_graph: object) -> list[str]:
     entity_ids = _collect_entity_ids(automation)
 
     for entity_id in entity_ids:
-        if not entity_graph.has_entity(entity_id):  # type: ignore[union-attr]
+        if not entity_graph.has_entity(entity_id):  # type: ignore[attr-defined]
             errors.append(f"Entity not found: {entity_id}")
 
     return errors

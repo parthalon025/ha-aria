@@ -422,7 +422,7 @@ def _finalize_meta_learning(  # noqa: PLR0913 — aggregates all meta-learning o
     return weekly_report
 
 
-def run_meta_learning(config: AppConfig = None, store: DataStore = None):
+def run_meta_learning(config: AppConfig | None = None, store: DataStore | None = None):
     """Run weekly meta-learning analysis and auto-apply guardrailed suggestions."""
     if config is None:
         config = AppConfig.from_env()

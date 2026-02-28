@@ -107,32 +107,32 @@ class MLEngine(Module):
             description="Feature engineering, model training, and adaptive predictions for HA capabilities.",
             module="ml_engine",
             layer="hub",
-            config_keys=["features.decay_half_life_days", "features.weekday_alignment_bonus"],
-            test_paths=["tests/hub/test_ml_training.py", "tests/hub/test_reference_model.py"],
-            systemd_units=["aria-hub.service"],
+            config_keys=("features.decay_half_life_days", "features.weekday_alignment_bonus"),
+            test_paths=("tests/hub/test_ml_training.py", "tests/hub/test_reference_model.py"),
+            systemd_units=("aria-hub.service",),
             status="stable",
             added_version="1.0.0",
-            depends_on=["discovery"],
-            demand_signals=[
+            depends_on=("discovery",),
+            demand_signals=(
                 DemandSignal(
-                    entity_domains=["sensor"],
-                    device_classes=["power", "energy"],
+                    entity_domains=("sensor",),
+                    device_classes=("power", "energy"),
                     min_entities=5,
                     description="Power/energy sensors for consumption prediction",
                 ),
                 DemandSignal(
-                    entity_domains=["light", "switch"],
-                    device_classes=[],
+                    entity_domains=("light", "switch"),
+                    device_classes=(),
                     min_entities=3,
                     description="Controllable devices for usage pattern prediction",
                 ),
                 DemandSignal(
-                    entity_domains=["binary_sensor"],
-                    device_classes=["motion", "occupancy"],
+                    entity_domains=("binary_sensor",),
+                    device_classes=("motion", "occupancy"),
                     min_entities=2,
                     description="Motion/occupancy sensors for presence prediction",
                 ),
-            ],
+            ),
         ),
     ]
 
@@ -198,7 +198,11 @@ class MLEngine(Module):
         self.model_status: str = "untrained"
 
         # Lazy-init SegmentBuilder for event-derived features
-        self._segment_builder = None
+        self._segment_builder: Any = None
+
+        # Optional in-flight task and HTTP session — set dynamically during training
+        self._task: asyncio.Task | None = None
+        self._session: Any = None  # aiohttp.ClientSession when active
 
     async def initialize(self):
         """Initialize module - load existing models."""
@@ -1526,7 +1530,7 @@ class MLEngine(Module):
         Returns:
             Dictionary of rolling statistics
         """
-        stats = {}
+        stats: dict[str, float] = {}
 
         # Load last 7 snapshots for rolling calculations
         snapshot_files = sorted(self.training_data_dir.glob("*.json"))

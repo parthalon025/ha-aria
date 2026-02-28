@@ -74,7 +74,7 @@ class ReferenceModel:
         if len(X) < 14:
             return {"error": "insufficient training vectors"}
 
-        results = {"trained_at": datetime.now(tz=UTC).isoformat(), "metrics": {}}
+        results: dict[str, Any] = {"trained_at": datetime.now(tz=UTC).isoformat(), "metrics": {}}
 
         for metric in config.get("target_metrics", []):
             if metric not in targets:

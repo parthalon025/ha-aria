@@ -18,8 +18,8 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 # Lazy torch import
-_torch = None
-_nn = None
+_torch: Any = None
+_nn: Any = None
 
 
 def _ensure_torch():
@@ -188,7 +188,7 @@ class AttentionExplainer:
             Dict with feature_contributions, temporal_attention,
             contrastive_explanation, anomaly_score.
         """
-        empty = {
+        empty: dict[str, Any] = {
             "feature_contributions": [],
             "temporal_attention": [],
             "contrastive_explanation": None,

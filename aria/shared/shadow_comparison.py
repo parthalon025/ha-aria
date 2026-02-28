@@ -230,6 +230,7 @@ def _classify_duplicate(
 ) -> ShadowResult:
     """Classify a high-score match as exact duplicate, subset, or superset."""
     best = state.best_match
+    assert best is not None
     alias = best.get("alias", best.get("id", "unknown"))
 
     if cand_targets:
@@ -308,7 +309,7 @@ def _extract_target_entities(
     entity_graph: EntityGraph | None,
 ) -> set[str]:
     """Extract the set of target entity IDs, resolving area_id via EntityGraph."""
-    entities = set()
+    entities: set[str] = set()
     for action in automation.get("actions") or automation.get("action", []):
         target = action.get("target", {})
         if not target:

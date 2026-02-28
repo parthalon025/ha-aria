@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import builtins
 import contextlib
 import json
 import os
@@ -412,7 +413,7 @@ class CacheManager:
         await self._flush_event_buffer()
 
         query = "SELECT * FROM events WHERE 1=1"
-        params = []
+        params: list[str | int] = []
 
         if event_type:
             query += " AND event_type = ?"
@@ -717,6 +718,7 @@ class CacheManager:
             cursor = await self._conn.execute("SELECT * FROM pipeline_state WHERE id = 1")
             row = await cursor.fetchone()
 
+        assert row is not None
         return {
             "id": row["id"],
             "current_stage": row["current_stage"],
@@ -767,7 +769,7 @@ class CacheManager:
         updates["updated_at"] = datetime.now(tz=UTC).isoformat()
 
         set_clause = ", ".join(f"{k} = ?" for k in updates)
-        values = list(updates.values())
+        values: list[Any] = list(updates.values())
         values.append(1)  # WHERE id = 1
 
         await self._conn.execute(
@@ -852,7 +854,9 @@ class CacheManager:
         )
 
         await self._conn.commit()
-        return await self.get_config(key)
+        result = await self.get_config(key)
+        assert result is not None
+        return result
 
     async def upsert_config_default(  # noqa: PLR0913 — config schema has many fields
         self,
@@ -1201,7 +1205,7 @@ class CacheManager:
         await self._conn.commit()
         return cursor.rowcount
 
-    async def get_included_entity_ids(self) -> set:
+    async def get_included_entity_ids(self) -> builtins.set[str]:
         """Get the set of entity IDs that are included or promoted.
 
         Returns:

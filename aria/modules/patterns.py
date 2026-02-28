@@ -41,12 +41,12 @@ class PatternRecognition(Module):
             description="Detects recurring event sequences using hierarchical clustering and association rules.",
             module="pattern_recognition",
             layer="hub",
-            config_keys=["patterns.analysis_interval", "patterns.max_areas", "patterns.min_events"],
-            test_paths=["tests/hub/test_patterns.py"],
-            systemd_units=["aria-hub.service"],
+            config_keys=("patterns.analysis_interval", "patterns.max_areas", "patterns.min_events"),
+            test_paths=("tests/hub/test_patterns.py",),
+            systemd_units=("aria-hub.service",),
             status="stable",
             added_version="1.0.0",
-            depends_on=["discovery"],
+            depends_on=("discovery",),
         ),
     ]
 
@@ -420,7 +420,7 @@ class PatternRecognition(Module):
         if not entity_order_counts:
             return []
 
-        most_common = max(entity_order_counts, key=entity_order_counts.get)
+        most_common = max(entity_order_counts, key=lambda k: entity_order_counts.get(k, 0))
         chain = []
         for i, (entity_id, state) in enumerate(most_common):
             chain.append(

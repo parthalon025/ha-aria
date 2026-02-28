@@ -709,8 +709,8 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
         module = hub.modules.get("organic_discovery")
         if not module:
             raise HTTPException(status_code=404, detail="Organic discovery module not loaded")
-        await module.update_settings(body)
-        return {"status": "updated", "settings": module.settings}
+        await module.update_settings(body)  # type: ignore[attr-defined]
+        return {"status": "updated", "settings": module.settings}  # type: ignore[attr-defined]
 
     @router.post("/api/discovery/run")
     async def trigger_discovery_run():
@@ -936,7 +936,7 @@ def _register_feedback_routes(router: APIRouter, hub: IntelligenceHub) -> None:
         source = "confirmed" if actual == predicted else "corrected"
         labeler = hub.modules.get("activity_labeler")
         if labeler:
-            stats = await labeler.record_label(predicted, actual, context, source)
+            stats = await labeler.record_label(predicted, actual, context, source)  # type: ignore[attr-defined]
             return {"status": "recorded", "predicted": predicted, "actual": actual, "source": source, "stats": stats}
         return {"status": "recorded", "predicted": predicted, "actual": actual, "source": source}
 

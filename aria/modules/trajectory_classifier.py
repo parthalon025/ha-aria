@@ -41,12 +41,12 @@ class TrajectoryClassifier(Module):
             ),
             module="trajectory_classifier",
             layer="hub",
-            config_keys=["pattern.min_tier", "pattern.sequence_window_size"],
-            test_paths=["tests/hub/test_trajectory_classifier.py"],
-            runtime_deps=["numpy"],
+            config_keys=("pattern.min_tier", "pattern.sequence_window_size"),
+            test_paths=("tests/hub/test_trajectory_classifier.py",),
+            runtime_deps=("numpy",),
             pipeline_stage="shadow",
             status="stable",
-            depends_on=["shadow_predictions"],
+            depends_on=("shadow_predictions",),
         )
     ]
 

@@ -62,12 +62,12 @@ class AutomationGeneratorModule(Module):
             description="Generates HA automation suggestions from pattern and gap detections.",
             module="automation_generator",
             layer="hub",
-            config_keys=[],
-            test_paths=["tests/hub/test_automation_generator.py"],
-            systemd_units=["aria-hub.service"],
+            config_keys=(),
+            test_paths=("tests/hub/test_automation_generator.py",),
+            systemd_units=("aria-hub.service",),
             status="stable",
             added_version="1.0.0",
-            depends_on=["orchestrator"],
+            depends_on=("orchestrator",),
         ),
     ]
 

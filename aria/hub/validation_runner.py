@@ -174,7 +174,7 @@ def _extract_scenario_scores(lines: list[str]) -> tuple[dict, float | None]:
 
 def _extract_backtest_scores(lines: list[str]) -> dict:
     """Parse real-data backtest accuracy from REAL-DATA BACKTEST section."""
-    backtest = {}
+    backtest: dict[str, float | list[float]] = {}
     in_backtest = False
 
     for line in lines:

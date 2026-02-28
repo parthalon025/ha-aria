@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 VALID_LAYERS = frozenset({"hub", "engine", "dashboard", "cross-cutting"})
 VALID_STATUSES = frozenset({"stable", "experimental", "planned"})
@@ -209,7 +210,7 @@ class CapabilityRegistry:
         Returns:
             {capability_id: {"module_loaded": bool|None, "module_status": str}}
         """
-        result = {}
+        result: dict[str, dict[str, Any]] = {}
         for cap in self._caps.values():
             if cap.layer == "engine":
                 result[cap.id] = {"module_loaded": None, "module_status": "batch"}

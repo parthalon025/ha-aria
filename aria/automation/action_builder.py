@@ -143,7 +143,7 @@ def _get_area_entities(area_id: str | None, entity_graph: object) -> list[str]:
     if not area_id:
         return []
     try:
-        raw = entity_graph.entities_in_area(area_id)  # type: ignore[union-attr]
+        raw = entity_graph.entities_in_area(area_id)  # type: ignore[attr-defined]
         result = []
         for item in raw:
             if isinstance(item, str):

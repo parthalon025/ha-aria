@@ -280,6 +280,7 @@ class AuditLogger:
         offset: int = 0,
     ) -> list[dict]:
         """Filter and paginate audit_events."""
+        assert self._db is not None
         clauses: list[str] = []
         params: list[Any] = []
 
@@ -324,6 +325,7 @@ class AuditLogger:
         limit: int = 100,
     ) -> list[dict]:
         """Filter API requests."""
+        assert self._db is not None
         clauses: list[str] = []
         params: list[Any] = []
 
@@ -362,6 +364,7 @@ class AuditLogger:
         limit: int = 1000,
     ) -> list[dict]:
         """All events for a subject, chronological."""
+        assert self._db is not None
         clauses = ["subject = ?"]
         params: list[Any] = [subject]
 
@@ -382,6 +385,7 @@ class AuditLogger:
 
     async def get_stats(self, since: str | None = None) -> dict:
         """Aggregate counts by type and severity."""
+        assert self._db is not None
         params: list[Any] = []
         where = "1=1"
         if since:
@@ -408,12 +412,15 @@ class AuditLogger:
 
     async def query_startups(self, limit: int = 10) -> list[dict]:
         """Recent startup snapshots."""
+        assert self._db is not None
         async with self._db.execute("SELECT * FROM audit_startups ORDER BY timestamp DESC LIMIT ?", (limit,)) as cursor:
             rows = await cursor.fetchall()
         return [self._row_to_dict(row, json_fields=["modules_loaded", "config_snapshot"]) for row in rows]
 
     async def query_curation(self, entity_id: str | None = None, limit: int = 50) -> list[dict]:
         """Entity curation history."""
+        assert self._db is not None
+        params: tuple[int | str, ...]
         if entity_id:
             sql = "SELECT * FROM audit_curation_history WHERE entity_id = ? ORDER BY timestamp DESC LIMIT ?"
             params = (entity_id, limit)
@@ -427,6 +434,7 @@ class AuditLogger:
 
     async def verify_integrity(self, since: str | None = None) -> dict:
         """Recompute and verify checksums. Returns {total, valid, invalid, details}."""
+        assert self._db is not None
         params: list[Any] = []
         where = "1=1"
         if since:
@@ -434,7 +442,7 @@ class AuditLogger:
             params.append(since)
 
         async with self._db.execute(f"SELECT * FROM audit_events WHERE {where}", params) as cursor:
-            rows = await cursor.fetchall()
+            rows = list(await cursor.fetchall())
 
         total = len(rows)
         valid = 0
@@ -460,6 +468,7 @@ class AuditLogger:
 
     async def prune(self, retention_days: int) -> int:
         """Delete events and requests older than retention_days. Returns count deleted."""
+        assert self._db is not None
         cutoff = (datetime.now(UTC) - timedelta(days=retention_days)).isoformat()
         total = 0
 
@@ -471,6 +480,7 @@ class AuditLogger:
 
     async def export_archive(self, before_date: datetime, output_dir: str) -> list[str]:
         """Export events before before_date to JSONL files grouped by YYYY-MM."""
+        assert self._db is not None
         before_iso = before_date.isoformat()
         async with self._db.execute(
             "SELECT * FROM audit_events WHERE timestamp < ? ORDER BY timestamp ASC",
@@ -507,6 +517,7 @@ class AuditLogger:
 
     async def flush(self) -> None:
         """Force drain buffer to DB."""
+        assert self._queue is not None
         items: list[tuple] = []
         while not self._queue.empty():
             try:
@@ -550,10 +561,10 @@ class AuditLogger:
             try:
                 # Check every 50ms for the 100-item threshold
                 for _ in range(10):
-                    if self._queue.qsize() >= 100:
+                    if self._queue is not None and self._queue.qsize() >= 100:
                         break
                     await asyncio.sleep(0.05)
-                if self._queue.qsize() > 0:
+                if self._queue is not None and self._queue.qsize() > 0:
                     await self.flush()
             except asyncio.CancelledError:
                 return

@@ -15,7 +15,7 @@ def strip_think_tags(text):
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
 
-def is_ollama_available(config: OllamaConfig = None) -> bool:
+def is_ollama_available(config: OllamaConfig | None = None) -> bool:
     """Check if Ollama service is available before submitting batch jobs."""
     if config is None:
         config = OllamaConfig()
@@ -37,7 +37,7 @@ def is_ollama_available(config: OllamaConfig = None) -> bool:
         return False
 
 
-def ollama_chat(prompt, config: OllamaConfig = None):
+def ollama_chat(prompt, config: OllamaConfig | None = None):
     """Send prompt to local Ollama and return response."""
     if config is None:
         config = OllamaConfig()
