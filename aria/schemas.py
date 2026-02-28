@@ -8,12 +8,20 @@ expects from the assembled cache payload. Used for runtime validation
 from typing import Any, TypedDict
 
 
-class IntelligencePayload(TypedDict, total=False):
+class IntelligencePayload(TypedDict):
     """Top-level keys returned by IntelligenceModule._read_intelligence_data().
 
-    All keys are optional (total=False) because some only appear after
-    enough data has accumulated. The REQUIRED_INTELLIGENCE_KEYS set below
-    defines which keys MUST always be present for the hub to function.
+    total=True (default) — all keys are required.  Fields typed as
+    ``X | None`` must be present in the dict but may carry a None value
+    when the underlying model/data has not yet accumulated enough history.
+
+    The REQUIRED_INTELLIGENCE_KEYS set below mirrors these required fields
+    and is used for runtime validation in validate_intelligence_payload().
+
+    Convention H (#324): was total=False, which made all 21 fields optional
+    in the type system.  mypy would never warn on a payload missing
+    data_maturity or ml_models — the most critical structural fields.
+    Changed to total=True so the type checker enforces the contract.
     """
 
     data_maturity: dict[str, Any]
@@ -42,6 +50,7 @@ class IntelligencePayload(TypedDict, total=False):
 
 # Keys that _read_intelligence_data() always sets (never conditionally omitted).
 # These are structural keys the hub depends on for cache assembly and API responses.
+# This set must stay in sync with IntelligencePayload above (#324).
 REQUIRED_INTELLIGENCE_KEYS: set[str] = {
     "data_maturity",
     "predictions",
