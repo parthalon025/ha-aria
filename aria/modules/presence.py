@@ -276,7 +276,7 @@ class PresenceModule(Module):
                         states = await resp.json()
                         person_count = 0
                         room_count = 0
-                        now = datetime.now()
+                        now = datetime.now(tz=UTC)
                         # Build entity→room cache first (single bulk read)
                         await self._build_entity_room_cache()
                         # Only seed presence-relevant domains
@@ -401,7 +401,7 @@ class PresenceModule(Module):
         value = payload.get("value", 0.85)
         detail = payload.get("detail", "protect_person")
         if room:
-            self._add_signal(room, "protect_person", value, detail, datetime.now())
+            self._add_signal(room, "protect_person", value, detail, datetime.now(tz=UTC))
 
     # ------------------------------------------------------------------
     # Frigate API helpers (face config, thumbnails, labeled faces)
@@ -756,7 +756,7 @@ class PresenceModule(Module):
         """Handle person count update for a camera."""
         await self._refresh_enabled_signals()
         room = self.camera_rooms.get(camera, camera)
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         try:
             n = int(count)
         except (ValueError, TypeError):
@@ -885,7 +885,7 @@ class PresenceModule(Module):
 
         if entity_id.startswith("person."):
             state = new_state.get("state", "")
-            now = datetime.now()
+            now = datetime.now(tz=UTC)
             self._handle_person_state(entity_id, state, now)
             return
 
@@ -896,7 +896,7 @@ class PresenceModule(Module):
         state = new_state.get("state", "")
         attrs = new_state.get("attributes", {})
         device_class = attrs.get("device_class", "")
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
 
         room = await self._resolve_room(entity_id, attrs)
         if not room:
@@ -1018,7 +1018,7 @@ class PresenceModule(Module):
 
     async def _load_presence_config(self):
         """Load presence weight/decay config from DB (cached 60s)."""
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         if self._presence_config_loaded and (now - self._presence_config_loaded).total_seconds() < 60:
             return
         overrides = {}
@@ -1094,7 +1094,7 @@ class PresenceModule(Module):
     async def _flush_presence_state(self):
         """Recalculate presence probabilities and write to cache."""
         await self._load_presence_config()
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
 
         # Refresh entity→room cache every 5 minutes (piggyback on 30s flush cycle)
         if not self._entity_room_cache_built or (

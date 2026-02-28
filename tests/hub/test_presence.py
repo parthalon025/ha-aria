@@ -5,7 +5,7 @@ room resolution, presence state flushing, and Bayesian fusion integration.
 """
 
 import sys
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -145,12 +145,12 @@ class TestSignalManagement:
     """Test adding and retrieving signals."""
 
     def test_add_signal(self, module):
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("living_room", "motion", 0.9, "test", now)
         assert len(module._room_signals["living_room"]) == 1
 
     def test_add_multiple_signals(self, module):
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("living_room", "motion", 0.9, "motion1", now)
         module._add_signal("living_room", "camera_person", 0.95, "cam1", now)
         module._add_signal("kitchen", "door", 0.7, "door1", now)
@@ -158,24 +158,24 @@ class TestSignalManagement:
         assert len(module._room_signals["kitchen"]) == 1
 
     def test_get_active_signals_fresh(self, module):
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("room", "motion", 0.9, "fresh", now)
         active = module._get_active_signals("room", now)
         assert len(active) == 1
         assert active[0][0] == "motion"
 
     def test_get_active_signals_stale(self, module):
-        stale_time = datetime.now() - timedelta(seconds=SIGNAL_STALE_S + 60)
+        stale_time = datetime.now(tz=UTC) - timedelta(seconds=SIGNAL_STALE_S + 60)
         module._add_signal("room", "motion", 0.9, "stale", stale_time)
-        active = module._get_active_signals("room", datetime.now())
+        active = module._get_active_signals("room", datetime.now(tz=UTC))
         assert len(active) == 0
 
     def test_get_active_signals_decay(self, module):
         # Signal halfway through its decay period should be reduced
         half_decay = SENSOR_CONFIG.get("motion", {}).get("decay_seconds", 300) / 2
-        past = datetime.now() - timedelta(seconds=half_decay)
+        past = datetime.now(tz=UTC) - timedelta(seconds=half_decay)
         module._add_signal("room", "motion", 0.9, "decaying", past)
-        active = module._get_active_signals("room", datetime.now())
+        active = module._get_active_signals("room", datetime.now(tz=UTC))
         if active:
             # Value should be reduced but still positive
             assert active[0][1] < 0.9
@@ -183,14 +183,14 @@ class TestSignalManagement:
 
     def test_get_active_signals_camera_face_no_decay(self, module):
         # camera_face has decay_seconds: 0 — should not decay
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("room", "camera_face", 0.99, "face", now)
         active = module._get_active_signals("room", now)
         assert len(active) == 1
         assert active[0][1] == 0.99
 
     def test_get_active_signals_empty_room(self, module):
-        active = module._get_active_signals("nonexistent_room", datetime.now())
+        active = module._get_active_signals("nonexistent_room", datetime.now(tz=UTC))
         assert active == []
 
 
@@ -645,7 +645,7 @@ class TestFlushPresenceState:
         assert cached["occupied_rooms"] == []
 
     async def test_flush_with_signals(self, module):
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("living_room", "motion", 0.9, "motion detected", now)
         module._add_signal("living_room", "camera_person", 0.95, "person seen", now)
         await module._flush_presence_state()
@@ -658,23 +658,23 @@ class TestFlushPresenceState:
         assert len(room_data["signals"]) == 2
 
     async def test_flush_publishes_event(self, module):
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("room", "motion", 0.9, "test", now)
         await module._flush_presence_state()
         assert len(module.hub._published) == 1
         assert module.hub._published[0][0] == "presence_updated"
 
     async def test_flush_prunes_stale_signals(self, module):
-        stale = datetime.now() - timedelta(seconds=SIGNAL_STALE_S + 60)
+        stale = datetime.now(tz=UTC) - timedelta(seconds=SIGNAL_STALE_S + 60)
         module._add_signal("room", "motion", 0.9, "stale", stale)
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("room", "motion", 0.8, "fresh", now)
         await module._flush_presence_state()
         # After flush, stale signal should be pruned
         assert len(module._room_signals["room"]) == 1
 
     async def test_flush_tracks_identified_persons(self, module):
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._identified_persons["person_a"] = {
             "room": "carters_room",
             "last_seen": now.isoformat(),
@@ -689,7 +689,7 @@ class TestFlushPresenceState:
         assert cached["identified_persons"]["person_a"]["room"] == "carters_room"
 
     async def test_flush_occupied_rooms_threshold(self, module):
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         # High-confidence signal
         module._add_signal("living_room", "camera_person", 0.95, "person", now)
         module._add_signal("living_room", "motion", 0.9, "motion", now)
@@ -752,7 +752,7 @@ class TestEdgeCases:
         assert room is None  # No hard-coded fallback
 
     async def test_stale_identified_persons_excluded(self, module):
-        stale = datetime.now() - timedelta(seconds=SIGNAL_STALE_S + 60)
+        stale = datetime.now(tz=UTC) - timedelta(seconds=SIGNAL_STALE_S + 60)
         module._identified_persons["OldPerson"] = {
             "room": "kitchen",
             "last_seen": stale.isoformat(),
@@ -1198,7 +1198,7 @@ class TestPresenceConfigWeights:
     @pytest.mark.asyncio
     async def test_get_active_signals_uses_instance_decay(self, module):
         """_get_active_signals reads decay from occupancy.sensor_config."""
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._occupancy.update_sensor_config({"motion": {"weight": 0.9, "decay_seconds": 10}})
         # Add signal 15s ago — beyond 10s decay, should be filtered
         module._add_signal("room", "motion", 0.9, "test", now - timedelta(seconds=15))
@@ -1228,7 +1228,7 @@ class TestFlushWithUnifiCrossValidation:
             "updated_at": "2026-01-01T00:00:00+00:00",
         }
         # Add a signal so there is something to cross-validate
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("living_room", "motion", 0.9, "motion detected", now)
         # Should not raise — get_module("unifi") returns None on MockHub (graceful skip)
         await module._flush_presence_state()
@@ -1246,7 +1246,7 @@ class TestFlushWithUnifiCrossValidation:
             "signals": [],
             "updated_at": "2026-01-01T00:00:00+00:00",
         }
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("living_room", "motion", 0.9, "motion detected", now)
         await module._flush_presence_state()
         cached = hub.cache._cache.get(CACHE_PRESENCE)
@@ -1260,7 +1260,7 @@ class TestFlushWithUnifiCrossValidation:
     async def test_flush_no_unifi_state_skips_cross_validation(self, module):
         """When unifi_client_state is absent, flush proceeds without cross-validation."""
         # hub._cache_data has no unifi_client_state key — get_cache returns None
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("living_room", "motion", 0.9, "motion detected", now)
         # Should not raise and should still produce presence output
         await module._flush_presence_state()
@@ -1278,7 +1278,7 @@ class TestFlushWithUnifiCrossValidation:
             "signals": [],
             "updated_at": "2026-01-01T00:00:00+00:00",
         }
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         module._add_signal("living_room", "motion", 0.9, "motion detected", now)
 
         # Return a suppressed value for the motion signal
