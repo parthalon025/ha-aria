@@ -282,7 +282,7 @@ class TestPresenceFeatures(unittest.TestCase):
     def test_presence_in_training_data(self):
         """build_training_data includes presence features in matrix."""
         snap = self._make_snapshot_with_presence()
-        names, X, targets = build_training_data([snap])
+        names, X, _targets = build_training_data([snap])
         self.assertIn("presence_probability", names)
         idx = names.index("presence_probability")
         self.assertEqual(X[0][idx], 0.92)

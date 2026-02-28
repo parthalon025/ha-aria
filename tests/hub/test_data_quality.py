@@ -188,7 +188,7 @@ async def test_classify_auto_exclude_domain(module):
     }
     entities_data = {"update.core": make_entity("update.core", domain="update")}
 
-    tier, status, reason, group_id = module._classify("update.core", metrics, config, entities_data, set(), set())
+    tier, status, reason, _group_id = module._classify("update.core", metrics, config, entities_data, set(), set())
 
     assert tier == 1
     assert status == "auto_excluded"

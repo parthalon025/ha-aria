@@ -253,7 +253,7 @@ class TestLoadModelValidation:
             pickle.dump({"not_a_model": True}, f)
 
         with caplog.at_level(logging.ERROR):
-            model, metadata = model_io_with_dir.load_model("bad_model")
+            model, _metadata = model_io_with_dir.load_model("bad_model")
 
         assert model is None, f"Expected None for unpredictable object, got: {model}"
         error_msgs = [r.message for r in caplog.records if r.levelno == logging.ERROR]

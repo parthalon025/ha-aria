@@ -99,7 +99,7 @@ class TestPatternsCommand:
 class TestGapsCommand:
     def test_gaps_no_hub(self):
         """Exits with error when hub is not running."""
-        code, output = _run_cli(["gaps"])
+        code, _output = _run_cli(["gaps"])
         assert code == 1
 
     def test_gaps_with_data(self):
@@ -138,7 +138,7 @@ class TestGapsCommand:
 class TestSuggestCommand:
     def test_suggest_no_hub(self):
         """Exits with error when hub is not running."""
-        code, output = _run_cli(["suggest"])
+        code, _output = _run_cli(["suggest"])
         assert code == 1
 
     def test_suggest_with_data(self):

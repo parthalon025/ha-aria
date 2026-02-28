@@ -180,7 +180,7 @@ class TestMLEngine:
         expected_lights_mean = sum(s.get("lights", {}).get("on", 0) for s in recent) / len(recent)
 
         # Build dataset and verify rolling stats are used
-        X, y, weights = await ml_engine._build_training_dataset(snapshots, "power_watts")
+        X, _y, _weights = await ml_engine._build_training_dataset(snapshots, "power_watts")
 
         # Snapshot at index 7 should have rolling stats
         assert len(X) == 10
@@ -1354,7 +1354,7 @@ class TestFeatureEngineering:
                 }
             )
 
-        X, y, weights = await engine._build_training_dataset(snapshots, "power_watts")
+        X, y, _weights = await engine._build_training_dataset(snapshots, "power_watts")
 
         assert len(X) > 0, "Expected non-empty training matrix"
         assert len(y) > 0
@@ -1987,7 +1987,7 @@ class TestAnomalyExplanation:
 
         # Anomalous sample — extreme enough to trigger IsolationForest
         X_anomalous = np.array([[50.0, 50.0, 50.0, 50.0, 50.0]])
-        is_anomaly, score, explanations = engine._run_anomaly_detection(
+        is_anomaly, _score, explanations = engine._run_anomaly_detection(
             X_anomalous, ["power", "lights", "motion", "temp", "humidity"]
         )
 
@@ -1998,7 +1998,7 @@ class TestAnomalyExplanation:
     def test_anomaly_detection_no_model(self, tmp_path):
         """Without anomaly model, returns empty explanations."""
         engine = self._make_engine(tmp_path)
-        is_anomaly, score, explanations = engine._run_anomaly_detection(np.zeros((1, 5)), ["a", "b", "c", "d", "e"])
+        is_anomaly, _score, explanations = engine._run_anomaly_detection(np.zeros((1, 5)), ["a", "b", "c", "d", "e"])
         assert is_anomaly is False
         assert explanations == []
 
@@ -2018,7 +2018,7 @@ class TestAnomalyExplanation:
         }
 
         X_normal = np.array([[0.0, 0.0, 0.0, 0.0, 0.0]])
-        is_anomaly, score, explanations = engine._run_anomaly_detection(
+        is_anomaly, _score, explanations = engine._run_anomaly_detection(
             X_normal, ["power", "lights", "motion", "temp", "humidity"]
         )
 

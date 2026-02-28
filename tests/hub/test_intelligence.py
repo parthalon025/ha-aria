@@ -224,7 +224,7 @@ class TestPhaseDetection:
 
     def test_baselines_boundary(self, module):
         """Exactly 7 days = baselines phase."""
-        phase, milestone = module._determine_phase(7, False, False)
+        phase, _milestone = module._determine_phase(7, False, False)
         assert phase == "baselines"
 
 

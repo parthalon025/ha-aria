@@ -70,7 +70,7 @@ class TestCheck2RequiredFields:
     """Check 2: Required fields present."""
 
     def test_all_required_present(self, valid_automation, entity_graph):
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert valid
 
     def test_missing_id(self, valid_automation, entity_graph):
@@ -115,7 +115,7 @@ class TestCheck3StateQuoting:
 
     def test_string_on_passes(self, valid_automation, entity_graph):
         valid_automation["triggers"][0]["to"] = "on"
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert valid
 
     def test_boolean_true_in_trigger_fails(self, valid_automation, entity_graph):
@@ -128,18 +128,18 @@ class TestCheck3StateQuoting:
         valid_automation["conditions"] = [
             {"condition": "state", "entity_id": "binary_sensor.bedroom_motion", "state": False}
         ]
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert not valid
 
     def test_nested_boolean_in_action_fails(self, valid_automation, entity_graph):
         valid_automation["actions"][0]["data"] = {"state": True}
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert not valid
 
     def test_numeric_value_passes(self, valid_automation, entity_graph):
         """Numeric values (brightness, temperature) are fine as non-string."""
         valid_automation["actions"][0]["data"] = {"brightness": 255}
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert valid
 
 
@@ -147,7 +147,7 @@ class TestCheck4EntitiesExist:
     """Check 4: All referenced entities must exist in EntityGraph."""
 
     def test_known_entities_pass(self, valid_automation, entity_graph):
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert valid
 
     def test_unknown_trigger_entity_fails(self, valid_automation, entity_graph):
@@ -165,13 +165,13 @@ class TestCheck4EntitiesExist:
     def test_action_entity_list(self, valid_automation, entity_graph):
         """Entity list in target should be checked."""
         valid_automation["actions"][0]["target"] = {"entity_id": ["light.bedroom", "light.nonexistent"]}
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert not valid
 
     def test_area_id_target_skips_entity_check(self, valid_automation, entity_graph):
         """Area targeting doesn't require entity existence check."""
         valid_automation["actions"][0]["target"] = {"area_id": "bedroom"}
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert valid
 
 
@@ -179,7 +179,7 @@ class TestCheck5ServicesValid:
     """Check 5: Service names must follow domain.service format."""
 
     def test_valid_service(self, valid_automation, entity_graph):
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert valid
 
     def test_invalid_service_format(self, valid_automation, entity_graph):
@@ -207,7 +207,7 @@ class TestCheck6NoCircularTrigger:
     """Check 6: Action entity must not be the same as trigger entity."""
 
     def test_no_circular_passes(self, valid_automation, entity_graph):
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert valid
 
     def test_circular_trigger_action_fails(self, valid_automation, entity_graph):
@@ -223,7 +223,7 @@ class TestCheck6NoCircularTrigger:
             "light.bedroom",
             "binary_sensor.bedroom_motion",
         ]
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert not valid
 
 
@@ -232,7 +232,7 @@ class TestCheck7NoDuplicateId:
 
     def test_unique_id_passes(self, valid_automation, entity_graph):
         existing = {"aria_other_123", "aria_something_456"}
-        valid, errors = validate_automation(valid_automation, entity_graph, existing)
+        valid, _errors = validate_automation(valid_automation, entity_graph, existing)
         assert valid
 
     def test_duplicate_id_fails(self, valid_automation, entity_graph):
@@ -246,7 +246,7 @@ class TestCheck8ModeAppropriate:
     """Check 8: Mode matches action domain semantics."""
 
     def test_single_mode_for_light_passes(self, valid_automation, entity_graph):
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert valid
 
     def test_notify_needs_queued(self, entity_graph):
@@ -271,7 +271,7 @@ class TestCheck8ModeAppropriate:
             "actions": [{"action": "notify.mobile_app", "target": {"entity_id": "notify.mobile"}}],
             "mode": "queued",
         }
-        valid, errors = validate_automation(auto, entity_graph, set())
+        valid, _errors = validate_automation(auto, entity_graph, set())
         assert valid
 
     def test_scene_needs_parallel(self, entity_graph):
@@ -283,7 +283,7 @@ class TestCheck8ModeAppropriate:
             "actions": [{"action": "scene.turn_on", "target": {"entity_id": "scene.evening"}}],
             "mode": "single",  # Wrong — should be parallel
         }
-        valid, errors = validate_automation(auto, entity_graph, set())
+        valid, _errors = validate_automation(auto, entity_graph, set())
         assert not valid
 
     def test_scene_with_parallel_passes(self, entity_graph):
@@ -295,7 +295,7 @@ class TestCheck8ModeAppropriate:
             "actions": [{"action": "scene.turn_on", "target": {"entity_id": "scene.evening"}}],
             "mode": "parallel",
         }
-        valid, errors = validate_automation(auto, entity_graph, set())
+        valid, _errors = validate_automation(auto, entity_graph, set())
         assert valid
 
 
@@ -303,7 +303,7 @@ class TestCheck9RestrictedDomain:
     """Check 9: Restricted domains (lock, alarm, cover) need approval flag."""
 
     def test_light_domain_no_restriction(self, valid_automation, entity_graph):
-        valid, errors = validate_automation(valid_automation, entity_graph, set())
+        valid, _errors = validate_automation(valid_automation, entity_graph, set())
         assert valid
 
     def test_lock_without_approval_fails(self, entity_graph):
@@ -329,7 +329,7 @@ class TestCheck9RestrictedDomain:
             "actions": [{"action": "lock.lock", "target": {"entity_id": "lock.front_door"}}],
             "mode": "single",
         }
-        valid, errors = validate_automation(auto, entity_graph, set())
+        valid, _errors = validate_automation(auto, entity_graph, set())
         assert valid
 
     def test_cover_without_approval_fails(self, entity_graph):
@@ -341,7 +341,7 @@ class TestCheck9RestrictedDomain:
             "actions": [{"action": "cover.open_cover", "target": {"entity_id": "cover.garage"}}],
             "mode": "single",
         }
-        valid, errors = validate_automation(auto, entity_graph, set())
+        valid, _errors = validate_automation(auto, entity_graph, set())
         assert not valid
 
     def test_alarm_without_approval_fails(self, entity_graph):
@@ -358,7 +358,7 @@ class TestCheck9RestrictedDomain:
             ],
             "mode": "single",
         }
-        valid, errors = validate_automation(auto, entity_graph, set())
+        valid, _errors = validate_automation(auto, entity_graph, set())
         assert not valid
 
 

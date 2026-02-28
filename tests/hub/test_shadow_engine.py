@@ -704,7 +704,7 @@ class TestOutcomeScoring:
             {"domain": "media_player", "entity_id": "media_player.tv", "to": "playing"},
         ]
 
-        outcome, actual_data = engine._score_prediction(prediction, actual_events)
+        outcome, _actual_data = engine._score_prediction(prediction, actual_events)
         assert outcome == "correct"
 
     def test_disagreement_routine_no_domain_overlap(self, engine):
@@ -723,7 +723,7 @@ class TestOutcomeScoring:
             {"domain": "switch", "entity_id": "switch.fan", "to": "on"},
         ]
 
-        outcome, actual_data = engine._score_prediction(prediction, actual_events)
+        outcome, _actual_data = engine._score_prediction(prediction, actual_events)
         assert outcome == "disagreement"
 
     def test_disagreement_routine_single_event(self, engine):
@@ -741,7 +741,7 @@ class TestOutcomeScoring:
             {"domain": "light", "entity_id": "light.living_room", "to": "on"},
         ]
 
-        outcome, actual_data = engine._score_prediction(prediction, actual_events)
+        outcome, _actual_data = engine._score_prediction(prediction, actual_events)
         assert outcome == "disagreement"
 
     def test_correct_routine_trigger_fallback_no_expected_domains(self, engine):
@@ -757,7 +757,7 @@ class TestOutcomeScoring:
             {"domain": "light", "entity_id": "light.kitchen", "to": "on"},
         ]
 
-        outcome, actual_data = engine._score_prediction(prediction, actual_events)
+        outcome, _actual_data = engine._score_prediction(prediction, actual_events)
         assert outcome == "correct"
 
     def test_disagreement_routine_fallback_single_domain(self, engine):
@@ -773,7 +773,7 @@ class TestOutcomeScoring:
             {"domain": "light", "entity_id": "light.bedroom", "to": "on"},
         ]
 
-        outcome, actual_data = engine._score_prediction(prediction, actual_events)
+        outcome, _actual_data = engine._score_prediction(prediction, actual_events)
         assert outcome == "disagreement"
 
     def test_multiple_predictions_any_correct_wins(self, engine):
@@ -788,7 +788,7 @@ class TestOutcomeScoring:
             {"domain": "light", "entity_id": "light.kitchen", "to": "on"},
         ]
 
-        outcome, actual_data = engine._score_prediction(prediction, actual_events)
+        outcome, _actual_data = engine._score_prediction(prediction, actual_events)
         # domain wrong (climate != light) but room correct (kitchen)
         assert outcome == "correct"
 
@@ -796,7 +796,7 @@ class TestOutcomeScoring:
         """Empty predictions list should score as nothing."""
         prediction = {"predictions": []}
 
-        outcome, actual_data = engine._score_prediction(prediction, [])
+        outcome, _actual_data = engine._score_prediction(prediction, [])
         assert outcome == "nothing"
 
 

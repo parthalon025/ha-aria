@@ -38,7 +38,7 @@ def mrmr_select(
     Returns:
         List of selected feature names, ordered by selection round.
     """
-    n_samples, n_features = X.shape
+    _n_samples, n_features = X.shape
 
     # Edge case: fewer features than requested — return all
     if n_features <= max_features:

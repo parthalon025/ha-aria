@@ -130,7 +130,7 @@ def test_fetch_rest_api_exhausted_retries():
 
 def test_websocket_handshake_creation():
     """Test WebSocket handshake HTTP request creation."""
-    handshake, key = discover.create_websocket_handshake("localhost:8123", "/api/websocket")
+    handshake, _key = discover.create_websocket_handshake("localhost:8123", "/api/websocket")
 
     assert b"GET /api/websocket HTTP/1.1" in handshake
     assert b"Host: localhost:8123" in handshake

@@ -212,7 +212,7 @@ def websocket_connect(url, token):  # noqa: C901, PLR0912, PLR0915
         sock = context.wrap_socket(sock, server_hostname=host)
 
     # WebSocket handshake
-    handshake, key = create_websocket_handshake(host, path)
+    handshake, _key = create_websocket_handshake(host, path)
     sock.sendall(handshake)
 
     # Read handshake response

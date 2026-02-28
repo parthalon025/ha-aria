@@ -43,7 +43,7 @@ class TestStableCouple:
 
     def test_feature_vector_shape(self, stable_pipeline):
         runner = stable_pipeline["runner"]
-        names, X, targets = runner.build_training_data()
+        names, X, _targets = runner.build_training_data()
         assert len(names) > 0
         assert len(X) > 0, "Training data should have rows"
         assert len(X[0]) == len(names), f"Feature count mismatch: {len(X[0])} vs {len(names)}"

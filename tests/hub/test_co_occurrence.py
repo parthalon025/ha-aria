@@ -132,7 +132,7 @@ class TestComputeAdaptiveWindow:
             "2026-02-06T07:01:00",
             "2026-02-07T06:57:00",
         ]
-        median_time, sigma_minutes, skip = compute_adaptive_window(timestamps)
+        _median_time, sigma_minutes, skip = compute_adaptive_window(timestamps)
         assert not skip
         assert sigma_minutes < 10  # Very consistent
 
@@ -146,7 +146,7 @@ class TestComputeAdaptiveWindow:
             "2026-02-05T22:00:00",
             "2026-02-06T15:00:00",
         ]
-        _, sigma_minutes, skip = compute_adaptive_window(timestamps)
+        _, _sigma_minutes, skip = compute_adaptive_window(timestamps)
         assert skip  # σ > 90 minutes
 
     def test_custom_max_sigma(self):
@@ -159,18 +159,18 @@ class TestComputeAdaptiveWindow:
             "2026-02-04T06:30:00",
             "2026-02-05T07:30:00",
         ]
-        _, sigma_minutes, skip = compute_adaptive_window(timestamps, max_sigma_minutes=30)
+        _, _sigma_minutes, skip = compute_adaptive_window(timestamps, max_sigma_minutes=30)
         assert skip  # With strict threshold, this should skip
 
     def test_single_timestamp(self):
         """Single timestamp should have zero sigma, no skip."""
-        median_time, sigma, skip = compute_adaptive_window(["2026-02-01T07:00:00"])
+        _median_time, sigma, skip = compute_adaptive_window(["2026-02-01T07:00:00"])
         assert sigma == 0.0
         assert not skip
 
     def test_empty_timestamps(self):
         """Empty list should return safe defaults."""
-        median_time, sigma, skip = compute_adaptive_window([])
+        _median_time, _sigma, skip = compute_adaptive_window([])
         assert skip  # Can't compute window from nothing
 
     def test_median_time_reasonable(self):

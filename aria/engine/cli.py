@@ -257,7 +257,7 @@ def cmd_predict():
 
 def cmd_score():
     """Score yesterday's predictions against actual data."""
-    config, store = _init()
+    _config, store = _init()
 
     from aria.engine.predictions.scoring import accuracy_trend, score_all_predictions
 
@@ -407,7 +407,7 @@ def cmd_check_drift():
 
 def cmd_entity_correlations():
     """Compute entity co-occurrence correlations from logbook data."""
-    config, store = _init()
+    _config, store = _init()
 
     from aria.engine.analysis.entity_correlations import (
         compute_co_occurrences,
@@ -665,7 +665,7 @@ def cmd_power_profiles():
 
 def cmd_train_sequences():
     """Train Markov chain sequence model from logbook data."""
-    config, store = _init()
+    _config, store = _init()
 
     from aria.engine.analysis.sequence_anomalies import MarkovChainDetector
 
@@ -690,7 +690,7 @@ def cmd_train_sequences():
 
 def cmd_sequence_anomalies():
     """Detect anomalous event sequences using trained Markov chain."""
-    config, store = _init()
+    _config, store = _init()
 
     from aria.engine.analysis.sequence_anomalies import (
         MarkovChainDetector,
