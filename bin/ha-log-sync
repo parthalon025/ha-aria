@@ -41,7 +41,7 @@ case "${1:-sync}" in
         PERIOD=$(date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%SZ)
         curl -sf -H "Authorization: Bearer $HA_TOKEN" \
             "$HA_URL/api/logbook/$PERIOD" \
-            -o "$CURRENT" 2>/dev/null || true
+            -o "$CURRENT" || exit 1
         ;;
     *)
         # Sync last hour of logbook (default, runs every 15 min)
@@ -49,7 +49,7 @@ case "${1:-sync}" in
         TEMP="$LOCAL_DIR/.sync-tmp.json"
         curl -sf -H "Authorization: Bearer $HA_TOKEN" \
             "$HA_URL/api/logbook/$PERIOD" \
-            -o "$TEMP" 2>/dev/null || exit 0
+            -o "$TEMP" || exit 1
 
         # Merge with existing current.json (deduplicate by entity_id+when)
         if [[ -f "$CURRENT" ]]; then
