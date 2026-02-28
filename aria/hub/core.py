@@ -544,6 +544,7 @@ class IntelligenceHub:
                     os.replace(tmp_path, log_path)
                 except OSError as e:
                     logger.warning("Failed to write pruned snapshot_log.jsonl: %s", e)
+                    tmp_path.unlink(missing_ok=True)  # clean up stale .tmp on failed os.replace
                     return 0
 
             return pruned_count

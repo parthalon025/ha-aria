@@ -3,10 +3,13 @@
 import pytest
 from fastapi.testclient import TestClient
 
+import aria.hub.api as _api_module
 from aria.hub.api import create_api
 from aria.hub.core import IntelligenceHub
 from tests.synthetic.pipeline import PipelineRunner
 from tests.synthetic.simulator import HouseholdSimulator
+
+_TEST_API_KEY = "test-aria-key"
 
 
 @pytest.fixture(scope="module")
@@ -174,9 +177,14 @@ class TestAPIEndpoints:
         await hub.initialize()
         await hub.set_cache("intelligence", {"test_key": "test_value"})
         app = create_api(hub)
-        client = TestClient(app)
-        response = client.get("/api/cache/intelligence")
-        assert response.status_code == 200
+        original = _api_module._ARIA_API_KEY
+        _api_module._ARIA_API_KEY = _TEST_API_KEY
+        try:
+            client = TestClient(app, headers={"X-API-Key": _TEST_API_KEY})
+            response = client.get("/api/cache/intelligence")
+            assert response.status_code == 200
+        finally:
+            _api_module._ARIA_API_KEY = original
         await hub.shutdown()
 
     @pytest.mark.asyncio
@@ -185,8 +193,13 @@ class TestAPIEndpoints:
         hub = IntelligenceHub(cache_path)
         await hub.initialize()
         app = create_api(hub)
-        client = TestClient(app)
-        # API returns 404 for nonexistent cache categories
-        response = client.get("/api/cache/nonexistent")
-        assert response.status_code == 404
+        original = _api_module._ARIA_API_KEY
+        _api_module._ARIA_API_KEY = _TEST_API_KEY
+        try:
+            client = TestClient(app, headers={"X-API-Key": _TEST_API_KEY})
+            # API returns 404 for nonexistent cache categories
+            response = client.get("/api/cache/nonexistent")
+            assert response.status_code == 404
+        finally:
+            _api_module._ARIA_API_KEY = original
         await hub.shutdown()

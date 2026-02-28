@@ -163,14 +163,26 @@ class ActivityMonitor(Module):
         self.logger.info("Activity monitor initializing...")
 
         # Read operator-configurable limits from hub config (Lesson #54 / #319)
-        self._daily_snapshot_cap = int(
-            await self.hub.cache.get_config_value("activity.daily_snapshot_cap", DAILY_SNAPSHOT_CAP)
-            or DAILY_SNAPSHOT_CAP
-        )
-        self._snapshot_cooldown_s = float(
-            await self.hub.cache.get_config_value("activity.snapshot_cooldown_s", SNAPSHOT_COOLDOWN_S)
-            or SNAPSHOT_COOLDOWN_S
-        )
+        try:
+            self._daily_snapshot_cap = int(
+                await self.hub.cache.get_config_value("activity.daily_snapshot_cap", DAILY_SNAPSHOT_CAP)
+                or DAILY_SNAPSHOT_CAP
+            )
+        except (TypeError, ValueError) as e:
+            self.logger.warning(
+                "activity.daily_snapshot_cap has invalid value, using default %d: %s", DAILY_SNAPSHOT_CAP, e
+            )
+            self._daily_snapshot_cap = DAILY_SNAPSHOT_CAP
+        try:
+            self._snapshot_cooldown_s = float(
+                await self.hub.cache.get_config_value("activity.snapshot_cooldown_s", SNAPSHOT_COOLDOWN_S)
+                or SNAPSHOT_COOLDOWN_S
+            )
+        except (TypeError, ValueError) as e:
+            self.logger.warning(
+                "activity.snapshot_cooldown_s has invalid value, using default %s: %s", SNAPSHOT_COOLDOWN_S, e
+            )
+            self._snapshot_cooldown_s = SNAPSHOT_COOLDOWN_S
 
         # Start WebSocket listener
         await self.hub.schedule_task(

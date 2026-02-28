@@ -98,6 +98,10 @@ def parse_suggestions(llm_response):
     # Find JSON array in response
     match = re.search(r"\[.*\]", text, flags=re.DOTALL)
     if not match:
+        logger.warning(
+            "meta_learning: LLM response contains no JSON array — returning empty suggestions (response_len=%d)",
+            len(text),
+        )
         return []
 
     try:

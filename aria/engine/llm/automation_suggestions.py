@@ -117,6 +117,9 @@ def parse_automation_suggestions(llm_response: str) -> list:
 
     match = re.search(r"\[.*\]", text, flags=re.DOTALL)
     if not match:
+        logger.warning(
+            "automation_suggestions: LLM response contains no JSON array — returning empty (response_len=%d)", len(text)
+        )
         return []
 
     try:

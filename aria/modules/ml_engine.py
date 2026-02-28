@@ -232,14 +232,26 @@ class MLEngine(Module):
             self.logger.warning("MLEngine: no trained model found — predictions will be empty until training completes")
 
         # Read operator-configurable feature weights from hub config (Lesson #54 / #319)
-        self._decay_half_life_days = float(
-            await self.hub.cache.get_config_value("features.decay_half_life_days", DECAY_HALF_LIFE_DAYS)
-            or DECAY_HALF_LIFE_DAYS
-        )
-        self._weekday_alignment_bonus = float(
-            await self.hub.cache.get_config_value("features.weekday_alignment_bonus", WEEKDAY_ALIGNMENT_BONUS)
-            or WEEKDAY_ALIGNMENT_BONUS
-        )
+        try:
+            self._decay_half_life_days = float(
+                await self.hub.cache.get_config_value("features.decay_half_life_days", DECAY_HALF_LIFE_DAYS)
+                or DECAY_HALF_LIFE_DAYS
+            )
+        except (TypeError, ValueError) as e:
+            self.logger.warning(
+                "features.decay_half_life_days has invalid value, using default %s: %s", DECAY_HALF_LIFE_DAYS, e
+            )
+            self._decay_half_life_days = DECAY_HALF_LIFE_DAYS
+        try:
+            self._weekday_alignment_bonus = float(
+                await self.hub.cache.get_config_value("features.weekday_alignment_bonus", WEEKDAY_ALIGNMENT_BONUS)
+                or WEEKDAY_ALIGNMENT_BONUS
+            )
+        except (TypeError, ValueError) as e:
+            self.logger.warning(
+                "features.weekday_alignment_bonus has invalid value, using default %s: %s", WEEKDAY_ALIGNMENT_BONUS, e
+            )
+            self._weekday_alignment_bonus = WEEKDAY_ALIGNMENT_BONUS
         self.logger.info("ML Engine initialized (model_status=%s)", self.model_status)
 
     async def shutdown(self) -> None:

@@ -14,6 +14,7 @@ Covers:
 
 import asyncio
 import inspect
+from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -307,13 +308,7 @@ class TestModuleConfigPublish317:
         )
 
         assert response.status_code == 200
-        (
-            hub.publish.assert_awaited(),
-            (
-                "hub.publish() not called after PUT /api/config/modules/.../sources — "
-                "config changes never propagate to running modules (#317)"
-            ),
-        )
+        hub.publish.assert_awaited()  # publish must be called after config update (#317)
         published_event_types = [call.args[0] for call in hub.publish.await_args_list]
         assert "config_updated" in published_event_types, (
             f"hub.publish was called but not with 'config_updated' — calls: {published_event_types} (#317)"
@@ -396,3 +391,53 @@ class TestHealthEndpointAuth294:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# #313 — _prune_snapshot_log must write atomically (tmp + os.replace)
+# ---------------------------------------------------------------------------
+
+
+class TestAtomicSnapshotLogPrune313:
+    """_prune_snapshot_log must use atomic write to prevent partial reads (#313)."""
+
+    @pytest.mark.asyncio
+    async def test_prune_uses_tmp_then_replace_closes_313(self, tmp_path):
+        """Pruned snapshot_log is written via .tmp and os.replace — .tmp cleaned up (#313)."""
+        import json
+        from datetime import datetime, timedelta
+        from unittest.mock import patch
+
+        # Set up fake snapshot log mirroring real path structure
+        log_dir = tmp_path / "ha-logs" / "intelligence"
+        log_dir.mkdir(parents=True)
+        log_file = log_dir / "snapshot_log.jsonl"
+
+        old_ts = (datetime.now(UTC) - timedelta(days=100)).isoformat()
+        recent_ts = datetime.now(UTC).isoformat()
+        log_file.write_text(
+            json.dumps({"timestamp": old_ts, "data": "old1"})
+            + "\n"
+            + json.dumps({"timestamp": old_ts, "data": "old2"})
+            + "\n"
+            + json.dumps({"timestamp": recent_ts, "data": "recent"})
+            + "\n"
+        )
+
+        cache_path = str(tmp_path / "hub.db")
+        hub = IntelligenceHub(cache_path)
+        await hub.initialize()
+        try:
+            with patch("pathlib.Path.home", return_value=tmp_path):
+                pruned = await hub._prune_snapshot_log(retention_days=30)
+        finally:
+            await hub.shutdown()
+
+        assert pruned == 2, f"Expected 2 pruned entries, got {pruned}"
+        # .tmp must not linger after successful atomic replace (#313)
+        assert not (log_dir / "snapshot_log.jsonl.tmp").exists(), (
+            ".tmp file left on disk — atomic os.replace did not clean up (#313)"
+        )
+        remaining = [ln for ln in log_file.read_text().strip().split("\n") if ln]
+        assert len(remaining) == 1, f"Expected 1 retained entry, got {len(remaining)}"
+        assert json.loads(remaining[0])["data"] == "recent"

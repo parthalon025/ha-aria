@@ -1758,8 +1758,11 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         return {"status": "ok", "service": "ARIA"}
 
     @app.get("/health")
-    async def health():
+    async def health(key: str = Security(_api_key_header)):
         """Detailed health check with module status and uptime."""
+        # Auth gate (#294): require key when ARIA_API_KEY is configured
+        if _ARIA_API_KEY and key != _ARIA_API_KEY:
+            raise HTTPException(status_code=403, detail="Invalid API key")
         try:
             health_data = await hub.health_check()
 
@@ -1884,8 +1887,9 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                     try:
                         await websocket.send_json({"type": "ping"})
                     except Exception:
-                        break
-                except Exception:
+                        break  # dirty disconnect on keepalive ping
+                except Exception as e:
+                    logger.warning("audit_websocket: error sending event to client — dropping connection: %s", e)
                     break
         except WebSocketDisconnect:
             pass

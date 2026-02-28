@@ -60,7 +60,7 @@ case "${1:-sync}" in
 
         # Merge with existing current.json (deduplicate by entity_id+when)
         if [[ -f "$CURRENT" ]]; then
-            python3 -c "
+            if ! python3 -c "
 import json, sys
 existing = json.load(open('$CURRENT')) if True else []
 new = json.load(open('$TEMP'))
@@ -79,7 +79,10 @@ from datetime import datetime, timedelta, timezone
 cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 merged = [e for e in merged if e.get('when', '') >= cutoff]
 json.dump(merged[-50000:], open('$CURRENT', 'w'))
-" 2>/dev/null || cp "$TEMP" "$CURRENT"
+" 2>&1; then
+                # Merge failed — preserve existing current.json, discard new data
+                echo "ha-log-sync: merge script failed — keeping existing current.json, new data discarded" >&2
+            fi
         else
             cp "$TEMP" "$CURRENT"
         fi
