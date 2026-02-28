@@ -11,7 +11,7 @@ from aria.shared.event_store import EventStore
 def event_store_hub(api_hub, tmp_path):
     """api_hub with a real EventStore attached."""
     store = EventStore(str(tmp_path / "events.db"))
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     loop.run_until_complete(store.initialize())
     loop.run_until_complete(
         store.insert_event("2026-02-20T10:00:00", "light.bedroom", "light", "off", "on", area_id="bedroom")
@@ -22,6 +22,7 @@ def event_store_hub(api_hub, tmp_path):
     api_hub.event_store = store
     yield api_hub
     loop.run_until_complete(store.close())
+    loop.close()
 
 
 def test_get_state_events(event_store_hub, api_client):
