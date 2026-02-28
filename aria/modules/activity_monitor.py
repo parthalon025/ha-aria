@@ -102,9 +102,11 @@ class ActivityMonitor(Module):
         self._occupancy_people: list[str] = []
         self._occupancy_since: str | None = None
 
-        # Snapshot control
+        # Snapshot control — defaults from module constants, overridden by config in initialize()
         self._last_snapshot_time: datetime | None = None
         self._snapshots_today = 0
+        self._daily_snapshot_cap: int = DAILY_SNAPSHOT_CAP
+        self._snapshot_cooldown_s: float = SNAPSHOT_COOLDOWN_S
 
         # Stats — single date tracker for all daily counters
         self._events_today = 0
@@ -159,6 +161,16 @@ class ActivityMonitor(Module):
     async def initialize(self):
         """Start the WebSocket listener and buffer flush timer."""
         self.logger.info("Activity monitor initializing...")
+
+        # Read operator-configurable limits from hub config (Lesson #54 / #319)
+        self._daily_snapshot_cap = int(
+            await self.hub.cache.get_config_value("activity.daily_snapshot_cap", DAILY_SNAPSHOT_CAP)
+            or DAILY_SNAPSHOT_CAP
+        )
+        self._snapshot_cooldown_s = float(
+            await self.hub.cache.get_config_value("activity.snapshot_cooldown_s", SNAPSHOT_COOLDOWN_S)
+            or SNAPSHOT_COOLDOWN_S
+        )
 
         # Start WebSocket listener
         await self.hub.schedule_task(
@@ -569,13 +581,13 @@ class ActivityMonitor(Module):
         if not self._occupancy_state:
             return
 
-        if self._snapshots_today >= DAILY_SNAPSHOT_CAP:
+        if self._snapshots_today >= self._daily_snapshot_cap:
             return
 
         now = datetime.now()
         if self._last_snapshot_time:
             elapsed = (now - self._last_snapshot_time).total_seconds()
-            if elapsed < SNAPSHOT_COOLDOWN_S:
+            if elapsed < self._snapshot_cooldown_s:
                 return
 
         # Need meaningful activity — at least 5 events in the buffer
@@ -600,7 +612,7 @@ class ActivityMonitor(Module):
         }
         self._append_snapshot_log(log_entry)
 
-        self.logger.info(f"Triggering adaptive snapshot ({self._snapshots_today}/{DAILY_SNAPSHOT_CAP} today)")
+        self.logger.info(f"Triggering adaptive snapshot ({self._snapshots_today}/{self._daily_snapshot_cap} today)")
 
         # Fire-and-forget subprocess (log errors from the future)
         loop = asyncio.get_running_loop()
@@ -1102,7 +1114,7 @@ class ActivityMonitor(Module):
         cooldown_remaining = 0
         if self._last_snapshot_time:
             elapsed = (now - self._last_snapshot_time).total_seconds()
-            cooldown_remaining = max(0, SNAPSHOT_COOLDOWN_S - elapsed)
+            cooldown_remaining = max(0, self._snapshot_cooldown_s - elapsed)
 
         summary = {
             "occupancy": {
@@ -1119,7 +1131,7 @@ class ActivityMonitor(Module):
             "snapshot_status": {
                 "last_triggered": self._last_snapshot_time.isoformat() if self._last_snapshot_time else None,
                 "today_count": self._snapshots_today,
-                "daily_cap": DAILY_SNAPSHOT_CAP,
+                "daily_cap": self._daily_snapshot_cap,
                 "cooldown_remaining_s": int(cooldown_remaining),
                 "log_today": self._read_snapshot_log_today(),
             },

@@ -5,12 +5,15 @@ validated Home Assistant automation YAML via Ollama.
 """
 
 import json
+import logging
 import re
 from datetime import UTC, datetime
 
 from aria.engine.config import AppConfig, OllamaConfig
 from aria.engine.llm.client import ollama_chat, strip_think_tags
 from aria.engine.storage.data_store import DataStore
+
+logger = logging.getLogger(__name__)
 
 # Allowlist pattern for entity IDs supplied by the LLM.
 # Prevents YAML injection when interpolating into generated automation strings.
@@ -139,7 +142,8 @@ def parse_automation_suggestions(llm_response: str) -> list:
                 continue
             valid.append(s)
         return valid
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning("LLM automation suggestion parse failed: %s — raw: %.200s", e, llm_response)
         return []
 
 
