@@ -254,7 +254,7 @@ function DailyTrend({ trend, pipeline }) {
       let sum = 0;
       let validCount = 0;
       for (let j = windowStart; j <= i; j++) {
-        if (rawAccuracy[j] != null) {
+        if (rawAccuracy[j] !== null && rawAccuracy[j] !== undefined) {
           sum += rawAccuracy[j];
           validCount++;
         }
@@ -299,7 +299,7 @@ function DailyTrend({ trend, pipeline }) {
             <span>Predictions per day</span>
           </div>
         </div>
-        {thresholdPct != null && (
+        {thresholdPct !== null && thresholdPct !== undefined && (
           <p class="text-xs mt-2" style="color: var(--text-tertiary)">
             Gate threshold: <span style="color: var(--accent); font-weight: 600;">{thresholdPct}%</span> {gate.label} required{nextStage ? ` to advance to ${nextStage}` : ''}
           </p>

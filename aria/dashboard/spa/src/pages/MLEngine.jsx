@@ -49,7 +49,7 @@ function formatDate(ts) {
 }
 
 function formatPct(val) {
-  if (val == null) return '\u2014';
+  if (val === null || val === undefined) return '\u2014';
   return `${(val * 100).toFixed(1)}%`;
 }
 
@@ -208,10 +208,10 @@ function PipelineOverview({ pipeline, loading }) {
                     <tr key={name} class="clickable-data" style="border-bottom: 1px solid var(--border-subtle); cursor: pointer;" onClick={() => { window.location.hash = `#/detail/model/${name}`; }}>
                       <td style="padding: 8px 12px; color: var(--text-primary);">{name}</td>
                       <td style="text-align: right; padding: 8px 12px; color: var(--accent);">
-                        {vals?.r2 != null ? vals.r2.toFixed(3) : '\u2014'}
+                        {vals?.r2 !== null && vals?.r2 !== undefined ? vals.r2.toFixed(3) : '\u2014'}
                       </td>
                       <td style="text-align: right; padding: 8px 12px; color: var(--text-primary);">
-                        {vals?.mae != null ? vals.mae.toFixed(3) : '\u2014'}
+                        {vals?.mae !== null && vals?.mae !== undefined ? vals.mae.toFixed(3) : '\u2014'}
                       </td>
                     </tr>
                   ))}
@@ -352,17 +352,17 @@ function ModelHealth({ models, loading }) {
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div class="t-frame" data-label="Primary Trend">
                   <span class="data-mono" style="font-size: var(--type-headline); color: var(--text-primary);">
-                    {reference.primary_trend != null ? formatPct(reference.primary_trend) : '\u2014'}
+                    {reference.primary_trend !== null && reference.primary_trend !== undefined ? formatPct(reference.primary_trend) : '\u2014'}
                   </span>
                 </div>
                 <div class="t-frame" data-label="Reference Trend">
                   <span class="data-mono" style="font-size: var(--type-headline); color: var(--text-primary);">
-                    {reference.reference_trend != null ? formatPct(reference.reference_trend) : '\u2014'}
+                    {reference.reference_trend !== null && reference.reference_trend !== undefined ? formatPct(reference.reference_trend) : '\u2014'}
                   </span>
                 </div>
                 <div class="t-frame" data-label="Divergence">
                   <span class="data-mono" style="font-size: var(--type-headline); color: var(--text-primary);">
-                    {(reference.divergence ?? reference.divergence_pct) != null ? formatPct(reference.divergence ?? reference.divergence_pct) : '\u2014'}
+                    {(reference.divergence ?? reference.divergence_pct) !== null && (reference.divergence ?? reference.divergence_pct) !== undefined ? formatPct(reference.divergence ?? reference.divergence_pct) : '\u2014'}
                   </span>
                 </div>
               </div>
@@ -383,7 +383,7 @@ function ModelHealth({ models, loading }) {
                   label={incremental.mode === 'incremental' ? 'Incremental' : 'Full Retrain'}
                   color={incremental.mode === 'incremental' ? 'var(--accent)' : 'var(--text-secondary)'}
                 />
-                {incremental.tree_count != null && (
+                {incremental.tree_count !== null && incremental.tree_count !== undefined && (
                   <span class="data-mono" style="font-size: var(--type-label); color: var(--text-tertiary);">
                     {incremental.tree_count} / {incremental.max_trees || '\u2014'} trees
                   </span>
@@ -465,10 +465,10 @@ function TrainingHistory({ models, loading }) {
                       <tr key={name} class="clickable-data" style="border-bottom: 1px solid var(--border-subtle); cursor: pointer;" onClick={() => { window.location.hash = `#/detail/model/${name}`; }}>
                         <td style="padding: 8px 12px; color: var(--text-primary);">{name}</td>
                         <td style="text-align: right; padding: 8px 12px; color: var(--accent);">
-                          {vals?.r2 != null ? vals.r2.toFixed(3) : '\u2014'}
+                          {vals?.r2 !== null && vals?.r2 !== undefined ? vals.r2.toFixed(3) : '\u2014'}
                         </td>
                         <td style="text-align: right; padding: 8px 12px; color: var(--text-primary);">
-                          {vals?.mae != null ? vals.mae.toFixed(3) : '\u2014'}
+                          {vals?.mae !== null && vals?.mae !== undefined ? vals.mae.toFixed(3) : '\u2014'}
                         </td>
                       </tr>
                     ))}
@@ -494,7 +494,7 @@ function TrainingHistory({ models, loading }) {
 export default function MLEngine() {
   const [features, setFeatures] = useState(null);
   const [models, setModels] = useState(null);
-  const [drift, setDrift] = useState(null);
+  const [_drift, setDrift] = useState(null);
   const [pipeline, setPipeline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

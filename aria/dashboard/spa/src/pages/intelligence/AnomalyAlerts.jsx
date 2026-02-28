@@ -47,7 +47,7 @@ export function AnomalyAlerts({ anomalies }) {
             {items.map((a, i) => (
               <div key={i} class="t-frame p-3" data-label="anomaly"
                 style="border-left: 3px solid var(--status-warning)"
-                {...(a.severity === 'critical' || (a.score != null && a.score < -0.5) ? { 'data-sh-effect': 'threat-pulse' } : {})}>
+                {...(a.severity === 'critical' || (a.score !== null && a.score !== undefined && a.score < -0.5) ? { 'data-sh-effect': 'threat-pulse' } : {})}>
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
                     <span class="inline-block w-2 h-2 rounded-full" style="background: var(--status-warning)" />

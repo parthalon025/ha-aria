@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
-import { fetchJson, safeFetch } from '../api.js';
+import { safeFetch } from '../api.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import PageBanner from '../components/PageBanner.jsx';
@@ -38,7 +38,7 @@ function PatternsList({ patterns }) {
             </div>
             {pat.description && <p class="text-xs mt-1" style="color: var(--text-secondary)">{pat.description}</p>}
             <div class="flex gap-4 mt-1 text-xs" style="color: var(--text-tertiary)">
-              {pat.confidence != null && <span>Confidence: {Math.round(pat.confidence * 100)}%</span>}
+              {pat.confidence !== null && pat.confidence !== undefined && <span>Confidence: {Math.round(pat.confidence * 100)}%</span>}
               {pat.frequency && <span>{pat.frequency}</span>}
             </div>
           </div>
@@ -61,11 +61,11 @@ function ShadowBrief({ accuracy }) {
   const stage = accuracy.stage || 'backtest';
 
   return (
-    <Section title="Shadow Accuracy" subtitle="Predict-compare-score loop measuring forecast quality." summary={avg7d != null ? `${Math.round(avg7d * 100)}% (7d avg)` : stage}>
+    <Section title="Shadow Accuracy" subtitle="Predict-compare-score loop measuring forecast quality." summary={avg7d !== null && avg7d !== undefined ? `${Math.round(avg7d * 100)}% (7d avg)` : stage}>
       <div class="t-frame p-3" data-label="shadow">
         <div class="flex items-center gap-4 text-sm">
           <span class="text-xs font-medium rounded-full px-2.5 py-0.5 capitalize" style="background: var(--accent-glow); color: var(--accent)">{stage}</span>
-          {avg7d != null ? (
+          {avg7d !== null && avg7d !== undefined ? (
             <span style="color: var(--text-secondary)">
               <span class="font-bold" style={`color: ${Math.round(avg7d * 100) >= 70 ? 'var(--status-healthy)' : Math.round(avg7d * 100) >= 40 ? 'var(--status-warning)' : 'var(--status-error)'}`}>
                 {Math.round(avg7d * 100)}%

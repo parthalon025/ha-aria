@@ -7,10 +7,9 @@ import { fetchJson } from '../../api.js';
 import StatsGrid from '../../components/StatsGrid.jsx';
 import LoadingState from '../../components/LoadingState.jsx';
 import ErrorState from '../../components/ErrorState.jsx';
-import PageBanner from '../../components/PageBanner.jsx';
 import { relativeTime } from '../intelligence/utils.jsx';
 
-export default function EntityDetail({ id, type }) {
+export default function EntityDetail({ id, type: _type }) {
   const [entity, setEntity] = useState(null);
   const [curation, setCuration] = useState(null);
   const [audit, setAudit] = useState(null);

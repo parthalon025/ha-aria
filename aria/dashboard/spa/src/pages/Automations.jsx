@@ -256,7 +256,7 @@ export default function Automations() {
       {/* Metadata summary */}
       {metadata && (
         <div class="flex flex-wrap gap-3 text-sm" style="color: var(--text-tertiary)">
-          {metadata.total_suggestions != null && (
+          {metadata.total_suggestions !== null && metadata.total_suggestions !== undefined && (
             <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">{metadata.total_suggestions} suggestions</span>
           )}
           {metadata.model && (

@@ -15,7 +15,7 @@ function curationStatusColor(status) {
   return 'background: var(--bg-inset); color: var(--text-secondary);';
 }
 
-export default function CurationDetail({ id, type }) {
+export default function CurationDetail({ id, type: _type }) {
   const [curation, setCuration] = useState(null);
   const [audit, setAudit] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -124,7 +124,7 @@ export default function CurationDetail({ id, type }) {
               <span style="color: var(--text-secondary);">{curation.area}</span>
             </div>
           )}
-          {curation.state_change_frequency != null && (
+          {curation.state_change_frequency !== null && curation.state_change_frequency !== undefined && (
             <div class="flex justify-between" style="font-family: var(--font-mono); font-size: var(--type-label);">
               <span style="color: var(--text-tertiary);">State Change Freq</span>
               <span style="color: var(--text-secondary);">

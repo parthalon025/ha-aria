@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
-import { fetchJson, safeFetch } from '../api.js';
+import { safeFetch } from '../api.js';
 import { SIGNIFICANCE_PCT } from '../constants.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
@@ -134,10 +134,10 @@ export default function Intelligence() {
 
   // Compute delta vs baseline if available
   let powerDelta = null;
-  if (currentPower != null && intel.baselines) {
+  if (currentPower !== null && currentPower !== undefined && intel.baselines) {
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
     const baseline = intel.baselines[today];
-    if (baseline?.power_watts?.mean != null) {
+    if (baseline?.power_watts?.mean !== null && baseline?.power_watts?.mean !== undefined) {
       const diff = currentPower - baseline.power_watts.mean;
       const pct = baseline.power_watts.mean > 0 ? Math.round((diff / baseline.power_watts.mean) * 100) : 0;
       if (Math.abs(pct) >= SIGNIFICANCE_PCT) {

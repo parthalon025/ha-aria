@@ -9,7 +9,7 @@ import LoadingState from '../../components/LoadingState.jsx';
 import ErrorState from '../../components/ErrorState.jsx';
 import { relativeTime } from '../intelligence/utils.jsx';
 
-export default function ConfigDetail({ id, type }) {
+export default function ConfigDetail({ id, type: _type }) {
   const [config, setConfig] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,13 +60,13 @@ export default function ConfigDetail({ id, type }) {
 
   const currentValue = config.value ?? config.current_value ?? '\u2014';
   const defaultValue = config.default ?? config.default_value ?? null;
-  const isDifferent = defaultValue != null && String(currentValue) !== String(defaultValue);
+  const isDifferent = defaultValue !== null && defaultValue !== undefined && String(currentValue) !== String(defaultValue);
 
   const statsItems = [
     { label: 'Key', value: config.key || id },
     { label: 'Value', value: String(currentValue) },
   ];
-  if (defaultValue != null) {
+  if (defaultValue !== null && defaultValue !== undefined) {
     statsItems.push({ label: 'Default', value: String(defaultValue) });
   }
   if (config.value_type || config.type) {
@@ -101,13 +101,13 @@ export default function ConfigDetail({ id, type }) {
         )}
 
         <div class="space-y-1">
-          {config.min != null && (
+          {config.min !== null && config.min !== undefined && (
             <div class="flex justify-between" style="font-family: var(--font-mono); font-size: var(--type-label);">
               <span style="color: var(--text-tertiary);">Min</span>
               <span style="color: var(--text-secondary);">{String(config.min)}</span>
             </div>
           )}
-          {config.max != null && (
+          {config.max !== null && config.max !== undefined && (
             <div class="flex justify-between" style="font-family: var(--font-mono); font-size: var(--type-label);">
               <span style="color: var(--text-tertiary);">Max</span>
               <span style="color: var(--text-secondary);">{String(config.max)}</span>
@@ -121,7 +121,7 @@ export default function ConfigDetail({ id, type }) {
           )}
         </div>
 
-        {!config.description && config.min == null && config.max == null && !isDifferent && (
+        {!config.description && (config.min === null || config.min === undefined) && (config.max === null || config.max === undefined) && !isDifferent && (
           <p style="color: var(--text-tertiary); font-family: var(--font-mono); font-size: var(--type-label);">
             No additional details available
           </p>
@@ -144,7 +144,7 @@ export default function ConfigDetail({ id, type }) {
                     {relativeTime(entry.timestamp || entry.changed_at)}
                   </span>
                   <span style="color: var(--text-secondary); flex: 1;">
-                    {entry.old_value != null && (
+                    {entry.old_value !== null && entry.old_value !== undefined && (
                       <span>{String(entry.old_value)} → </span>
                     )}
                     {String(entry.new_value ?? entry.value ?? '\u2014')}

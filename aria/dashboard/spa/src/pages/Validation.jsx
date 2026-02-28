@@ -154,7 +154,7 @@ export default function Validation() {
           {/* Hero card with overall accuracy */}
           <HeroCard
             label="Prediction Accuracy"
-            value={overall != null ? `${overall.toFixed(0)}%` : '—'}
+            value={overall !== null && overall !== undefined ? `${overall.toFixed(0)}%` : '—'}
             sub={`${data.passed} passed · ${data.failed} failed · ${data.skipped} skipped`}
             accentColor={overall >= 70 ? 'var(--status-healthy)' : overall >= 40 ? 'var(--status-warning)' : 'var(--status-error)'}
           />
@@ -165,7 +165,7 @@ export default function Validation() {
           </CollapsibleSection>
 
           {/* Backtest results */}
-          {report.backtest && report.backtest.overall != null && (
+          {report.backtest && report.backtest.overall !== null && report.backtest.overall !== undefined && (
             <CollapsibleSection title="Real-Data Backtest" defaultOpen>
               <div class="t-frame" data-label="backtest" style="padding: 0.75rem;">
                 <div class="flex items-center gap-4">
@@ -173,7 +173,7 @@ export default function Validation() {
                   <span class="data-mono text-lg font-bold" style={accuracyColor(report.backtest.overall)}>
                     {report.backtest.overall}%
                   </span>
-                  {overall != null && (
+                  {overall !== null && overall !== undefined && (
                     <span class="text-sm" style="color: var(--text-tertiary);">
                       vs synthetic {overall}%
                     </span>

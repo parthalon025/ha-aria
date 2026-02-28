@@ -113,7 +113,7 @@ function PersonRow({ name, info }) {
         <div class="text-sm font-medium truncate" style="color: var(--text-primary); text-transform: capitalize;">{name}</div>
         <div class="text-xs" style="color: var(--text-tertiary)">
           {info.room ? info.room.replace(/_/g, ' ') : 'Unknown room'}
-          {info.confidence != null && ` \u00B7 ${Math.round(info.confidence * 100)}%`}
+          {info.confidence !== null && info.confidence !== undefined && ` \u00B7 ${Math.round(info.confidence * 100)}%`}
         </div>
       </div>
       {info.last_seen && (
@@ -355,7 +355,7 @@ function DevicesTab({ unifiState }) {
                 {client.ap_mac || '—'}
               </td>
               <td style="padding: 0.25rem 0.5rem">
-                {client.rssi != null ? `${client.rssi} dBm` : '—'}
+                {client.rssi !== null && client.rssi !== undefined ? `${client.rssi} dBm` : '—'}
               </td>
             </tr>
           ))}

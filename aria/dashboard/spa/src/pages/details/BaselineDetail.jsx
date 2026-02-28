@@ -9,7 +9,7 @@ import StatsGrid from '../../components/StatsGrid.jsx';
 import LoadingState from '../../components/LoadingState.jsx';
 import ErrorState from '../../components/ErrorState.jsx';
 
-export default function BaselineDetail({ id, type }) {
+export default function BaselineDetail({ id, type: _type }) {
   const [baseline, setBaseline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -57,25 +57,25 @@ export default function BaselineDetail({ id, type }) {
   let deviation = baseline.deviation ?? baseline.deviation_pct ?? null;
 
   // Calculate deviation if not provided
-  if (deviation == null && current != null && baselineVal != null && baselineVal !== 0) {
+  if ((deviation === null || deviation === undefined) && current !== null && current !== undefined && baselineVal !== null && baselineVal !== undefined && baselineVal !== 0) {
     deviation = ((current - baselineVal) / Math.abs(baselineVal)) * 100;
   }
 
-  const isAbove = deviation != null && deviation > 0;
-  const deviationColor = deviation != null
+  const isAbove = deviation !== null && deviation !== undefined && deviation > 0;
+  const deviationColor = deviation !== null && deviation !== undefined
     ? (isAbove ? 'var(--status-warning)' : 'var(--accent)')
     : 'var(--text-secondary)';
 
   const statsItems = [
     { label: 'Metric', value: baseline.metric || id },
   ];
-  if (current != null) {
+  if (current !== null && current !== undefined) {
     statsItems.push({ label: 'Current', value: typeof current === 'number' ? current.toFixed(2) : String(current) });
   }
-  if (baselineVal != null) {
+  if (baselineVal !== null && baselineVal !== undefined) {
     statsItems.push({ label: 'Baseline', value: typeof baselineVal === 'number' ? baselineVal.toFixed(2) : String(baselineVal) });
   }
-  if (deviation != null) {
+  if (deviation !== null && deviation !== undefined) {
     statsItems.push({ label: 'Deviation', value: `${deviation >= 0 ? '+' : ''}${deviation.toFixed(1)}%` });
   }
 
@@ -83,7 +83,7 @@ export default function BaselineDetail({ id, type }) {
     <div class="space-y-6">
       {/* Summary */}
       <div class="t-frame" data-label="summary">
-        {deviation != null && (
+        {deviation !== null && deviation !== undefined && (
           <div style="margin-bottom: 12px;">
             <span
               class="data-mono"
@@ -108,26 +108,26 @@ export default function BaselineDetail({ id, type }) {
             {baseline.description || `This baseline tracks the historical average for "${id}".`}
           </p>
 
-          {current != null && baselineVal != null && (
+          {current !== null && current !== undefined && baselineVal !== null && baselineVal !== undefined && (
             <p style="color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-label);">
               Current value ({typeof current === 'number' ? current.toFixed(2) : current}) is{' '}
               <span style={`color: ${deviationColor};`}>
                 {isAbove ? 'above' : 'below'}
               </span>{' '}
               the baseline ({typeof baselineVal === 'number' ? baselineVal.toFixed(2) : baselineVal}).
-              {deviation != null && Math.abs(deviation) > 20 && (
+              {deviation !== null && deviation !== undefined && Math.abs(deviation) > 20 && (
                 <span style={`color: ${deviationColor};`}> This is a significant deviation.</span>
               )}
             </p>
           )}
 
-          {baseline.significance != null && (
+          {baseline.significance !== null && baseline.significance !== undefined && (
             <div class="flex justify-between" style="font-family: var(--font-mono); font-size: var(--type-label); margin-top: 8px;">
               <span style="color: var(--text-tertiary);">Significance</span>
               <span style="color: var(--text-secondary);">{String(baseline.significance)}</span>
             </div>
           )}
-          {baseline.sample_size != null && (
+          {baseline.sample_size !== null && baseline.sample_size !== undefined && (
             <div class="flex justify-between" style="font-family: var(--font-mono); font-size: var(--type-label);">
               <span style="color: var(--text-tertiary);">Sample Size</span>
               <span style="color: var(--text-secondary);">{String(baseline.sample_size)}</span>

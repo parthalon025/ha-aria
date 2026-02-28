@@ -9,7 +9,7 @@ import LoadingState from '../../components/LoadingState.jsx';
 import ErrorState from '../../components/ErrorState.jsx';
 import { relativeTime } from '../intelligence/utils.jsx';
 
-export default function ModelDetail({ id, type }) {
+export default function ModelDetail({ id, type: _type }) {
   const [model, setModel] = useState(null);
   const [drift, setDrift] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -62,7 +62,7 @@ export default function ModelDetail({ id, type }) {
     { label: 'Model', value: model.name || model.model_type || id },
     { label: 'Status', value: model.status || 'unknown' },
   ];
-  if (accuracy != null) {
+  if (accuracy !== null && accuracy !== undefined) {
     statsItems.push({ label: 'Accuracy', value: `${(accuracy * 100).toFixed(1)}%` });
   }
   if (model.last_trained || model.trained_at) {
@@ -162,7 +162,7 @@ export default function ModelDetail({ id, type }) {
                 {modelDrift.status || 'unknown'}
               </span>
             </div>
-            {modelDrift.score != null && (
+            {modelDrift.score !== null && modelDrift.score !== undefined && (
               <div class="flex justify-between" style="font-family: var(--font-mono); font-size: var(--type-label);">
                 <span style="color: var(--text-tertiary);">Drift Score</span>
                 <span style="color: var(--text-secondary);">{Number(modelDrift.score).toFixed(4)}</span>
@@ -186,7 +186,7 @@ export default function ModelDetail({ id, type }) {
                 <span style="color: var(--text-secondary);">
                   {entry.event || 'trained'}
                 </span>
-                {entry.accuracy != null && (
+                {entry.accuracy !== null && entry.accuracy !== undefined && (
                   <span style="color: var(--text-tertiary); flex: 1; text-align: right;">
                     accuracy: {(entry.accuracy * 100).toFixed(1)}%
                   </span>

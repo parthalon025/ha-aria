@@ -1,4 +1,3 @@
-import AriaLogo from '../components/AriaLogo.jsx';
 import PageBanner from '../components/PageBanner.jsx';
 
 // ---------------------------------------------------------------------------

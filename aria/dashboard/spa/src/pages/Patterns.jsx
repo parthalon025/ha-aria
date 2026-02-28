@@ -65,7 +65,7 @@ function PatternCard({ pattern }) {
             <div class="font-medium" style="color: var(--text-secondary)">{pattern.time_window}</div>
           </div>
         )}
-        {pattern.support != null && (
+        {pattern.support !== null && pattern.support !== undefined && (
           <div>
             <span style="color: var(--text-tertiary)">Support</span>
             <div class="font-medium" style="color: var(--text-secondary)">{Math.round(pattern.support * 100)}%</div>
@@ -160,7 +160,7 @@ export default function Patterns() {
           {metadata.time_range && (
             <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">Range: {metadata.time_range}</span>
           )}
-          {metadata.pattern_count != null && (
+          {metadata.pattern_count !== null && metadata.pattern_count !== undefined && (
             <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">{metadata.pattern_count} patterns</span>
           )}
           {metadata.analyzed_at && (

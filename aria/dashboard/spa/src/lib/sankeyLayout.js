@@ -207,7 +207,7 @@ export function computeLayout({ nodes, links, width, expandedColumn = -1 }) {
  * @param {Object}      nodeDetail   - Node detail map (reserved for future use)
  * @returns {Set<string>} Set of node IDs on the path from sources to outputNodeId
  */
-export function computeTraceback(outputNodeId, links, nodeDetail) {
+export function computeTraceback(outputNodeId, links, _nodeDetail) {
   const visited = new Set();
   const queue = [outputNodeId];
   visited.add(outputNodeId);

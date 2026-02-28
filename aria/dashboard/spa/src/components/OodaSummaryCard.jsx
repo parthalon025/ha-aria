@@ -37,7 +37,7 @@ export default function OodaSummaryCard({ title, subtitle, metric, metricLabel, 
         </span>
         <span class="text-xs" style="color: var(--text-tertiary);">&rarr;</span>
       </div>
-      {metric != null && (
+      {metric !== null && metric !== undefined && (
         <div class="flex items-baseline gap-2 mb-1">
           <span class="data-mono text-lg font-bold" style={`color: ${color};`}>
             {metric}

@@ -15,7 +15,7 @@ function driftStatusColor(status) {
   return 'color: var(--status-warning);';
 }
 
-export default function DriftDetail({ id, type }) {
+export default function DriftDetail({ id, type: _type }) {
   const [driftData, setDriftData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -120,12 +120,12 @@ export default function DriftDetail({ id, type }) {
               const detObj = typeof det === 'object' ? det : { score: det };
               const score = detObj.score ?? detObj.value ?? null;
               const threshold = detObj.threshold ?? null;
-              const triggered = detObj.triggered ?? detObj.is_triggered ?? (score != null && threshold != null ? score > threshold : null);
+              const triggered = detObj.triggered ?? detObj.is_triggered ?? ((score !== null && score !== undefined) && (threshold !== null && threshold !== undefined) ? score > threshold : null);
               return (
                 <div key={name} style="font-family: var(--font-mono); font-size: var(--type-label); padding: 8px 0; border-bottom: 1px solid var(--border-subtle);">
                   <div class="flex justify-between items-center">
                     <span style="color: var(--text-secondary); font-weight: 500;">{name}</span>
-                    {triggered != null && (
+                    {triggered !== null && triggered !== undefined && (
                       <span
                         style={`padding: 1px 6px; border-radius: 3px; font-size: var(--type-label); ${
                           triggered
@@ -138,18 +138,18 @@ export default function DriftDetail({ id, type }) {
                     )}
                   </div>
                   <div class="flex gap-4" style="margin-top: 4px;">
-                    {score != null && (
+                    {score !== null && score !== undefined && (
                       <span style="color: var(--text-tertiary);">
                         score: <span style="color: var(--text-secondary);">{Number(score).toFixed(4)}</span>
                       </span>
                     )}
-                    {threshold != null && (
+                    {threshold !== null && threshold !== undefined && (
                       <span style="color: var(--text-tertiary);">
                         threshold: <span style="color: var(--text-secondary);">{Number(threshold).toFixed(4)}</span>
                       </span>
                     )}
                   </div>
-                  {detObj.window_size != null && (
+                  {detObj.window_size !== null && detObj.window_size !== undefined && (
                     <div style="margin-top: 2px; color: var(--text-tertiary);">
                       window: <span style="color: var(--text-secondary);">{detObj.window_size}</span>
                     </div>
@@ -182,7 +182,7 @@ export default function DriftDetail({ id, type }) {
                 <span style={driftStatusColor(entry.status || 'unknown')}>
                   {entry.status || 'check'}
                 </span>
-                {entry.score != null && (
+                {entry.score !== null && entry.score !== undefined && (
                   <span style="color: var(--text-tertiary); flex: 1; text-align: right;">
                     score: {Number(entry.score).toFixed(4)}
                   </span>

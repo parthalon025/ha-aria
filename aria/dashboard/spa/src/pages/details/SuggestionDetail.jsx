@@ -15,7 +15,7 @@ function statusColor(status) {
   return 'background: var(--bg-inset); color: var(--text-secondary);';
 }
 
-export default function SuggestionDetail({ id, type }) {
+export default function SuggestionDetail({ id, type: _type }) {
   const [suggestion, setSuggestion] = useState(null);
   const [feedback, setFeedback] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +75,7 @@ export default function SuggestionDetail({ id, type }) {
     { label: 'Title', value: suggestion.title || suggestion.name || id },
     { label: 'Status', value: status },
   ];
-  if (confidence != null) {
+  if (confidence !== null && confidence !== undefined) {
     statsItems.push({ label: 'Confidence', value: `${(confidence * 100).toFixed(0)}%` });
   }
   if (suggestion.trigger_entity) {

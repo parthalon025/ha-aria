@@ -41,7 +41,7 @@ export default function PresenceCard() {
   const totalSignals = roomEntries.reduce((sum, [, r]) => sum + (r.signals || []).length, 0);
 
   // Overall probability: use the max room probability as the home occupancy indicator
-  const overallProb = presence.overall_probability != null
+  const overallProb = presence.overall_probability !== null && presence.overall_probability !== undefined
     ? presence.overall_probability
     : (roomEntries.length > 0 ? Math.max(...roomEntries.map(([, r]) => r.probability || 0)) : 0);
   const overallPct = Math.round(overallProb * 100);

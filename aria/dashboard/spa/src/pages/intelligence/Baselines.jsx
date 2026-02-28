@@ -19,7 +19,7 @@ function computeRanges(baselines) {
       const b = baselines[day];
       if (!b) continue;
       const val = b[m.key]?.mean;
-      if (val == null) continue;
+      if (val === null || val === undefined) continue;
       if (val < min) min = val;
       if (val > max) max = val;
     }
@@ -34,16 +34,16 @@ function intensity(value, min, max) {
 }
 
 function formatValue(value, metric) {
-  if (value == null) return '\u2014';
+  if (value === null || value === undefined) return '\u2014';
   if (metric.key === 'power_watts') return Math.round(value).toLocaleString();
   return Math.round(value).toString();
 }
 
 function HeatCell({ value, std, metric, range }) {
-  const hasMean = value != null;
+  const hasMean = value !== null && value !== undefined;
   const i = hasMean ? intensity(value, range.min, range.max) : 0;
   const displayVal = formatValue(value, metric);
-  const title = hasMean && std != null
+  const title = hasMean && std !== null && std !== undefined
     ? `${metric.label}: ${displayVal}${metric.unit ? ' ' + metric.unit : ''} \u00B1 ${Math.round(std * 10) / 10}`
     : metric.label;
 

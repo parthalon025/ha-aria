@@ -4,11 +4,9 @@
  */
 import { useState, useEffect } from 'preact/hooks';
 import { fetchJson } from '../../api.js';
-import HeroCard from '../../components/HeroCard.jsx';
 import StatsGrid from '../../components/StatsGrid.jsx';
 import LoadingState from '../../components/LoadingState.jsx';
 import ErrorState from '../../components/ErrorState.jsx';
-import PageBanner from '../../components/PageBanner.jsx';
 import { relativeTime } from '../intelligence/utils.jsx';
 
 /** Staleness threshold: 30 minutes in ms. */
@@ -20,7 +18,7 @@ function severityStyle(severity) {
   return { color: 'var(--text-primary)', cls: '' };
 }
 
-export default function AnomalyDetail({ id, type }) {
+export default function AnomalyDetail({ id, type: _type }) {
   const [anomaly, setAnomaly] = useState(null);
   const [explanation, setExplanation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -59,7 +57,7 @@ export default function AnomalyDetail({ id, type }) {
 
   const severity = anomaly.severity || 'info';
   const sv = severityStyle(severity);
-  const score = anomaly.score != null ? anomaly.score.toFixed(2) : '\u2014';
+  const score = anomaly.score !== null && anomaly.score !== undefined ? anomaly.score.toFixed(2) : '\u2014';
   const detectedAt = anomaly.detected_at || anomaly.timestamp;
   const isStale = detectedAt && (Date.now() - new Date(detectedAt).getTime()) > STALE_MS;
 

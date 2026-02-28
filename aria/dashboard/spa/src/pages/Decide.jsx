@@ -158,7 +158,7 @@ function RecommendationCard({ suggestion, onAction, onUndo, updating, undoable, 
 
       <div class="flex items-center gap-4 text-xs mb-3" style="color: var(--text-tertiary)">
         <ConfidenceBadge confidence={suggestion.confidence} />
-        {suggestion.occurrence_count != null && (
+        {suggestion.occurrence_count !== null && suggestion.occurrence_count !== undefined && (
           <span>Occurrences: <span class="data-mono font-medium" style="color: var(--text-secondary)">{suggestion.occurrence_count}</span></span>
         )}
         {suggestion.source && (

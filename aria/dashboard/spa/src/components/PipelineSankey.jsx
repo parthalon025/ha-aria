@@ -49,7 +49,7 @@ function SvgSparkline({ data, x, y, w, h, color }) {
   return <polyline points={points} fill="none" stroke={color} stroke-width="1.5" opacity="0.7" />;
 }
 
-function getNodeSparklineData(cacheData, nodeId) {
+function getNodeSparklineData(_cacheData, _nodeId) {
   // Sparkline paths referenced non-existent backend time-series arrays.
   // Stub until backend adds history endpoints.
   return null;

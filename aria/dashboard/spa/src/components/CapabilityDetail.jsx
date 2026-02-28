@@ -3,14 +3,6 @@ import { putJson } from '../api.js';
 import UsefulnessBar from './UsefulnessBar.jsx';
 
 /**
- * Humanize a snake_case name: "power_monitoring" -> "Power monitoring"
- */
-function humanize(name) {
-  const spaced = (name || '').replace(/_/g, ' ');
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
-/**
  * Format an ISO timestamp to a readable date string.
  */
 function formatDate(iso) {
@@ -91,7 +83,7 @@ export default function CapabilityDetail({ name, capability, onAction }) {
             Usefulness breakdown
           </span>
           {usefulnessFields.map(({ key, label }) =>
-            uc[key] != null ? (
+            uc[key] !== null && uc[key] !== undefined ? (
               <UsefulnessBar key={key} value={uc[key]} label={label} />
             ) : null
           )}
@@ -102,7 +94,7 @@ export default function CapabilityDetail({ name, capability, onAction }) {
       <div class="space-y-1">
         {metaFields.map(({ key, label, format }) => {
           const val = capability[key];
-          if (val == null) return null;
+          if (val === null || val === undefined) return null;
           const display = format ? format(val) : String(val);
           return (
             <div key={key} class="flex justify-between" style="font-size: var(--type-label); font-family: var(--font-mono);">

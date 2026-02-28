@@ -20,7 +20,7 @@ export default function useSearch(data, fields, debounceMs = 200) {
 
   // Debounce the search term
   useEffect(() => {
-    if (timerRef.current != null) {
+    if (timerRef.current !== null && timerRef.current !== undefined) {
       clearTimeout(timerRef.current);
     }
     timerRef.current = setTimeout(() => {
@@ -28,7 +28,7 @@ export default function useSearch(data, fields, debounceMs = 200) {
     }, debounceMs);
 
     return () => {
-      if (timerRef.current != null) {
+      if (timerRef.current !== null && timerRef.current !== undefined) {
         clearTimeout(timerRef.current);
       }
     };
@@ -42,7 +42,7 @@ export default function useSearch(data, fields, debounceMs = 200) {
     return data.filter((row) =>
       stableFields.some((field) => {
         const val = row[field];
-        if (val == null) return false;
+        if (val === null || val === undefined) return false;
         return String(val).toLowerCase().includes(needle);
       })
     );

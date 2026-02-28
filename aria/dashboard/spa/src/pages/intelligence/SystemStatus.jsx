@@ -69,8 +69,8 @@ export function SystemStatus({ runLog, mlModels, metaLearning }) {
                     {Object.entries(mlModels.scores).map(([name, s]) => (
                       <tr key={name}>
                         <td class="py-1 data-mono">{name}</td>
-                        <td>{s.r2 != null ? s.r2.toFixed(3) : '\u2014'}</td>
-                        <td>{s.mae != null ? s.mae.toFixed(2) : '\u2014'}</td>
+                        <td>{s.r2 !== null && s.r2 !== undefined ? s.r2.toFixed(3) : '\u2014'}</td>
+                        <td>{s.mae !== null && s.mae !== undefined ? s.mae.toFixed(2) : '\u2014'}</td>
                       </tr>
                     ))}
                   </tbody>

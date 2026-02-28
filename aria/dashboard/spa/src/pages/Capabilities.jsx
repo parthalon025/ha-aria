@@ -17,7 +17,7 @@ function humanize(name) {
 }
 
 /** Known capability detail fields (not entity lists or metadata). */
-const DETAIL_FIELDS = new Set([
+const _DETAIL_FIELDS = new Set([
   'supports_color', 'supports_brightness', 'supports_color_temp',
   'measurement_unit', 'modes',
 ]);
@@ -214,14 +214,14 @@ function CapabilityCard({ name, capability, onTogglePredict, onAction }) {
       </div>
 
       {/* Usefulness bar */}
-      {usefulness != null && (
+      {usefulness !== null && usefulness !== undefined && (
         <div style="margin-bottom: 8px;">
           <UsefulnessBar value={usefulness} label="Usefulness" />
         </div>
       )}
 
       {/* Stability streak for candidates */}
-      {status === 'candidate' && stabilityStreak != null && (
+      {status === 'candidate' && stabilityStreak !== null && stabilityStreak !== undefined && (
         <div
           style="font-size: var(--type-label); color: var(--text-tertiary); font-family: var(--font-mono); margin-bottom: 8px;"
         >

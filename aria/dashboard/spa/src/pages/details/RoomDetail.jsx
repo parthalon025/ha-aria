@@ -8,18 +8,17 @@ import HeroCard from '../../components/HeroCard.jsx';
 import StatsGrid from '../../components/StatsGrid.jsx';
 import LoadingState from '../../components/LoadingState.jsx';
 import ErrorState from '../../components/ErrorState.jsx';
-import PageBanner from '../../components/PageBanner.jsx';
 import { relativeTime, confidenceColor } from '../intelligence/utils.jsx';
 
 /** Staleness threshold: 30 minutes in ms. */
 const STALE_MS = 30 * 60 * 1000;
 
 function formatPct(val) {
-  if (val == null) return '\u2014';
+  if (val === null || val === undefined) return '\u2014';
   return `${(val * 100).toFixed(0)}%`;
 }
 
-export default function RoomDetail({ id, type }) {
+export default function RoomDetail({ id, type: _type }) {
   const [room, setRoom] = useState(null);
   const [detections, setDetections] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -66,7 +65,7 @@ export default function RoomDetail({ id, type }) {
   const confidence = room.confidence || 'low';
   const signals = room.signals || room.active_signals || [];
   const persons = room.persons || room.identified_persons || [];
-  const isOccupied = room.occupied || (probability != null && probability > 0.5);
+  const isOccupied = room.occupied || (probability !== null && probability !== undefined && probability > 0.5);
   const isStale = lastUpdated && (Date.now() - new Date(lastUpdated).getTime()) > STALE_MS;
 
   const statsItems = [
@@ -148,7 +147,7 @@ export default function RoomDetail({ id, type }) {
                 <span style="color: var(--text-secondary);">{person.name || person.person_id || 'Unknown'}</span>
                 <span style="color: var(--text-tertiary);">
                   {person.last_seen ? relativeTime(person.last_seen) : ''}
-                  {person.confidence != null && ` (${(person.confidence * 100).toFixed(0)}%)`}
+                  {person.confidence !== null && person.confidence !== undefined && ` (${(person.confidence * 100).toFixed(0)}%)`}
                 </span>
               </div>
             ))}

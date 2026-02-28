@@ -185,7 +185,7 @@ function FilterToggle({ label, active, count, onToggle }) {
       onClick={onToggle}
     >
       <span>{label}</span>
-      {count != null && <span class="data-mono" style="opacity: 0.7">{count}</span>}
+      {count !== null && count !== undefined && <span class="data-mono" style="opacity: 0.7">{count}</span>}
     </button>
   );
 }

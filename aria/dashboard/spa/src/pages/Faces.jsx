@@ -338,7 +338,7 @@ export default function Faces() {
       setFrigateRestarted(true);
       setDeployMsg('Deployed and Frigate restarted — face recognition is live.');
       setTimeout(() => setDeployMsg(null), 8000);
-    } catch (e) {
+    } catch {
       setDeployMsg('Deployed. Frigate restart failed — run: docker restart frigate');
       setTimeout(() => setDeployMsg(null), 10000);
     } finally {
@@ -381,7 +381,7 @@ export default function Faces() {
       try {
         const restored = await fetchJson(`/api/faces/people/${encodeURIComponent(personName)}/samples`);
         setPersonSamples(prev => ({ ...prev, [personName]: restored.samples || [] }));
-      } catch (_) {}
+      } catch { /* restore failed, keep previous optimistic state */ }
       setError(e);
     }
   }
@@ -508,7 +508,7 @@ export default function Faces() {
         </div>
         <div class="t-card" style="padding: 1rem; text-align: center;">
           <div style="font-size: 2rem; font-weight: 700; color: var(--accent);">
-            {stats?.auto_label_rate != null
+            {stats?.auto_label_rate !== null && stats?.auto_label_rate !== undefined
               ? `${Math.round(stats.auto_label_rate * 100)}%`
               : '—'}
           </div>

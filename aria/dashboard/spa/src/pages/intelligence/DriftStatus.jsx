@@ -57,13 +57,13 @@ export function DriftStatus({ drift }) {
                       <span style="color: var(--text-tertiary)">Rolling MAE</span>
                       <span class="data-mono">{rolling ?? '—'}</span>
                     </div>
-                    {current != null && (
+                    {current !== null && current !== undefined && (
                       <div class="flex justify-between">
                         <span style="color: var(--text-tertiary)">Current MAE</span>
                         <span class="data-mono" style={current > (thresh || Infinity) ? 'color: var(--status-warning)' : ''}>{current}</span>
                       </div>
                     )}
-                    {thresh != null && (
+                    {thresh !== null && thresh !== undefined && (
                       <div class="flex justify-between">
                         <span style="color: var(--text-tertiary)">Threshold</span>
                         <span class="data-mono">{thresh}</span>

@@ -8,10 +8,9 @@ import HeroCard from '../../components/HeroCard.jsx';
 import StatsGrid from '../../components/StatsGrid.jsx';
 import LoadingState from '../../components/LoadingState.jsx';
 import ErrorState from '../../components/ErrorState.jsx';
-import PageBanner from '../../components/PageBanner.jsx';
 import { relativeTime } from '../intelligence/utils.jsx';
 
-export default function PredictionDetail({ id, type }) {
+export default function PredictionDetail({ id, type: _type }) {
   const [predictions, setPredictions] = useState([]);
   const [accuracy, setAccuracy] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +73,7 @@ export default function PredictionDetail({ id, type }) {
     { label: 'Predicted', value: String(latest.predicted ?? latest.predicted_value ?? '\u2014') },
     { label: 'Actual', value: String(latest.actual ?? latest.actual_value ?? '\u2014') },
   ];
-  if (wasCorrect != null) {
+  if (wasCorrect !== null && wasCorrect !== undefined) {
     statsItems.push({
       label: 'Correct',
       value: wasCorrect ? 'Yes' : 'No',
@@ -90,14 +89,14 @@ export default function PredictionDetail({ id, type }) {
     <div class="space-y-6">
       {/* Summary */}
       <div class="t-frame" data-label="summary">
-        {confidence != null && (
+        {confidence !== null && confidence !== undefined && (
           <HeroCard
             value={`${(confidence * 100).toFixed(0)}%`}
             label="Confidence"
             timestamp={latest.timestamp || latest.created_at}
           />
         )}
-        <div style={confidence != null ? 'margin-top: 12px;' : ''}>
+        <div style={confidence !== null && confidence !== undefined ? 'margin-top: 12px;' : ''}>
           <StatsGrid items={statsItems} />
         </div>
       </div>
@@ -111,19 +110,19 @@ export default function PredictionDetail({ id, type }) {
             >
               Thompson Sampling
             </span>
-            {thompson.alpha != null && (
+            {thompson.alpha !== null && thompson.alpha !== undefined && (
               <div class="flex justify-between" style="font-family: var(--font-mono); font-size: var(--type-label);">
                 <span style="color: var(--text-tertiary);">Alpha</span>
                 <span style="color: var(--text-secondary);">{Number(thompson.alpha).toFixed(2)}</span>
               </div>
             )}
-            {thompson.beta != null && (
+            {thompson.beta !== null && thompson.beta !== undefined && (
               <div class="flex justify-between" style="font-family: var(--font-mono); font-size: var(--type-label);">
                 <span style="color: var(--text-tertiary);">Beta</span>
                 <span style="color: var(--text-secondary);">{Number(thompson.beta).toFixed(2)}</span>
               </div>
             )}
-            {thompson.expected_accuracy != null && (
+            {thompson.expected_accuracy !== null && thompson.expected_accuracy !== undefined && (
               <div class="flex justify-between" style="font-family: var(--font-mono); font-size: var(--type-label);">
                 <span style="color: var(--text-tertiary);">Expected Accuracy</span>
                 <span style="color: var(--text-secondary);">{(thompson.expected_accuracy * 100).toFixed(1)}%</span>
@@ -166,7 +165,7 @@ export default function PredictionDetail({ id, type }) {
                   <span style="color: var(--text-secondary); flex: 1;">
                     {String(pred.predicted ?? pred.predicted_value ?? '?')} / {String(pred.actual ?? pred.actual_value ?? '?')}
                   </span>
-                  {correct != null && (
+                  {correct !== null && correct !== undefined && (
                     <span
                       style={`padding: 1px 6px; border-radius: 3px; font-size: var(--type-label); ${
                         correct

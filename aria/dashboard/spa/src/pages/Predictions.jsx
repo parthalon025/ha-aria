@@ -30,7 +30,7 @@ function PredictionCard({ prediction }) {
       <div class="flex items-center gap-2 mb-3">
         <span class="text-xs" style="color: var(--text-tertiary)">Predicted:</span>
         <StatusBadge state={String(prediction.predicted_value ?? '')} />
-        {prediction.current_value != null && (
+        {prediction.current_value !== null && prediction.current_value !== undefined && (
           <span class="text-xs ml-2" style="color: var(--text-tertiary)">
             current: {prediction.current_value}
           </span>
@@ -138,7 +138,7 @@ export default function Predictions() {
           {metadata.model_version && (
             <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">v{metadata.model_version}</span>
           )}
-          {metadata.features_used != null && (
+          {metadata.features_used !== null && metadata.features_used !== undefined && (
             <span style="background: var(--bg-surface-raised); border-radius: var(--radius); padding: 0.25rem 0.5rem;">{metadata.features_used} features</span>
           )}
           {metadata.generated_at && (

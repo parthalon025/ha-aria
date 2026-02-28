@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
-import { fetchJson, safeFetch } from '../api.js';
+import { safeFetch } from '../api.js';
 import LoadingState from '../components/LoadingState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import AriaLogo from '../components/AriaLogo.jsx';
@@ -35,7 +35,7 @@ export default function Home() {
 
   // ── Anomaly hero ──
   const anomalyItems = anomalies?.anomalies || [];
-  const criticalCount = anomalyItems.filter((item) => item.severity === 'critical' || (item.score != null && item.score < -0.5)).length;
+  const criticalCount = anomalyItems.filter((item) => item.severity === 'critical' || (item.score !== null && item.score !== undefined && item.score < -0.5)).length;
   const anomalyValue = anomalyItems.length > 0
     ? `${anomalyItems.length} detected${criticalCount > 0 ? ` (${criticalCount} critical)` : ''}`
     : 'Clear';
@@ -60,8 +60,8 @@ export default function Home() {
   const avg7d = last7.length > 0
     ? last7.reduce((sum, day) => sum + (day.accuracy ?? 0), 0) / last7.length
     : null;
-  const accValue = avg7d != null ? `${Math.round(avg7d * 100)}%` : '\u2014';
-  const accDelta = avg7d != null ? '7-day avg' : null;
+  const accValue = avg7d !== null && avg7d !== undefined ? `${Math.round(avg7d * 100)}%` : '\u2014';
+  const accDelta = avg7d !== null && avg7d !== undefined ? '7-day avg' : null;
 
   // ── Observe summary metrics ──
   const actInner = useComputed(() => {

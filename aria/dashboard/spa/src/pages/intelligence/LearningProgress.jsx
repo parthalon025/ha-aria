@@ -50,7 +50,7 @@ export function LearningProgress({ maturity, shadowStage, shadowAccuracy }) {
         {shadowStage && (
           <div class="flex items-center gap-2 text-xs pt-1" style="color: var(--text-tertiary); border-top: 1px solid var(--border-subtle)">
             <span class="font-medium rounded-full px-2 py-0.5 capitalize" style="background: var(--accent-glow); color: var(--accent)">{shadowStage}</span>
-            <span>Shadow engine{shadowAccuracy != null ? ` \u2014 ${Math.round(shadowAccuracy * 100)}% accuracy` : ''}</span>
+            <span>Shadow engine{shadowAccuracy !== null && shadowAccuracy !== undefined ? ` \u2014 ${Math.round(shadowAccuracy * 100)}% accuracy` : ''}</span>
           </div>
         )}
       </div>

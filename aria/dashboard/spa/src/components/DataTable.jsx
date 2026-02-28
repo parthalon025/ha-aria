@@ -47,9 +47,9 @@ export default function DataTable({
       const bVal = b[sort.key];
 
       // Nulls sort to end
-      if (aVal == null && bVal == null) return 0;
-      if (aVal == null) return 1;
-      if (bVal == null) return -1;
+      if ((aVal === null || aVal === undefined) && (bVal === null || bVal === undefined)) return 0;
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
 
       let cmp;
       if (typeof aVal === 'number' && typeof bVal === 'number') {
@@ -130,7 +130,7 @@ export default function DataTable({
                 <tr key={row.id || row.entity_id || idx} style="border-bottom: 1px solid var(--border-subtle);">
                   {columns.map((col) => (
                     <td key={col.key} class={`px-4 py-2 text-sm ${col.className || ''}`} style="color: var(--text-secondary);">
-                      {col.render ? col.render(row[col.key], row) : (row[col.key] != null ? row[col.key] : '\u2014')}
+                      {col.render ? col.render(row[col.key], row) : (row[col.key] !== null && row[col.key] !== undefined ? row[col.key] : '\u2014')}
                     </td>
                   ))}
                 </tr>

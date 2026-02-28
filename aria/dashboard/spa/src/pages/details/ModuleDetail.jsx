@@ -15,7 +15,7 @@ function moduleStatusColor(status) {
   return 'background: var(--bg-inset); color: var(--text-secondary);';
 }
 
-export default function ModuleDetail({ id, type }) {
+export default function ModuleDetail({ id, type: _type }) {
   const [moduleData, setModuleData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -54,7 +54,7 @@ export default function ModuleDetail({ id, type }) {
   if (moduleData.started_at || moduleData.startup_time) {
     statsItems.push({ label: 'Uptime', value: durationSince(moduleData.started_at || moduleData.startup_time) });
   }
-  if (moduleData.event_count != null) {
+  if (moduleData.event_count !== null && moduleData.event_count !== undefined) {
     statsItems.push({ label: 'Events', value: String(moduleData.event_count) });
   }
 

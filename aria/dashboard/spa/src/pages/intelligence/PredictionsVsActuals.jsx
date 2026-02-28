@@ -20,7 +20,7 @@ export function PredictionsVsActuals({ predictions, intradayTrend }) {
   metrics.forEach(m => {
     const pred = predictions[m] || {};
     const actual = latest[m];
-    if (actual != null && pred.predicted != null && pred.predicted > 0) {
+    if (actual !== null && actual !== undefined && pred.predicted !== null && pred.predicted !== undefined && pred.predicted > 0) {
       const pct = Math.abs((actual - pred.predicted) / pred.predicted * 100);
       if (pct > 30 && (!biggestDelta || pct > biggestDelta.pct)) {
         biggestDelta = { metric: m.replace(/_/g, ' '), pct: Math.round(pct), actual, predicted: pred.predicted };
@@ -54,16 +54,16 @@ export function PredictionsVsActuals({ predictions, intradayTrend }) {
             {metrics.map(m => {
               const pred = predictions[m] || {};
               const actual = latest[m];
-              const delta = actual != null && pred.predicted != null
+              const delta = actual !== null && actual !== undefined && pred.predicted !== null && pred.predicted !== undefined
                 ? Math.round((actual - pred.predicted) * 10) / 10
                 : null;
-              const bigDelta = delta != null && pred.predicted > 0 && Math.abs(delta / pred.predicted) > 0.3;
+              const bigDelta = delta !== null && delta !== undefined && pred.predicted > 0 && Math.abs(delta / pred.predicted) > 0.3;
               return (
                 <tr key={m} style={`border-bottom: 1px solid var(--border-subtle)${bigDelta ? '; background: var(--status-warning-glow)' : ''}`}>
                   <td class="px-4 py-2 font-medium" style="color: var(--text-secondary)">{m.replace(/_/g, ' ')}</td>
-                  <td class="px-4 py-2">{pred.predicted != null ? pred.predicted : '\u2014'}</td>
-                  <td class="px-4 py-2">{actual != null ? actual : '\u2014'}</td>
-                  <td class="px-4 py-2">{delta != null ? (delta >= 0 ? '+' : '') + delta : '\u2014'}</td>
+                  <td class="px-4 py-2">{pred.predicted !== null && pred.predicted !== undefined ? pred.predicted : '\u2014'}</td>
+                  <td class="px-4 py-2">{actual !== null && actual !== undefined ? actual : '\u2014'}</td>
+                  <td class="px-4 py-2">{delta !== null && delta !== undefined ? (delta >= 0 ? '+' : '') + delta : '\u2014'}</td>
                   <td class="px-4 py-2">
                     <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium" style={confidenceColor(pred.confidence)}>
                       {pred.confidence || 'n/a'}

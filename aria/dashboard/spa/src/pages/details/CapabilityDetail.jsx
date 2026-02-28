@@ -15,7 +15,7 @@ function capStatusColor(status) {
   return 'background: var(--bg-inset); color: var(--text-secondary);';
 }
 
-export default function CapabilityDetail({ id, type }) {
+export default function CapabilityDetail({ id, type: _type }) {
   const [capability, setCapability] = useState(null);
   const [history, setHistory] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -59,7 +59,7 @@ export default function CapabilityDetail({ id, type }) {
   if (capability.layer) {
     statsItems.push({ label: 'Layer', value: capability.layer });
   }
-  if (capability.can_predict != null) {
+  if (capability.can_predict !== null && capability.can_predict !== undefined) {
     statsItems.push({ label: 'Can Predict', value: capability.can_predict ? 'Yes' : 'No' });
   }
 
@@ -147,7 +147,7 @@ export default function CapabilityDetail({ id, type }) {
               <span style="color: var(--text-tertiary);">Last Seen</span>
               <span style="color: var(--text-secondary);">{relativeTime(health.last_seen)}</span>
             </div>
-            {health.error_count != null && (
+            {health.error_count !== null && health.error_count !== undefined && (
               <div class="flex justify-between" style="font-family: var(--font-mono); font-size: var(--type-label);">
                 <span style="color: var(--text-tertiary);">Error Count</span>
                 <span style={`color: ${health.error_count > 0 ? 'var(--status-error)' : 'var(--text-secondary)'};`}>

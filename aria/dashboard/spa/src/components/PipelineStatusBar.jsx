@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { wsConnected } from '../store.js';
-import { fetchJson, safeFetch } from '../api.js';
+import { safeFetch } from '../api.js';
 
 /**
  * Compact one-line pipeline status bar for the Home page.

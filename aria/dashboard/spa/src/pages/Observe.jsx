@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'preact/hooks';
 import useCache from '../hooks/useCache.js';
 import useComputed from '../hooks/useComputed.js';
 import { wsConnected } from '../store.js';
@@ -46,7 +45,7 @@ export default function Observe() {
     );
   }
 
-  const ws = actInner ? (actInner.websocket || null) : null;
+  const _ws = actInner ? (actInner.websocket || null) : null;
   const actRate = actInner ? (actInner.activity_rate || null) : null;
   const evRate = actRate ? actRate.current : null;
   const occ = actInner ? (actInner.occupancy || null) : null;
@@ -71,15 +70,15 @@ export default function Observe() {
           </a>
           <a href="#/detail/module/activity" class="clickable-data flex items-center gap-1.5" style="text-decoration: none; color: inherit;">
             <span style="color: var(--text-tertiary)">Events</span>
-            <span class="data-mono font-medium" style="color: var(--text-primary)">{evRate != null ? `${evRate}/min` : '\u2014'}</span>
+            <span class="data-mono font-medium" style="color: var(--text-primary)">{evRate !== null && evRate !== undefined ? `${evRate}/min` : '\u2014'}</span>
           </a>
           <a href="#/detail/module/intelligence" class="clickable-data flex items-center gap-1.5" style="text-decoration: none; color: inherit;">
             <span style="color: var(--text-tertiary)">Lights</span>
-            <span class="data-mono font-medium" style="color: var(--text-primary)">{lightsOn != null ? `${lightsOn} on` : '\u2014'}</span>
+            <span class="data-mono font-medium" style="color: var(--text-primary)">{lightsOn !== null && lightsOn !== undefined ? `${lightsOn} on` : '\u2014'}</span>
           </a>
           <a href="#/detail/module/intelligence" class="clickable-data flex items-center gap-1.5" style="text-decoration: none; color: inherit;">
             <span style="color: var(--text-tertiary)">Power</span>
-            <span class="data-mono font-medium" style="color: var(--text-primary)">{powerW != null ? `${Math.round(powerW)} W` : '\u2014'}</span>
+            <span class="data-mono font-medium" style="color: var(--text-primary)">{powerW !== null && powerW !== undefined ? `${Math.round(powerW)} W` : '\u2014'}</span>
           </a>
           <div class="flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full" style={`background: ${connected ? 'var(--status-healthy)' : 'var(--status-error)'};`} />

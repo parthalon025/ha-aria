@@ -7,7 +7,7 @@ export default function StatusBadge({ state }) {
   let statusClass;
   if (s === 'on' || s === 'home') statusClass = 't-status-healthy';
   else if (s === 'unavailable' || s === 'unknown') statusClass = 't-status-error';
-  else if (state != null && state !== '' && !isNaN(Number(state))) statusClass = 't-status-healthy';
+  else if (state !== null && state !== undefined && state !== '' && !isNaN(Number(state))) statusClass = 't-status-healthy';
   else statusClass = 't-status-waiting';
 
   return (

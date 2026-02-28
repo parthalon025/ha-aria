@@ -40,7 +40,7 @@ function SwimLaneTimeline({ events }) {
 
   const rangeMs = now - startTime;
   const startLabel = startTime.toTimeString().slice(0, 5);
-  const nowLabel = now.toTimeString().slice(0, 5);
+  const _nowLabel = now.toTimeString().slice(0, 5);
 
   return (
     <div class="t-frame p-4" data-label="swim lanes">
@@ -219,11 +219,11 @@ export function ActivitySection({ activity }) {
   if (rate.trend === 'increasing') parts.push('activity picking up');
   else if (rate.trend === 'decreasing') parts.push('quieting down');
   const eventsToday = log?.events_today;
-  if (eventsToday != null) parts.push(`${eventsToday} events today`);
+  if (eventsToday !== null && eventsToday !== undefined) parts.push(`${eventsToday} events today`);
   const contextSubtitle = parts.join(' \u00B7 ');
 
   // Determine snapshot status message
-  let snapMsg = '';
+  let snapMsg;
   if (snap.today_count > 0) {
     snapMsg = `${snap.today_count} adaptive snapshot${snap.today_count !== 1 ? 's' : ''} captured today \u2014 the system saw enough activity to grab extra data points.`;
   } else if (occ.anyone_home) {
@@ -279,7 +279,7 @@ export function ActivitySection({ activity }) {
           {/* Current window */}
           <div class="t-frame p-4">
             <div class="text-2xl font-bold" style="color: var(--accent)">
-              {rate.current != null ? rate.current : '\u2014'}
+              {rate.current !== null && rate.current !== undefined ? rate.current : '\u2014'}
             </div>
             <div class="text-sm mt-1" style="color: var(--text-tertiary)">Events (15m window)</div>
             {rate.avg_1h > 0 && (
@@ -295,7 +295,7 @@ export function ActivitySection({ activity }) {
           {/* Today total */}
           <div class="t-frame p-4">
             <div class="text-2xl font-bold" style="color: var(--accent)">
-              {eventsToday != null ? eventsToday : '\u2014'}
+              {eventsToday !== null && eventsToday !== undefined ? eventsToday : '\u2014'}
             </div>
             <div class="text-sm mt-1" style="color: var(--text-tertiary)">Events Today</div>
           </div>
@@ -303,7 +303,7 @@ export function ActivitySection({ activity }) {
           {/* Snapshots */}
           <div class="t-frame p-4">
             <div class="text-2xl font-bold" style="color: var(--accent)">
-              {snap.today_count != null ? `${snap.today_count}/${snap.daily_cap}` : '\u2014'}
+              {snap.today_count !== null && snap.today_count !== undefined ? `${snap.today_count}/${snap.daily_cap}` : '\u2014'}
             </div>
             <div class="text-sm mt-1" style="color: var(--text-tertiary)">Adaptive Snapshots</div>
             {snap.cooldown_remaining_s > 0 && (

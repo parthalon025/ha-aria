@@ -235,8 +235,8 @@ export function getNodeMetric(cacheData, nodeId) {
   const caps = cacheData?.capabilities?.data || {};
   const pipeline = cacheData?.pipeline || {};
   const shadow = cacheData?.shadow_accuracy || {};
-  const intelligence = cacheData?.intelligence?.data || {};
-  const curation = cacheData?.curation || {};
+  const _intelligence = cacheData?.intelligence?.data || {};
+  const _curation = cacheData?.curation || {};
   const mlPipeline = cacheData?.ml_pipeline || {};
   const presence = cacheData?.presence?.data || {};
 

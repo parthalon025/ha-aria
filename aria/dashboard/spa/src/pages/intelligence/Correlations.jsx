@@ -11,11 +11,11 @@ function numericStrength(c) {
   // Prefer conditional probabilities (0-100 scale) averaged and normalized to 0-1
   const pa = c.conditional_prob_a_given_b;
   const pb = c.conditional_prob_b_given_a;
-  if (pa != null && pb != null) return ((pa + pb) / 2) / 100;
+  if (pa !== null && pa !== undefined && pb !== null && pb !== undefined) return ((pa + pb) / 2) / 100;
   // Fall back to string label mapping
   if (typeof c.strength === 'string') return STRENGTH_MAP[c.strength] ?? 0.5;
   // Fall back to numeric parse
-  return parseFloat(c.strength != null ? c.strength : c[2]) || 0;
+  return parseFloat(c.strength !== null && c.strength !== undefined ? c.strength : c[2]) || 0;
 }
 
 function buildMatrix(correlations) {

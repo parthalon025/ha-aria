@@ -48,11 +48,11 @@ export function TrendsOverTime({ trendData, intradayTrend }) {
     const last = trendData[trendData.length - 1];
     const prev = trendData[trendData.length - 2];
     const changes = [];
-    if (last.power_watts != null && prev.power_watts != null) {
+    if (last.power_watts !== null && last.power_watts !== undefined && prev.power_watts !== null && prev.power_watts !== undefined) {
       const d = last.power_watts - prev.power_watts;
       if (Math.abs(d) > 50) changes.push(`Power ${d > 0 ? 'up' : 'down'} ${Math.abs(Math.round(d))}W vs yesterday`);
     }
-    if (last.unavailable != null && prev.unavailable != null) {
+    if (last.unavailable !== null && last.unavailable !== undefined && prev.unavailable !== null && prev.unavailable !== undefined) {
       const d = last.unavailable - prev.unavailable;
       if (d > 10) changes.push(`${d} more entities unavailable than yesterday — check your network`);
     }

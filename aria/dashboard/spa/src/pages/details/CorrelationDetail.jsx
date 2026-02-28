@@ -22,7 +22,7 @@ function strengthColor(label) {
   return 'color: var(--text-tertiary);';
 }
 
-export default function CorrelationDetail({ id, type }) {
+export default function CorrelationDetail({ id, type: _type }) {
   const [correlation, setCorrelation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
