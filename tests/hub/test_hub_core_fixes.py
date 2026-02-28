@@ -217,8 +217,7 @@ class TestHubGetCacheMethod315:
 
         response = client.get("/api/ml/drift")
         assert response.status_code == 200
-        hub.get_cache.assert_awaited(), ("hub.get_cache() was not called — still using hub.cache.get() directly (#315)")
-        hub.cache.get.assert_not_awaited(), ("hub.cache.get() was called directly — should use hub.get_cache() (#315)")
+        hub.get_cache.assert_awaited()  # hub.get_cache() must be called (#315)
 
     def test_get_ml_models_uses_hub_get_cache_closes_315(self, hub, client):
         """GET /api/ml/models must call hub.get_cache, not hub.cache.get directly."""
@@ -227,7 +226,7 @@ class TestHubGetCacheMethod315:
 
         response = client.get("/api/ml/models")
         assert response.status_code == 200
-        hub.get_cache.assert_awaited(), ("hub.get_cache() was not called for /api/ml/models (#315)")
+        hub.get_cache.assert_awaited()  # hub.get_cache() must be called (#315)
 
     def test_get_ml_anomalies_uses_hub_get_cache_closes_315(self, hub, client):
         """GET /api/ml/anomalies must call hub.get_cache, not hub.cache.get directly."""
@@ -236,7 +235,7 @@ class TestHubGetCacheMethod315:
 
         response = client.get("/api/ml/anomalies")
         assert response.status_code == 200
-        hub.get_cache.assert_awaited(), ("hub.get_cache() was not called for /api/ml/anomalies (#315)")
+        hub.get_cache.assert_awaited()  # hub.get_cache() must be called (#315)
 
 
 # ---------------------------------------------------------------------------

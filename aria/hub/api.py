@@ -369,10 +369,20 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
             if not intel:
                 return {"reference": None, "incremental": None, "forecaster": None, "ml_models": None}
             data = intel.get("data", {})
+            # Fetch incremental training metadata from its dedicated cache key (#316)
+            training_meta = await hub.get_cache("ml_training_metadata")
+            training_data = (training_meta or {}).get("data", training_meta or {})
             return {
                 "reference": data.get("reference_model", None),
-                "incremental": data.get("incremental_training", None),
-                "forecaster": data.get("forecaster_backend", None),
+                "incremental": {
+                    "last_trained": training_data.get("last_trained"),
+                    "num_snapshots": training_data.get("num_snapshots"),
+                    "targets_trained": training_data.get("targets_trained", []),
+                    "has_anomaly_detector": training_data.get("has_anomaly_detector", False),
+                }
+                if training_meta
+                else None,
+                "forecaster": None,  # forecaster_backend key never populated (#316)
                 "ml_models": data.get("ml_models", None),
             }
         except Exception:
@@ -388,7 +398,9 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
                 return {"anomalies": [], "autoencoder": {"enabled": False}, "isolation_forest": {}}
             data = intel.get("data", {})
             return {
-                "anomalies": data.get("anomaly_alerts", []),
+                "anomalies": (data.get("sequence_anomalies") or {}).get(
+                    "anomalies", []
+                ),  # was phantom key "anomaly_alerts" (#316)
                 "autoencoder": data.get("autoencoder_status", {"enabled": False}),
                 "isolation_forest": data.get("isolation_forest_status", {}),
             }
