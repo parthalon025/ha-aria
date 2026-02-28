@@ -144,7 +144,9 @@ class TestPresenceHomeFalseLogging:
         mod._room_signals["living_room"] = [("motion", 0.8, "test", None)]
         mod._room_signals["bedroom"] = [("light", 0.6, "test", None), ("motion", 0.7, "test", None)]
 
+        # Debounce (#249): call twice to confirm consecutive home=False before clearing
         with caplog.at_level(logging.INFO, logger="aria.modules.presence"):
+            await mod._apply_unifi_cross_validation()
             await mod._apply_unifi_cross_validation()
 
         # All signals cleared

@@ -142,6 +142,7 @@ class PresenceModule(Module):
         # MQTT client (lazy init)
         self._mqtt_client = None
         self._mqtt_connected = False
+        self._unifi_false_count: int = 0  # consecutive home=False signals (debounce #249)
 
         # Local entity→room cache (built from discovery cache, refreshed periodically)
         self._entity_room_cache: dict[str, str] = {}
@@ -1062,19 +1063,28 @@ class PresenceModule(Module):
         if not unifi_state:
             return
         if unifi_state.get("home") is False:
-            # All known devices absent — clear signal history for this cycle.
-            # Note: this destroys accumulated signals, not a temporary suppression.
-            # Recovery requires new _add_signal calls on the next flush cycle.
+            # Debounce: require 2 consecutive home=False signals before clearing.
+            # A single transient absence (e.g. brief WiFi drop) must not destroy
+            # accumulated signal history. Counter resets when home is True/None.
+            self._unifi_false_count += 1
+            if self._unifi_false_count < 2:
+                logger.info(
+                    "UniFi home=False signal %d/2 — deferring history clear",
+                    self._unifi_false_count,
+                )
+                return
             total_signals = sum(len(sigs) for sigs in self._room_signals.values())
             num_rooms = len(self._room_signals)
             for room in list(self._room_signals.keys()):
                 self._room_signals[room] = []
             logger.info(
-                "UniFi home=False — clearing %d signals across %d rooms",
+                "UniFi home=False (2 consecutive) — clearing %d signals across %d rooms",
                 total_signals,
                 num_rooms,
             )
             return
+        # home is True or None — reset the consecutive-False counter
+        self._unifi_false_count = 0
         unifi_mod = self.hub.get_module("unifi") if hasattr(self.hub, "get_module") else None
         if unifi_mod is None:
             return

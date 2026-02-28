@@ -1238,7 +1238,11 @@ class TestFlushWithUnifiCrossValidation:
 
     @pytest.mark.asyncio
     async def test_flush_home_away_gate_clears_signals(self, module):
-        """When home=False (all devices away), room signals are suppressed before fusion."""
+        """When home=False (all devices away), room signals are suppressed before fusion.
+
+        Debounce (#249): requires 2 consecutive home=False signals before clearing,
+        so we flush twice to trigger the actual clear.
+        """
         hub = module.hub
         hub._cache_data["unifi_client_state"] = {
             "home": False,
@@ -1248,9 +1252,11 @@ class TestFlushWithUnifiCrossValidation:
         }
         now = datetime.now(tz=UTC)
         module._add_signal("living_room", "motion", 0.9, "motion detected", now)
+        # First flush defers (debounce: 1/2), second flush clears (2/2)
+        await module._flush_presence_state()
         await module._flush_presence_state()
         cached = hub.cache._cache.get(CACHE_PRESENCE)
-        # With home=False, signals are cleared — room should show low/no probability
+        # With home=False confirmed twice, signals are cleared — room should show low/no probability
         assert cached is not None
         room_data = cached["rooms"].get("living_room", {})
         # Either absent or probability is at baseline (0.1 — no signals)
