@@ -7,3 +7,4 @@ Worktree fix/hub-core created
 Worktree fix/hub-modules created
 Worktree fix/frontend created
 Stage 0 triage complete: 2026-02-28T07:45:03-06:00
+Stage 1 conventions updated: 2026-02-28T07:48:39-06:00
