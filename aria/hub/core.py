@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -535,9 +536,15 @@ class IntelligenceHub:
 
             if pruned_count > 0:
                 try:
-                    log_path.write_text("\n".join(kept) + "\n" if kept else "")
+                    # Atomic write: write to .tmp then os.replace — prevents partial
+                    # reads by concurrent processes if prune is interrupted (#313)
+                    new_content = "\n".join(kept) + "\n" if kept else ""
+                    tmp_path = log_path.with_suffix(".jsonl.tmp")
+                    tmp_path.write_text(new_content)
+                    os.replace(tmp_path, log_path)
                 except OSError as e:
                     logger.warning("Failed to write pruned snapshot_log.jsonl: %s", e)
+                    tmp_path.unlink(missing_ok=True)  # clean up stale .tmp on failed os.replace
                     return 0
 
             return pruned_count

@@ -16,7 +16,7 @@ class TestToggleCanPredictCacheBypass:
     def test_toggle_can_predict_uses_hub_set_cache(self, api_hub, api_client):
         """Toggle can_predict calls hub.set_cache (not hub.cache.set)."""
         # Set up mock: capabilities exist with a test capability
-        api_hub.cache.get = AsyncMock(
+        api_hub.get_cache = AsyncMock(
             return_value={
                 "data": {
                     "lighting": {
@@ -46,7 +46,7 @@ class TestToggleCanPredictCacheBypass:
 
     def test_toggle_can_predict_unknown_capability(self, api_hub, api_client):
         """Returns 404 for unknown capability."""
-        api_hub.cache.get = AsyncMock(return_value={"data": {"lighting": {"status": "promoted"}}})
+        api_hub.get_cache = AsyncMock(return_value={"data": {"lighting": {"status": "promoted"}}})
 
         response = api_client.put(
             "/api/capabilities/nonexistent/can-predict",
@@ -57,7 +57,7 @@ class TestToggleCanPredictCacheBypass:
 
     def test_toggle_can_predict_no_capabilities(self, api_hub, api_client):
         """Returns 404 when capabilities cache is empty."""
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
 
         response = api_client.put(
             "/api/capabilities/lighting/can-predict",
@@ -68,7 +68,7 @@ class TestToggleCanPredictCacheBypass:
 
     def test_toggle_can_predict_invalid_value(self, api_hub, api_client):
         """Returns 400 when can_predict is not a boolean."""
-        api_hub.cache.get = AsyncMock(return_value={"data": {"lighting": {"status": "promoted"}}})
+        api_hub.get_cache = AsyncMock(return_value={"data": {"lighting": {"status": "promoted"}}})
 
         response = api_client.put(
             "/api/capabilities/lighting/can-predict",

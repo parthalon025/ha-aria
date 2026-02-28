@@ -11,8 +11,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+import aria.hub.api as _api_module
 from aria.hub.api import create_api
 from aria.hub.core import IntelligenceHub
+
+# Test API key injected for all hub test clients.  Tests that exercise
+# auth behaviour set _api_module._ARIA_API_KEY themselves and restore it.
+_TEST_API_KEY = "test-aria-key"
 
 
 @pytest.fixture
@@ -35,11 +40,22 @@ def api_hub():
     mock_hub._audit_logger = None
     mock_hub.set_cache = AsyncMock()
     mock_hub.get_uptime_seconds = MagicMock(return_value=0)
+    mock_hub.publish = AsyncMock()
     return mock_hub
 
 
 @pytest.fixture
 def api_client(api_hub):
-    """Create a FastAPI TestClient backed by api_hub."""
-    app = create_api(api_hub)
-    return TestClient(app)
+    """Create a FastAPI TestClient backed by api_hub.
+
+    The test key is injected into the api module for the duration of each
+    test and restored on teardown.  All requests carry the X-API-Key header
+    so that endpoints guarded by verify_api_key() pass auth.
+    """
+    original_key = _api_module._ARIA_API_KEY
+    _api_module._ARIA_API_KEY = _TEST_API_KEY
+    try:
+        app = create_api(api_hub)
+        yield TestClient(app, headers={"X-API-Key": _TEST_API_KEY})
+    finally:
+        _api_module._ARIA_API_KEY = original_key

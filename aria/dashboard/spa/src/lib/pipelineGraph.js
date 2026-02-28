@@ -99,6 +99,7 @@ export const LINKS = [
   { source: 'discovery', target: 'out_capabilities', value: 3, type: 'cache' },
   { source: 'ml_engine', target: 'out_ml_models', value: 3, type: 'cache' },
   { source: 'discovery', target: 'out_curation', value: 3, type: 'cache' },
+  { source: 'ml_engine', target: 'out_validation', value: 3, type: 'cache' },
 
   // Feedback loops — ml/shadow write accuracy to capabilities cache (owned by discovery)
   { source: 'ml_engine', target: 'discovery', value: 2, type: 'feedback' },

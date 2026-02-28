@@ -159,6 +159,10 @@ class MLEngine(Module):
             "climate": ["temperature", "humidity"],
         }
 
+        # Config-driven feature weights — defaults from module constants, overridden in initialize()
+        self._decay_half_life_days: float = DECAY_HALF_LIFE_DAYS
+        self._weekday_alignment_bonus: float = WEEKDAY_ALIGNMENT_BONUS
+
         # Hardware-aware tiered model registry (Phase 1)
         self.registry = TieredModelRegistry.with_defaults()
         hw_profile = hub.hardware_profile if hub.hardware_profile is not None else scan_hardware()
@@ -226,6 +230,28 @@ class MLEngine(Module):
             self.model_status = "ready"
         else:
             self.logger.warning("MLEngine: no trained model found — predictions will be empty until training completes")
+
+        # Read operator-configurable feature weights from hub config (Lesson #54 / #319)
+        try:
+            self._decay_half_life_days = float(
+                await self.hub.cache.get_config_value("features.decay_half_life_days", DECAY_HALF_LIFE_DAYS)
+                or DECAY_HALF_LIFE_DAYS
+            )
+        except (TypeError, ValueError) as e:
+            self.logger.warning(
+                "features.decay_half_life_days has invalid value, using default %s: %s", DECAY_HALF_LIFE_DAYS, e
+            )
+            self._decay_half_life_days = DECAY_HALF_LIFE_DAYS
+        try:
+            self._weekday_alignment_bonus = float(
+                await self.hub.cache.get_config_value("features.weekday_alignment_bonus", WEEKDAY_ALIGNMENT_BONUS)
+                or WEEKDAY_ALIGNMENT_BONUS
+            )
+        except (TypeError, ValueError) as e:
+            self.logger.warning(
+                "features.weekday_alignment_bonus has invalid value, using default %s: %s", WEEKDAY_ALIGNMENT_BONUS, e
+            )
+            self._weekday_alignment_bonus = WEEKDAY_ALIGNMENT_BONUS
         self.logger.info("ML Engine initialized (model_status=%s)", self.model_status)
 
     async def shutdown(self) -> None:
@@ -452,9 +478,13 @@ class MLEngine(Module):
 
             if snapshot_file.exists():
                 try:
-                    with open(snapshot_file) as f:
-                        snapshot = json.load(f)
-                        raw_snapshots.append(snapshot)
+
+                    def _read_snapshot(path=snapshot_file):
+                        with open(path) as f:
+                            return json.load(f)
+
+                    snapshot = await asyncio.to_thread(_read_snapshot)
+                    raw_snapshots.append(snapshot)
                 except (OSError, json.JSONDecodeError) as e:
                     self.logger.warning(f"Failed to load snapshot {snapshot_file}: {e}")
 
@@ -950,10 +980,10 @@ class MLEngine(Module):
                 continue
 
             days_ago = max(0, (reference_date - snap_dt).total_seconds() / 86400)
-            recency_decay = math.exp(-days_ago / DECAY_HALF_LIFE_DAYS)
+            recency_decay = math.exp(-days_ago / self._decay_half_life_days)
 
             same_weekday = snap_dt.weekday() == ref_weekday
-            weekday_bonus = WEEKDAY_ALIGNMENT_BONUS if same_weekday else 1.0
+            weekday_bonus = self._weekday_alignment_bonus if same_weekday else 1.0
 
             weights.append(recency_decay * weekday_bonus)
 
@@ -1517,8 +1547,13 @@ class MLEngine(Module):
         if len(snapshot_files) >= 2:
             # Return second-to-last (most recent historical)
             try:
-                with open(snapshot_files[-2]) as f:
-                    return json.load(f)
+                target = snapshot_files[-2]
+
+                def _read(path=target):
+                    with open(path) as f:
+                        return json.load(f)
+
+                return await asyncio.to_thread(_read)
             except Exception as e:
                 self.logger.warning(f"Failed to load previous snapshot: {e}")
 
@@ -1540,8 +1575,12 @@ class MLEngine(Module):
         recent_snapshots = []
         for snapshot_file in snapshot_files[-7:]:
             try:
-                with open(snapshot_file) as f:
-                    recent_snapshots.append(json.load(f))
+
+                def _read_snap(path=snapshot_file):
+                    with open(path) as f:
+                        return json.load(f)
+
+                recent_snapshots.append(await asyncio.to_thread(_read_snap))
             except Exception as e:
                 self.logger.warning(f"Failed to load snapshot {snapshot_file}: {e}")
                 continue

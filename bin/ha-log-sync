@@ -37,23 +37,30 @@ case "${1:-sync}" in
         fi
         ;;
     --full)
-        # Full 24h backfill
+        # Full 24h backfill — exit non-zero if HA is unreachable (#318)
         PERIOD=$(date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%SZ)
-        curl -sf -H "Authorization: Bearer $HA_TOKEN" \
+        if ! curl -sf -H "Authorization: Bearer $HA_TOKEN" \
             "$HA_URL/api/logbook/$PERIOD" \
-            -o "$CURRENT" 2>/dev/null || true
+            -o "$CURRENT" 2>/dev/null; then
+            echo "ha-log-sync: HA connectivity failure (--full) — HA_URL=$HA_URL" >&2
+            exit 1
+        fi
         ;;
     *)
         # Sync last hour of logbook (default, runs every 15 min)
+        # Exit non-zero if HA is unreachable so monitoring can detect downtime (#318)
         PERIOD=$(date -u -d "1 hour ago" +%Y-%m-%dT%H:%M:%SZ)
         TEMP="$LOCAL_DIR/.sync-tmp.json"
-        curl -sf -H "Authorization: Bearer $HA_TOKEN" \
+        if ! curl -sf -H "Authorization: Bearer $HA_TOKEN" \
             "$HA_URL/api/logbook/$PERIOD" \
-            -o "$TEMP" 2>/dev/null || exit 0
+            -o "$TEMP" 2>/dev/null; then
+            echo "ha-log-sync: HA connectivity failure — HA_URL=$HA_URL" >&2
+            exit 1
+        fi
 
         # Merge with existing current.json (deduplicate by entity_id+when)
         if [[ -f "$CURRENT" ]]; then
-            python3 -c "
+            if ! python3 -c "
 import json, sys
 existing = json.load(open('$CURRENT')) if True else []
 new = json.load(open('$TEMP'))
@@ -72,7 +79,10 @@ from datetime import datetime, timedelta, timezone
 cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 merged = [e for e in merged if e.get('when', '') >= cutoff]
 json.dump(merged[-50000:], open('$CURRENT', 'w'))
-" 2>/dev/null || cp "$TEMP" "$CURRENT"
+" 2>&1; then
+                # Merge failed — preserve existing current.json, discard new data
+                echo "ha-log-sync: merge script failed — keeping existing current.json, new data discarded" >&2
+            fi
         else
             cp "$TEMP" "$CURRENT"
         fi

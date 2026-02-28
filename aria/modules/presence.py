@@ -142,6 +142,7 @@ class PresenceModule(Module):
         # MQTT client (lazy init)
         self._mqtt_client = None
         self._mqtt_connected = False
+        self._unifi_false_count: int = 0  # consecutive home=False signals (debounce #249)
 
         # Local entity→room cache (built from discovery cache, refreshed periodically)
         self._entity_room_cache: dict[str, str] = {}
@@ -276,7 +277,7 @@ class PresenceModule(Module):
                         states = await resp.json()
                         person_count = 0
                         room_count = 0
-                        now = datetime.now()
+                        now = datetime.now(tz=UTC)
                         # Build entity→room cache first (single bulk read)
                         await self._build_entity_room_cache()
                         # Only seed presence-relevant domains
@@ -312,15 +313,18 @@ class PresenceModule(Module):
 
         # Cache FacePipeline once (avoids reconstructing TF model per event)
         if hasattr(self.hub, "faces_store"):
-            from aria.faces.pipeline import FacePipeline
+            try:
+                from aria.faces.pipeline import FacePipeline
 
-            self._face_pipeline = FacePipeline(
-                store=self.hub.faces_store,
-                frigate_url=self._frigate_url,
-            )
-            # Expose health metrics on hub for /api/faces/stats
-            self.hub._face_last_processed = None
-            self.hub._face_pipeline_errors = 0
+                self._face_pipeline = FacePipeline(
+                    store=self.hub.faces_store,
+                    frigate_url=self._frigate_url,
+                )
+                # Expose health metrics on hub for /api/faces/stats
+                self.hub._face_last_processed = None
+                self.hub._face_pipeline_errors = 0
+            except ImportError:
+                self.logger.info("Presence: faces optional deps not installed — face recognition disabled")
 
         await self._seed_presence_from_ha()
 
@@ -378,6 +382,7 @@ class PresenceModule(Module):
         """Clean up MQTT connection and HTTP session."""
         if self._sub_unifi_protect:
             self.hub.unsubscribe("unifi_protect_person", self._sub_unifi_protect)
+            self._sub_unifi_protect = None
         if self._http_session:
             with contextlib.suppress(Exception):
                 await self._http_session.close()
@@ -401,7 +406,7 @@ class PresenceModule(Module):
         value = payload.get("value", 0.85)
         detail = payload.get("detail", "protect_person")
         if room:
-            self._add_signal(room, "protect_person", value, detail, datetime.now())
+            self._add_signal(room, "protect_person", value, detail, datetime.now(tz=UTC))
 
     # ------------------------------------------------------------------
     # Frigate API helpers (face config, thumbnails, labeled faces)
@@ -611,7 +616,7 @@ class PresenceModule(Module):
                 task = asyncio.create_task(self._process_face_async(event_id, snapshot_url, camera, room))
                 task.add_done_callback(log_task_exception)
 
-    async def _process_face_async(  # noqa: PLR0915
+    async def _process_face_async(  # noqa: PLR0915, C901
         self, event_id: str, snapshot_url: str, camera: str, room: str
     ) -> None:
         """Extract face from Frigate snapshot and run ARIA live pipeline.
@@ -625,12 +630,22 @@ class PresenceModule(Module):
         """
         import tempfile
 
+        # Guard session first — no point loading the face pipeline if we can't fetch
+        session = self._http_session
+        if session is None or session.closed:
+            self.logger.warning("Presence._http_session unavailable — skipping face snapshot fetch")
+            return
+
         pipeline = self._face_pipeline
         if pipeline is None:
             # Lazy fallback: faces_store may have been attached after initialize()
             if not hasattr(self.hub, "faces_store"):
                 return
-            from aria.faces.pipeline import FacePipeline
+            try:
+                from aria.faces.pipeline import FacePipeline
+            except ImportError:
+                self.logger.info("Presence: faces optional deps not installed — face recognition disabled")
+                return
 
             pipeline = FacePipeline(
                 store=self.hub.faces_store,
@@ -641,10 +656,6 @@ class PresenceModule(Module):
         tmp_path = None
         persistent_path = None
         try:
-            session = self._http_session
-            if session is None or session.closed:
-                self.logger.warning("Presence._http_session unavailable — skipping face snapshot fetch")
-                return
             async with (
                 session.get(snapshot_url, timeout=aiohttp.ClientTimeout(total=10)) as resp,
             ):
@@ -756,7 +767,7 @@ class PresenceModule(Module):
         """Handle person count update for a camera."""
         await self._refresh_enabled_signals()
         room = self.camera_rooms.get(camera, camera)
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         try:
             n = int(count)
         except (ValueError, TypeError):
@@ -885,7 +896,7 @@ class PresenceModule(Module):
 
         if entity_id.startswith("person."):
             state = new_state.get("state", "")
-            now = datetime.now()
+            now = datetime.now(tz=UTC)
             self._handle_person_state(entity_id, state, now)
             return
 
@@ -896,7 +907,7 @@ class PresenceModule(Module):
         state = new_state.get("state", "")
         attrs = new_state.get("attributes", {})
         device_class = attrs.get("device_class", "")
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
 
         room = await self._resolve_room(entity_id, attrs)
         if not room:
@@ -1018,7 +1029,7 @@ class PresenceModule(Module):
 
     async def _load_presence_config(self):
         """Load presence weight/decay config from DB (cached 60s)."""
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
         if self._presence_config_loaded and (now - self._presence_config_loaded).total_seconds() < 60:
             return
         overrides = {}
@@ -1061,19 +1072,28 @@ class PresenceModule(Module):
         if not unifi_state:
             return
         if unifi_state.get("home") is False:
-            # All known devices absent — clear signal history for this cycle.
-            # Note: this destroys accumulated signals, not a temporary suppression.
-            # Recovery requires new _add_signal calls on the next flush cycle.
+            # Debounce: require 2 consecutive home=False signals before clearing.
+            # A single transient absence (e.g. brief WiFi drop) must not destroy
+            # accumulated signal history. Counter resets when home is True/None.
+            self._unifi_false_count += 1
+            if self._unifi_false_count < 2:
+                logger.info(
+                    "UniFi home=False signal %d/2 — deferring history clear",
+                    self._unifi_false_count,
+                )
+                return
             total_signals = sum(len(sigs) for sigs in self._room_signals.values())
             num_rooms = len(self._room_signals)
             for room in list(self._room_signals.keys()):
                 self._room_signals[room] = []
             logger.info(
-                "UniFi home=False — clearing %d signals across %d rooms",
+                "UniFi home=False (2 consecutive) — clearing %d signals across %d rooms",
                 total_signals,
                 num_rooms,
             )
             return
+        # home is True or None — reset the consecutive-False counter
+        self._unifi_false_count = 0
         unifi_mod = self.hub.get_module("unifi") if hasattr(self.hub, "get_module") else None
         if unifi_mod is None:
             return
@@ -1094,7 +1114,7 @@ class PresenceModule(Module):
     async def _flush_presence_state(self):
         """Recalculate presence probabilities and write to cache."""
         await self._load_presence_config()
-        now = datetime.now()
+        now = datetime.now(tz=UTC)
 
         # Refresh entity→room cache every 5 minutes (piggyback on 30s flush cycle)
         if not self._entity_room_cache_built or (

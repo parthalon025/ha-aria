@@ -1,20 +1,12 @@
-# ARIA Fix-All Progress Log
-Started: 2026-02-25T21:47:34-06:00
-Baseline: 1904 passed, 14 skipped, 13 errors (pre-existing synthetic import errors)
-Branch: fix/all-100-issues
-Plan: docs/plans/2026-02-25-fix-all-issues-plan.md
-Baseline verified: 1904 passed, 14 skipped, 19 errors (all pre-existing)
-Batch 0 complete: 2026-02-25T21:50:51-06:00 — conventions document created
-NOTE: Save execution methodology at completion — task #20 (research/2026-02-25-fix-all-issues-execution-methodology.md)
-Batch 1 complete: 2026-02-25T22:01:18-06:00 — issues #199,200,201,202,203,205,267,292
-Batch 2a complete: 2026-02-25T22:27:29-06:00 — issues #204,206,207,208,209,210,211,212,213,217 — 1922 passed (+9 vs baseline 1913)
-Batch 2b complete: 2026-02-25T23:03:34%z — issues #214,215,223,224,226 — 1941 passed (+19 vs baseline 1922). Lessons #114 (hasattr wrong delegation), #115 (cross-correlation sentinel)
-Batch 2c-i complete: 2026-02-25T23:29:35 — issues #229,231,233,236,237,238,240,241 — 1963 passed (+22 vs Batch 2b 1941). Lesson #116 (test re-implements production logic)
-Batch 2c-ii complete: 2026-02-26T00:07:25 — issues #244,246,249,250,252,255,258,260,261,262 — 1992 passed (same as rework, +29 vs Batch 2c-i 1963). Judge: PASS after rework2 (reference model rolling_window_stats fix #260).
-Batch 2d complete: 2026-02-26T00:15:36 — issues #293,#296 fixed (#295 pre-existing) — 1996 passed (+4 vs Batch 2c-ii 1992). Judge: PASS.
-Post-Batch-2 audit complete: 2026-02-26T00:30:07 — 14 HIGH + 1 MEDIUM findings fixed (json guards, bare excepts, task callbacks) — 2026 passed (+30 vs Batch 2d 1996). Judge: PASS.
-Batch 3 complete: 2026-02-26T00:37:56 — issues #266,268,270,271,272(pre-existing),281,283,285,286,287 — 2026 passed (no change, frontend only). Judge: PASS after rework (#270 double-stringify fix).
-Batch 4a complete: 2026-02-26T00:54:07 — issues #216,218,219,221,222,225,227,228,230,232 fixed (#220,226 pre-existing) — 2056 passed (+30 vs Batch 3 2026). Judge: PASS. Lesson candidates: LLM-to-YAML injection (#222), cross-module private import (#218).
-Batch 4b rework complete: 2026-02-26T00:54:07 — #263 spec fix (predict_with_ml → {predictions, is_trained}) + 28 regression tests added — 2084 passed (+28 vs Batch 4a 2056). Judge: PASS. Lesson candidates: docstring coverage ≠ test coverage (#245 gap), source-level string assertions are fragile vs behavioral tests.
-Batch 5 complete: 2026-02-26T01:20:00 — issues #269,273,274,277 fixed (#275,276,278-280,282,284,288-291 pre-existing/non-existent components) — 2084 passed (no change, frontend only). Judge: PASS. Lesson candidates: cancelled-flag React idiom doesn't translate to Preact signals (AbortController is the correct tool); fields.join('\0') + useMemo pattern for stable array refs.
-Final audit complete: 2026-02-26T01:35:00 — 12/12 horizontal PASS, 3 seam risks (1 medium: ml_predictions cache schema, 2 low: safeFetch JSDoc, prediction fork comment). No blockers. Filed follow-up issues #299, #300, #301. Judge: PASS_WITH_NOTES.
+# ARIA Fix-All-Issues Agent Teams Progress
+Started: 2026-02-28T07:36:48-06:00
+Baseline: 2401 collected, ~2384 passing
+Open issues: 182 (#80–#332)
+Worktree fix/engine created
+Worktree fix/hub-core created
+Worktree fix/hub-modules created
+Worktree fix/frontend created
+Stage 0 triage complete: 2026-02-28T07:45:03-06:00
+Stage 1 conventions updated: 2026-02-28T07:48:39-06:00
+Stage 5 merge complete: 2026-02-28T08:51:57-06:00
+Stage 6 PR created: https://github.com/parthalon025/ha-aria/pull/333 — 2026-02-28T08:51:57-06:00
