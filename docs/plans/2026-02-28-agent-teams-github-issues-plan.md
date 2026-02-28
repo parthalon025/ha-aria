@@ -27,11 +27,25 @@
 | After Stage | Gate | Pass Criteria |
 |-------------|------|--------------|
 | Triage | Review `tasks/issues-*.json` | Every issue has status + priority + aria_impact |
-| Conventions | Read updated doc | Patterns G–K present, doc committed |
+| Conventions | Read updated doc | Patterns G–L present, doc committed |
 | Each team internal batch | Known-answer suite | `pytest tests/integration/known_answer/ -v` all pass |
 | Each team completion | Domain tests | `pytest tests/{domain}/ -n 2 -q` no regressions |
+| Each team merge (Task 10) | Semantic duplicate check | No duplicate function defs in merged files (Lessons #69, #70) |
+| Post-merge wire-check (Task 10) | Cross-domain seam test | KA suite passes on merged branch before final audit |
 | Judge round | Full suite + build | ≥2,384 passed, `npm run build` clean, 0 HIGH silent failures |
 | Final audit | H+V | All API routes respond, vertical trace PASS |
+
+## Lessons Applied (from lessons-db scan — run before plan)
+
+| Lesson | Cluster | Impact on This Plan |
+|--------|---------|---------------------|
+| #70 — additive merge conflicts silently drop work | B | Task 10: post-merge grep for duplicate function defs added |
+| #69 — semantic duplicates survive cherry-pick | B | Task 10: semantic duplicate check after every team merge |
+| #45 — pipeline components unwired between parallel batches | B | Task 10: explicit wire-check (KA suite) before final audit |
+| #98 — file extension contract drift writer→reader | B | interface-changes.md: explicitly log format/extension changes |
+| #92 — contextlib.suppress is except:pass with marketing | A | Judge prompt: added contextlib.suppress to scan list |
+| #115 — test re-implements production logic | A | Fix team prompts: explicit prohibition on logic re-implementation |
+| #34 — sqlite3 context manager doesn't close connection | B | Convention L added: require contextlib.closing() |
 
 ---
 
@@ -527,6 +541,26 @@ Rules:
 - Catch AbortError separately — it is not a real error, do not surface to user
 - For polling intervals: clear the interval AND abort any in-flight fetch in cleanup
 
+CONVENTION L — sqlite3 connection must use contextlib.closing() (Lesson #34)
+Pattern name: sqlite3-closing
+Applies to: any sqlite3.connect() call in the codebase (NOT aiosqlite — aiosqlite has its own async context manager)
+
+Wrong:
+  with sqlite3.connect(path) as conn:
+      conn.execute(...)
+  # conn is NOT closed — with sqlite3 manages the transaction, not the connection
+
+Correct:
+  from contextlib import closing
+  with closing(sqlite3.connect(path)) as conn:
+      conn.execute(...)
+  # conn.close() is guaranteed on exit
+
+Rules:
+- EVERY sqlite3.connect() must be wrapped with closing()
+- aiosqlite uses `async with aiosqlite.connect() as db:` which IS correct — do not change
+- If you see sqlite3 without closing(), fix it as part of any touch to that file
+
 CONVENTION K — Issue auto-close in commits
 Pattern name: issue-close
 Applies to: ALL fix commits
@@ -606,6 +640,11 @@ INTERNAL BATCH LOOP — repeat until all confirmed issues are addressed:
         "The bug is at [file:line]. It causes [specific failure]. Fix: [specific change]. Convention: [letter]."
      c. Write failing test first — name it test_{description}_closes_{number}
         Place in the appropriate tests/ subdirectory
+        TEST ANTI-PATTERN (Lesson #115): The test must CALL the production method under test,
+        not re-implement what it does. A test that re-implements the logic passes regardless
+        of what the production code does — it tests itself, not the code.
+        Wrong: result = [item for item in data if item.status == "ok"]  # reimplements filter
+        Right: result = module.get_active_items(data)  # calls the real method
      d. Run test to verify it fails:
         .venv/bin/python -m pytest tests/[path]::[test_name] -v
      e. Apply minimal fix per convention
@@ -890,6 +929,11 @@ For each changed Python file, check:
   4. Any asyncio.create_task() without a done-callback for error visibility (Lesson #43)
   5. Any datetime object passed to json.dumps() or hub.publish() without .isoformat()
   6. Any asyncio.get_event_loop() (should be get_running_loop() or asyncio.run())
+  7. Any contextlib.suppress(Exception) — this is except:pass with better marketing (Lesson #92).
+     Flag as HIGH if in a cleanup/finally path. Flag as MEDIUM if in a non-critical path.
+     Every suppressed exception must at minimum log at DEBUG before being swallowed.
+  8. Any sqlite3.connect() not wrapped with contextlib.closing() (Lesson #34).
+     Flag as HIGH — connection leak risk.
 
 NORTH STAR FILTER: Prioritize HIGH findings that affect data integrity
 (training snapshots, cache writes, presence signals, event bus publishes)
@@ -997,6 +1041,47 @@ cd ../../../
 # Expected: exit 0
 ```
 
+**Step 7a: Judge Lesson Capture (`capture-lesson` skill)**
+
+After the three judge sub-agents complete and before producing the verdict, launch a `general-purpose` agent to capture new lessons:
+
+```
+You are the ARIA lesson capture agent.
+
+Working directory: /home/justin/Documents/projects/ha-aria
+
+Read these judge reports:
+  - tasks/judge-silent-failures.md
+  - tasks/judge-test-coverage.md
+  - tasks/judge-completeness.md
+
+Also read the rework records from tasks/progress-*.txt (look for REWORK entries).
+
+Identify patterns that:
+  1. Were NOT covered by an existing convention (A–L in docs/conventions-fix-all-issues.md)
+  2. Caused a judge FAIL or rework round
+  3. Appeared in 2+ different files or teams (recurring pattern, not one-off)
+  4. Would have been prevented by a documented lesson
+
+For each such pattern, use the `capture-lesson` skill to create a lesson file:
+  /capture-lesson
+
+The capture-lesson skill will prompt you for:
+  - Title: short description of the anti-pattern
+  - Cluster: A (silent failure), B (integration), C (cold-start), D (spec drift), E (context), F (planning)
+  - Files affected
+  - Detection pattern (code snippet or grep command)
+  - Positive instruction (what TO do instead)
+  - Example: wrong code and correct code
+
+Capture a maximum of 3 new lessons per judge round — prioritize the highest-impact patterns
+(those that caused rework or silently corrupted ARIA's intelligence pipeline).
+
+If no new patterns emerged beyond existing conventions, write:
+  "No new lessons: all findings were covered by existing conventions A–L"
+  to tasks/judge-lessons-captured.md
+```
+
 **Step 8: Produce judge verdict**
 
 Create `tasks/judge-round-1.md` summarizing all findings:
@@ -1094,11 +1179,32 @@ git status
 # If conflicts: resolve in favor of the fix that better serves ARIA's intelligence pipeline
 ```
 
+**Step 3a: Semantic duplicate check after Engine merge (Lessons #69, #70)**
+
+```bash
+# Get files changed by engine team
+git diff main fix/engine --name-only | grep '\.py$' | while read f; do
+  # Check for duplicate function definitions (two defs of same name in same file)
+  python3 -c "
+import ast, sys
+try:
+    tree = ast.parse(open('$f').read())
+    names = [n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    dups = [n for n in names if names.count(n) > 1]
+    if dups:
+        print(f'DUPLICATE DEFS in $f: {set(dups)}')
+except: pass
+" 2>/dev/null
+done
+# Any output = duplicate detected — investigate before proceeding
+```
+
 **Step 4: Check Engine→Hub-Core interface changes**
 
 ```bash
 grep "\[engine\]" tasks/interface-changes.md
-# Review: does Hub-Core need to handle any new snapshot fields or output formats?
+# Review: does Hub-Core need to handle any new snapshot fields, file formats, or output keys?
+# Lesson #98: file extension/format changes are implicit contracts — verify glob patterns match new format
 ```
 
 **Step 5: Merge Hub-Core**
@@ -1107,6 +1213,23 @@ grep "\[engine\]" tasks/interface-changes.md
 git merge fix/hub-core --no-ff -m "merge: hub-core team fixes — closes hub-core issues"
 git status
 # Resolve any conflicts; prefer fix that maintains cache/API contract integrity
+```
+
+**Step 5a: Semantic duplicate check after Hub-Core merge**
+
+```bash
+git diff main fix/hub-core --name-only | grep '\.py$' | while read f; do
+  python3 -c "
+import ast, sys
+try:
+    tree = ast.parse(open('$f').read())
+    names = [n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    dups = [n for n in names if names.count(n) > 1]
+    if dups:
+        print(f'DUPLICATE DEFS in $f: {set(dups)}')
+except: pass
+" 2>/dev/null
+done
 ```
 
 **Step 6: Check Hub-Core→Hub-Modules interface changes**
@@ -1123,11 +1246,28 @@ git merge fix/hub-modules --no-ff -m "merge: hub-modules team fixes — closes h
 git status
 ```
 
+**Step 7a: Semantic duplicate check after Hub-Modules merge**
+
+```bash
+git diff main fix/hub-modules --name-only | grep '\.py$' | while read f; do
+  python3 -c "
+import ast, sys
+try:
+    tree = ast.parse(open('$f').read())
+    names = [n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    dups = [n for n in names if names.count(n) > 1]
+    if dups:
+        print(f'DUPLICATE DEFS in $f: {set(dups)}')
+except: pass
+" 2>/dev/null
+done
+```
+
 **Step 8: Check Python→Frontend interface changes**
 
 ```bash
 grep -E "\[engine\]|\[hub-core\]|\[hub-modules\]" tasks/interface-changes.md | grep -i "frontend\|api\|cache key\|response"
-# Review: any API shape or cache key changes Frontend fetch calls depend on?
+# Review: any API shape, cache key, or response format changes Frontend fetch calls depend on?
 ```
 
 **Step 9: Merge Frontend**
@@ -1135,6 +1275,16 @@ grep -E "\[engine\]|\[hub-core\]|\[hub-modules\]" tasks/interface-changes.md | g
 ```bash
 git merge fix/frontend --no-ff -m "merge: frontend team fixes — closes frontend issues"
 git status
+```
+
+**Step 9a: Explicit wire-check — KA suite on fully merged branch (Lesson #45)**
+
+```bash
+# Run known-answer suite on the fully merged branch before final audit
+# This catches "each component passes its own tests but the pipeline is disconnected"
+.venv/bin/python -m pytest tests/integration/known_answer/ -v --timeout=120 -n 2
+# Expected: all 37 tests pass
+# If any fail: identify which cross-domain seam broke and fix before proceeding to final audit
 ```
 
 **Step 10: Run full suite on merged branch**
@@ -1230,6 +1380,33 @@ kill $HUB_PID 2>/dev/null || pkill -f "aria serve" || true
 cat tasks/audit-final.md
 grep "PASS\|FAIL" tasks/audit-horizontal.md | head -20
 grep "PASS\|FAIL" tasks/audit-vertical.md
+```
+
+**Step 5: Final lesson capture from H+V audit findings**
+
+Launch a `general-purpose` agent:
+
+```
+You are the ARIA final lesson capture agent.
+
+Working directory: /home/justin/Documents/projects/ha-aria
+
+Read: tasks/audit-horizontal.md and tasks/audit-vertical.md
+
+Identify any FAIL findings or unexpected behaviors discovered during the H+V audit
+that represent a recurring anti-pattern not yet captured in docs/lessons/.
+
+Specifically look for:
+  - Integration seam failures (data produced correctly but consumed incorrectly)
+  - API contract mismatches (shape correct in Python, wrong in JS consumer)
+  - Timing/ordering bugs (component initialized before its dependency)
+  - Any pattern matching Cluster B (integration boundaries)
+
+For each new pattern found, use the `capture-lesson` skill.
+Maximum 2 new lessons from the final audit.
+
+Then run: lessons-db scan --target . --baseline HEAD
+Report how many new violations the updated lessons catch vs. baseline.
 ```
 
 ---
