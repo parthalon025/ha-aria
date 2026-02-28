@@ -1,5 +1,9 @@
 """Tests for FaceExtractor — InsightFace wrapper."""
 
+import pytest
+
+pytest.importorskip("cv2", reason="faces optional deps ([faces] extra) not installed")
+
 from unittest.mock import MagicMock, patch
 
 import numpy as np

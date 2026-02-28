@@ -1,5 +1,9 @@
 """Tests for FacePipeline — live event processing."""
 
+import pytest
+
+pytest.importorskip("cv2", reason="faces optional deps ([faces] extra) not installed")
+
 from unittest.mock import MagicMock
 
 import numpy as np

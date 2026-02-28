@@ -3,6 +3,8 @@
 import numpy as np
 import pytest
 
+pytest.importorskip("cv2", reason="faces optional deps ([faces] extra) not installed")
+
 from aria.faces.bootstrap import BootstrapPipeline
 from aria.faces.store import FaceEmbeddingStore
 
