@@ -9,8 +9,11 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import aria.hub.api as _api_module
 from aria.hub.api import create_api
 from aria.hub.core import IntelligenceHub
+
+_TEST_KEY = "test-aria-key"
 
 # ============================================================================
 # Fixtures
@@ -34,8 +37,13 @@ def hub():
 @pytest.fixture
 def client(hub):
     """Create test client with mock hub."""
-    app = create_api(hub)
-    return TestClient(app)
+    original = _api_module._ARIA_API_KEY
+    _api_module._ARIA_API_KEY = _TEST_KEY
+    try:
+        app = create_api(hub)
+        yield TestClient(app, headers={"X-API-Key": _TEST_KEY})
+    finally:
+        _api_module._ARIA_API_KEY = original
 
 
 # ============================================================================
@@ -87,7 +95,7 @@ class TestGetCacheKeys:
     def test_with_categories(self, hub, client):
         """Returns categories with metadata."""
         hub.cache.list_categories = AsyncMock(return_value=["entities", "areas"])
-        hub.cache.get = AsyncMock(
+        hub.get_cache = AsyncMock(
             side_effect=[
                 {"last_updated": "2026-02-13T10:00:00", "version": 3, "data": {}},
                 {"last_updated": "2026-02-13T09:00:00", "version": 1, "data": {}},
@@ -106,7 +114,7 @@ class TestGetCacheKeys:
     def test_category_with_no_entry(self, hub, client):
         """Handles categories where get returns None gracefully."""
         hub.cache.list_categories = AsyncMock(return_value=["empty_cat"])
-        hub.cache.get = AsyncMock(return_value=None)
+        hub.get_cache = AsyncMock(return_value=None)
 
         response = client.get("/api/cache/keys")
         assert response.status_code == 200

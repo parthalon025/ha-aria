@@ -249,7 +249,7 @@ def _register_utility_routes(router: APIRouter, hub: IntelligenceHub, ws_manager
             categories = await hub.cache.list_categories()
             keys = []
             for cat in categories:
-                entry = await hub.cache.get(cat)
+                entry = await hub.get_cache(cat)
                 keys.append(
                     {
                         "category": cat,
@@ -321,7 +321,7 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     async def get_ml_drift():
         """Get drift detection status per metric."""
         try:
-            intel = await hub.cache.get("intelligence")
+            intel = await hub.get_cache("intelligence")
             if not intel:
                 return {"metrics": {}, "needs_retrain": False, "method": "none", "days_analyzed": 0}
             data = intel.get("data", {})
@@ -345,7 +345,7 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     async def get_ml_features():
         """Get mRMR feature selection results."""
         try:
-            intel = await hub.cache.get("intelligence")
+            intel = await hub.get_cache("intelligence")
             if not intel:
                 return {"selected": [], "total": 0, "method": "none"}
             data = intel.get("data", {})
@@ -365,7 +365,7 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     async def get_ml_models():
         """Get model health: reference comparison, incremental status, forecaster."""
         try:
-            intel = await hub.cache.get("intelligence")
+            intel = await hub.get_cache("intelligence")
             if not intel:
                 return {"reference": None, "incremental": None, "forecaster": None, "ml_models": None}
             data = intel.get("data", {})
@@ -383,7 +383,7 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     async def get_ml_anomalies():
         """Get recent anomaly detection results."""
         try:
-            intel = await hub.cache.get("intelligence")
+            intel = await hub.get_cache("intelligence")
             if not intel:
                 return {"anomalies": [], "autoencoder": {"enabled": False}, "isolation_forest": {}}
             data = intel.get("data", {})
@@ -400,7 +400,7 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     async def get_ml_shap():
         """Get SHAP feature attributions for latest predictions."""
         try:
-            intel = await hub.cache.get("intelligence")
+            intel = await hub.get_cache("intelligence")
             if not intel:
                 return {"attributions": [], "available": False}
             data = intel.get("data", {})
@@ -419,13 +419,13 @@ def _register_ml_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     async def get_ml_pipeline():
         """Aggregate ML pipeline state for the Pipeline Overview UI."""
         try:
-            intel_raw = await hub.cache.get("intelligence") or {}
+            intel_raw = await hub.get_cache("intelligence") or {}
             intel = intel_raw.get("data", {})
-            training_meta = await hub.cache.get("ml_training_metadata")
+            training_meta = await hub.get_cache("ml_training_metadata")
             training_data = (training_meta or {}).get("data", training_meta or {})
-            presence = await hub.cache.get("presence")
+            presence = await hub.get_cache("presence")
             presence_data = (presence or {}).get("data", presence or {})
-            feedback_health = await hub.cache.get("feedback_health")
+            feedback_health = await hub.get_cache("feedback_health")
             fb_data = (feedback_health or {}).get("data", feedback_health or {})
 
             snapshot_log = intel.get("snapshot_log", {})
@@ -646,7 +646,7 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     @router.get("/api/capabilities/candidates")
     async def get_capability_candidates():
         """Return only candidate capabilities."""
-        cached = await hub.cache.get("capabilities")
+        cached = await hub.get_cache("capabilities")
         if not cached or not cached.get("data"):
             return {}
         return {name: cap for name, cap in cached["data"].items() if cap.get("status") == "candidate"}
@@ -654,7 +654,7 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     @router.get("/api/capabilities/history")
     async def get_discovery_history():
         """Return discovery run history."""
-        cached = await hub.cache.get("discovery_history")
+        cached = await hub.get_cache("discovery_history")
         if not cached or not cached.get("data"):
             return []
         return cached["data"]
@@ -662,7 +662,7 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     @router.put("/api/capabilities/{capability_name}/promote")
     async def promote_capability(capability_name: str):
         """Manually promote a candidate capability."""
-        cached = await hub.cache.get("capabilities")
+        cached = await hub.get_cache("capabilities")
         if not cached or not cached.get("data"):
             raise HTTPException(status_code=404, detail="Capabilities not found")
         caps = cached["data"]
@@ -684,7 +684,7 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     @router.put("/api/capabilities/{capability_name}/archive")
     async def archive_capability(capability_name: str):
         """Manually archive a capability."""
-        cached = await hub.cache.get("capabilities")
+        cached = await hub.get_cache("capabilities")
         if not cached or not cached.get("data"):
             raise HTTPException(status_code=404, detail="Capabilities not found")
         caps = cached["data"]
@@ -751,7 +751,7 @@ def _register_discovery_routes(router: APIRouter, hub: IntelligenceHub) -> None:
     async def toggle_can_predict(capability_name: str, body: dict = Body(...)):
         """Toggle can_predict flag for a capability."""
         try:
-            cached = await hub.cache.get("capabilities")
+            cached = await hub.get_cache("capabilities")
             if not cached or not cached.get("data"):
                 raise HTTPException(status_code=404, detail="Capabilities not yet discovered")
             caps = cached["data"]

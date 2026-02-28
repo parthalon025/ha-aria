@@ -213,7 +213,7 @@ class TestHubGetCacheMethod315:
     def test_get_ml_drift_uses_hub_get_cache_closes_315(self, hub, client):
         """GET /api/ml/drift must call hub.get_cache, not hub.cache.get directly."""
         hub.get_cache = AsyncMock(return_value=None)
-        hub.cache.get = AsyncMock(return_value=None)
+        hub.get_cache = AsyncMock(return_value=None)
 
         response = client.get("/api/ml/drift")
         assert response.status_code == 200
@@ -223,7 +223,7 @@ class TestHubGetCacheMethod315:
     def test_get_ml_models_uses_hub_get_cache_closes_315(self, hub, client):
         """GET /api/ml/models must call hub.get_cache, not hub.cache.get directly."""
         hub.get_cache = AsyncMock(return_value=None)
-        hub.cache.get = AsyncMock(return_value=None)
+        hub.get_cache = AsyncMock(return_value=None)
 
         response = client.get("/api/ml/models")
         assert response.status_code == 200
@@ -232,7 +232,7 @@ class TestHubGetCacheMethod315:
     def test_get_ml_anomalies_uses_hub_get_cache_closes_315(self, hub, client):
         """GET /api/ml/anomalies must call hub.get_cache, not hub.cache.get directly."""
         hub.get_cache = AsyncMock(return_value=None)
-        hub.cache.get = AsyncMock(return_value=None)
+        hub.get_cache = AsyncMock(return_value=None)
 
         response = client.get("/api/ml/anomalies")
         assert response.status_code == 200
