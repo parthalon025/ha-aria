@@ -6,6 +6,7 @@ validates each suggestion by retraining, and auto-applies guardrailed changes.
 
 import copy
 import json
+import logging
 import re
 import shutil
 import tempfile
@@ -15,6 +16,8 @@ from aria.engine.config import AppConfig, OllamaConfig
 from aria.engine.llm.client import ollama_chat
 from aria.engine.storage.data_store import DataStore
 from aria.shared.constants import DEFAULT_FEATURE_CONFIG
+
+logger = logging.getLogger(__name__)
 
 # --- Constants ---
 
@@ -107,7 +110,8 @@ def parse_suggestions(llm_response):
             if isinstance(s, dict) and "action" in s and "target" in s:
                 valid.append(s)
         return valid
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning("LLM suggestion parse failed: %s — raw: %.200s", e, llm_response)
         return []
 
 
