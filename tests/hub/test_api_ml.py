@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 class TestGetMLDrift:
     def test_returns_defaults_when_no_intelligence(self, api_hub, api_client):
         """Returns safe defaults when intelligence cache is empty."""
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
 
         response = api_client.get("/api/ml/drift")
         assert response.status_code == 200
@@ -22,7 +22,7 @@ class TestGetMLDrift:
 
     def test_returns_drift_data(self, api_hub, api_client):
         """Extracts drift status from intelligence cache."""
-        api_hub.cache.get = AsyncMock(
+        api_hub.get_cache = AsyncMock(
             return_value={
                 "data": {
                     "drift_status": {
@@ -53,7 +53,7 @@ class TestGetMLDrift:
 
     def test_returns_defaults_when_no_drift_status(self, api_hub, api_client):
         """Returns defaults when intelligence exists but has no drift_status."""
-        api_hub.cache.get = AsyncMock(return_value={"data": {"some_other_key": "value"}})
+        api_hub.get_cache = AsyncMock(return_value={"data": {"some_other_key": "value"}})
 
         response = api_client.get("/api/ml/drift")
         assert response.status_code == 200
@@ -65,7 +65,7 @@ class TestGetMLDrift:
 
     def test_error_returns_500(self, api_hub, api_client):
         """Returns 500 on cache error."""
-        api_hub.cache.get = AsyncMock(side_effect=RuntimeError("db error"))
+        api_hub.get_cache = AsyncMock(side_effect=RuntimeError("db error"))
 
         response = api_client.get("/api/ml/drift")
         assert response.status_code == 500
@@ -79,7 +79,7 @@ class TestGetMLDrift:
 class TestGetMLFeatures:
     def test_returns_defaults_when_no_intelligence(self, api_hub, api_client):
         """Returns safe defaults when intelligence cache is empty."""
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
 
         response = api_client.get("/api/ml/features")
         assert response.status_code == 200
@@ -91,7 +91,7 @@ class TestGetMLFeatures:
 
     def test_returns_feature_selection(self, api_hub, api_client):
         """Extracts feature selection from intelligence cache."""
-        api_hub.cache.get = AsyncMock(
+        api_hub.get_cache = AsyncMock(
             return_value={
                 "data": {
                     "feature_selection": {
@@ -117,7 +117,7 @@ class TestGetMLFeatures:
 
     def test_returns_defaults_when_no_feature_selection(self, api_hub, api_client):
         """Returns defaults when intelligence exists but has no feature_selection."""
-        api_hub.cache.get = AsyncMock(return_value={"data": {"some_other_key": "value"}})
+        api_hub.get_cache = AsyncMock(return_value={"data": {"some_other_key": "value"}})
 
         response = api_client.get("/api/ml/features")
         assert response.status_code == 200
@@ -129,7 +129,7 @@ class TestGetMLFeatures:
 
     def test_error_returns_500(self, api_hub, api_client):
         """Returns 500 on cache error."""
-        api_hub.cache.get = AsyncMock(side_effect=RuntimeError("db error"))
+        api_hub.get_cache = AsyncMock(side_effect=RuntimeError("db error"))
 
         response = api_client.get("/api/ml/features")
         assert response.status_code == 500
@@ -143,7 +143,7 @@ class TestGetMLFeatures:
 class TestGetMLModels:
     def test_returns_defaults_when_no_intelligence(self, api_hub, api_client):
         """Returns None fields when intelligence cache is empty."""
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
 
         response = api_client.get("/api/ml/models")
         assert response.status_code == 200
@@ -155,30 +155,42 @@ class TestGetMLModels:
         assert data["ml_models"] is None
 
     def test_returns_model_data(self, api_hub, api_client):
-        """Extracts model health from intelligence cache."""
-        api_hub.cache.get = AsyncMock(
-            return_value={
-                "data": {
-                    "reference_model": {"r2": 0.85, "mae": 3.2},
-                    "incremental_training": {"last_batch": "2026-02-13", "samples": 500},
-                    "forecaster_backend": "prophet",
-                    "ml_models": {"gradient_boosting": {"r2": 0.82}, "random_forest": {"r2": 0.78}},
-                }
+        """Extracts model health from intelligence and ml_training_metadata caches (#316)."""
+        intel_payload = {
+            "data": {
+                "reference_model": {"r2": 0.85, "mae": 3.2},
+                "ml_models": {"gradient_boosting": {"r2": 0.82}, "random_forest": {"r2": 0.78}},
             }
-        )
+        }
+        training_payload = {
+            "data": {
+                "last_trained": "2026-02-13T00:00:00",
+                "num_snapshots": 500,
+                "targets_trained": ["power_watts"],
+                "has_anomaly_detector": True,
+            }
+        }
+
+        async def _get_cache(key):
+            if key == "ml_training_metadata":
+                return training_payload
+            return intel_payload
+
+        api_hub.get_cache = _get_cache
 
         response = api_client.get("/api/ml/models")
         assert response.status_code == 200
 
         data = response.json()
         assert data["reference"]["r2"] == 0.85
-        assert data["incremental"]["samples"] == 500
-        assert data["forecaster"] == "prophet"
+        assert data["incremental"]["num_snapshots"] == 500
+        assert data["incremental"]["last_trained"] == "2026-02-13T00:00:00"
+        assert data["forecaster"] is None  # forecaster_backend key never populated (#316)
         assert "gradient_boosting" in data["ml_models"]
 
     def test_error_returns_500(self, api_hub, api_client):
         """Returns 500 on cache error."""
-        api_hub.cache.get = AsyncMock(side_effect=RuntimeError("db error"))
+        api_hub.get_cache = AsyncMock(side_effect=RuntimeError("db error"))
 
         response = api_client.get("/api/ml/models")
         assert response.status_code == 500
@@ -192,7 +204,7 @@ class TestGetMLModels:
 class TestGetMLAnomalies:
     def test_returns_defaults_when_no_intelligence(self, api_hub, api_client):
         """Returns safe defaults when intelligence cache is empty."""
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
 
         response = api_client.get("/api/ml/anomalies")
         assert response.status_code == 200
@@ -203,13 +215,15 @@ class TestGetMLAnomalies:
         assert data["isolation_forest"] == {}
 
     def test_returns_anomaly_data(self, api_hub, api_client):
-        """Extracts anomaly data from intelligence cache."""
-        api_hub.cache.get = AsyncMock(
+        """Extracts anomaly data from intelligence cache (uses sequence_anomalies key, #316)."""
+        api_hub.get_cache = AsyncMock(
             return_value={
                 "data": {
-                    "anomaly_alerts": [
-                        {"metric": "power_watts", "severity": "high", "timestamp": "2026-02-13T10:00:00"},
-                    ],
+                    "sequence_anomalies": {
+                        "anomalies": [
+                            {"metric": "power_watts", "severity": "high", "timestamp": "2026-02-13T10:00:00"},
+                        ]
+                    },
                     "autoencoder_status": {"enabled": True, "reconstruction_error": 0.05},
                     "isolation_forest_status": {"contamination": 0.01, "n_estimators": 100},
                 }
@@ -227,7 +241,7 @@ class TestGetMLAnomalies:
 
     def test_error_returns_500(self, api_hub, api_client):
         """Returns 500 on cache error."""
-        api_hub.cache.get = AsyncMock(side_effect=RuntimeError("db error"))
+        api_hub.get_cache = AsyncMock(side_effect=RuntimeError("db error"))
 
         response = api_client.get("/api/ml/anomalies")
         assert response.status_code == 500
@@ -241,7 +255,7 @@ class TestGetMLAnomalies:
 class TestGetMLSHAP:
     def test_returns_empty_when_no_intelligence(self, api_hub, api_client):
         """Returns unavailable when intelligence cache is empty."""
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
 
         response = api_client.get("/api/ml/shap")
         assert response.status_code == 200
@@ -252,7 +266,7 @@ class TestGetMLSHAP:
 
     def test_returns_attributions(self, api_hub, api_client):
         """Extracts SHAP attributions from intelligence cache."""
-        api_hub.cache.get = AsyncMock(
+        api_hub.get_cache = AsyncMock(
             return_value={
                 "data": {
                     "shap_attributions": {
@@ -279,7 +293,7 @@ class TestGetMLSHAP:
 
     def test_returns_unavailable_when_no_shap_data(self, api_hub, api_client):
         """Returns unavailable when intelligence exists but has no SHAP data."""
-        api_hub.cache.get = AsyncMock(return_value={"data": {"some_other_key": "value"}})
+        api_hub.get_cache = AsyncMock(return_value={"data": {"some_other_key": "value"}})
 
         response = api_client.get("/api/ml/shap")
         assert response.status_code == 200
@@ -290,7 +304,7 @@ class TestGetMLSHAP:
 
     def test_error_returns_500(self, api_hub, api_client):
         """Returns 500 on cache error."""
-        api_hub.cache.get = AsyncMock(side_effect=RuntimeError("db error"))
+        api_hub.get_cache = AsyncMock(side_effect=RuntimeError("db error"))
 
         response = api_client.get("/api/ml/shap")
         assert response.status_code == 500
@@ -380,26 +394,26 @@ class TestMLEndpointsCacheKey:
     """Verify all ML endpoints query the correct cache category."""
 
     def test_drift_queries_intelligence(self, api_hub, api_client):
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
         api_client.get("/api/ml/drift")
-        api_hub.cache.get.assert_called_with("intelligence")
+        api_hub.get_cache.assert_called_with("intelligence")
 
     def test_features_queries_intelligence(self, api_hub, api_client):
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
         api_client.get("/api/ml/features")
-        api_hub.cache.get.assert_called_with("intelligence")
+        api_hub.get_cache.assert_called_with("intelligence")
 
     def test_models_queries_intelligence(self, api_hub, api_client):
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
         api_client.get("/api/ml/models")
-        api_hub.cache.get.assert_called_with("intelligence")
+        api_hub.get_cache.assert_called_with("intelligence")
 
     def test_anomalies_queries_intelligence(self, api_hub, api_client):
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
         api_client.get("/api/ml/anomalies")
-        api_hub.cache.get.assert_called_with("intelligence")
+        api_hub.get_cache.assert_called_with("intelligence")
 
     def test_shap_queries_intelligence(self, api_hub, api_client):
-        api_hub.cache.get = AsyncMock(return_value=None)
+        api_hub.get_cache = AsyncMock(return_value=None)
         api_client.get("/api/ml/shap")
-        api_hub.cache.get.assert_called_with("intelligence")
+        api_hub.get_cache.assert_called_with("intelligence")

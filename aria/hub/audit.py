@@ -496,7 +496,7 @@ class AuditLogger:
             groups.setdefault(month_key, []).append(d)
 
         # Write files in executor to avoid blocking event loop
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()  # Convention G: get_running_loop() in async context (#239)
         out_path = Path(output_dir)
 
         def _write_archive_files():
@@ -632,7 +632,7 @@ class AuditLogger:
     async def _write_dead_letter(self, items: list[tuple]) -> None:
         """Append failed batch items to the dead-letter JSONL file."""
         _DEAD_LETTER_PATH.parent.mkdir(parents=True, exist_ok=True)
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()  # Convention G: get_running_loop() in async context (#239)
 
         def _append():
             with open(_DEAD_LETTER_PATH, "a") as f:

@@ -737,15 +737,23 @@ class TestTelegramProbe:
             }
         )
 
-        app = create_api(mock_hub)
-        client = TestClient(app)
+        import aria.hub.api as _api_mod
 
-        import aria.watchdog
+        _test_key = "test-telegram-key"
+        original = _api_mod._ARIA_API_KEY
+        _api_mod._ARIA_API_KEY = _test_key
+        try:
+            app = create_api(mock_hub)
+            client = TestClient(app, headers={"X-API-Key": _test_key})
 
-        aria.watchdog.last_telegram_ok = True
+            import aria.watchdog
 
-        resp = client.get("/health")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "telegram_ok" in data
-        assert data["telegram_ok"] is True
+            aria.watchdog.last_telegram_ok = True
+
+            resp = client.get("/health")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "telegram_ok" in data
+            assert data["telegram_ok"] is True
+        finally:
+            _api_mod._ARIA_API_KEY = original

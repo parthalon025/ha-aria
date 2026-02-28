@@ -75,5 +75,8 @@ def _register_module_config_routes(router: APIRouter, hub: IntelligenceHub) -> N
         config_key = MODULE_SOURCE_KEYS[module]
         value = ",".join(body.sources)
         await hub.cache.set_config(config_key, value, changed_by="user")
+        # Publish event bus notification so running modules react to live config changes
+        # (Lesson #6 / #317 — config writes without publish() have no effect on running modules)
+        await hub.publish("config_updated", {"module": module, "key": config_key, "value": value})
         logger.info("Module %s sources updated: %s", module, body.sources)
         return {"module": module, "sources": body.sources, "config_key": config_key}
