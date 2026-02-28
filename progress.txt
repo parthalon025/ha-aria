@@ -2,3 +2,8 @@
 Started: 2026-02-28T07:36:48-06:00
 Baseline: 2401 collected, ~2384 passing
 Open issues: 182 (#80–#332)
+Worktree fix/engine created
+Worktree fix/hub-core created
+Worktree fix/hub-modules created
+Worktree fix/frontend created
+Stage 0 triage complete: 2026-02-28T07:45:03-06:00
