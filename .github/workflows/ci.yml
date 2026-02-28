@@ -50,7 +50,7 @@ jobs:
         run: pytest tests/ --cov=aria --cov-report=xml -v --tb=short --timeout=120
       - name: Upload coverage
         if: matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           file: coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
