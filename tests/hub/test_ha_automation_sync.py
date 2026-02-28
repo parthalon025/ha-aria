@@ -452,3 +452,64 @@ class TestImmediateCacheUpdate:
         cached = await hub.get_cache("ha_automations")
         assert len(cached["data"]["automations"]) == 1
         assert cached["data"]["automations"][0]["alias"] == "V2"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for #240 and #245
+# ---------------------------------------------------------------------------
+
+
+class TestIssue240TypeValidation:
+    """#240 — non-list HA API response causes TypeError without isinstance guard."""
+
+    @pytest.mark.asyncio
+    async def test_non_list_response_returns_failure_closes_240(self, hub):
+        """Sync must not raise TypeError when HA returns a dict instead of a list."""
+        sync = HaAutomationSync(hub=hub, ha_url="http://ha", ha_token="tok")
+        # Patch _fetch_automations to return a dict (simulates a malformed HA response)
+        sync._fetch_automations = AsyncMock(return_value={"error": "not a list"})
+
+        result = await sync.sync()
+
+        assert result["success"] is False
+        assert "Unexpected response type" in result.get("error", "")
+
+    @pytest.mark.asyncio
+    async def test_none_response_returns_failure(self, hub):
+        """Sync returns failure dict when _fetch_automations returns None."""
+        sync = HaAutomationSync(hub=hub, ha_url="http://ha", ha_token="tok")
+        sync._fetch_automations = AsyncMock(return_value=None)
+
+        result = await sync.sync()
+
+        assert result["success"] is False
+
+
+class TestIssue245SessionNoneWarning:
+    """#245 — _session=None returns None with no log — silent sync failure."""
+
+    @pytest.mark.asyncio
+    async def test_session_none_returns_empty_list_not_none_closes_245(self, hub):
+        """_fetch_automations must return [] (not None) — sync completes without TypeError."""
+        sync = HaAutomationSync(hub=hub, ha_url="http://ha", ha_token="tok")
+        assert sync._session is None
+
+        # Must NOT raise TypeError from iterating None; returns success with 0 automations
+        result = await sync.sync()
+        assert result.get("success") is True
+        assert result.get("count", 0) == 0
+
+    @pytest.mark.asyncio
+    async def test_session_none_logs_warning_closes_245(self, hub, caplog):
+        """_fetch_automations must emit a warning when _session is None."""
+        import logging
+
+        sync = HaAutomationSync(hub=hub, ha_url="http://ha", ha_token="tok")
+
+        with caplog.at_level(logging.WARNING, logger="aria.shared.ha_automation_sync"):
+            result = await sync.sync()
+
+        assert any("session" in r.message.lower() or "initialized" in r.message.lower() for r in caplog.records), (
+            "Expected a warning about session not being initialized"
+        )
+        assert result.get("success") is True  # empty list → success with 0 automations
