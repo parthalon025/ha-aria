@@ -34,7 +34,7 @@ async def test_activity_monitor_reads_daily_cap_from_config_closes_319(mock_hub)
     """ActivityMonitor.initialize() must read activity.daily_snapshot_cap from config."""
     custom_cap = 42
     mock_hub.cache.get_config_value = AsyncMock(
-        side_effect=lambda key, fallback=None: (custom_cap if key == "activity.daily_snapshot_cap" else fallback)
+        side_effect=lambda key, fallback=None: custom_cap if key == "activity.daily_snapshot_cap" else fallback
     )
 
     monitor = ActivityMonitor(mock_hub, "http://test-host:8123", "test-token")
@@ -52,7 +52,7 @@ async def test_activity_monitor_reads_cooldown_from_config_closes_319(mock_hub):
     """ActivityMonitor.initialize() must read activity.snapshot_cooldown_s from config."""
     custom_cooldown = 900
     mock_hub.cache.get_config_value = AsyncMock(
-        side_effect=lambda key, fallback=None: (custom_cooldown if key == "activity.snapshot_cooldown_s" else fallback)
+        side_effect=lambda key, fallback=None: custom_cooldown if key == "activity.snapshot_cooldown_s" else fallback
     )
 
     monitor = ActivityMonitor(mock_hub, "http://test-host:8123", "test-token")
@@ -69,7 +69,7 @@ async def test_ml_engine_reads_decay_from_config_closes_319(mock_hub, tmp_path):
     """MLEngine.initialize() must read features.decay_half_life_days from config."""
     custom_decay = 14.0
     mock_hub.cache.get_config_value = AsyncMock(
-        side_effect=lambda key, fallback=None: (custom_decay if key == "features.decay_half_life_days" else fallback)
+        side_effect=lambda key, fallback=None: custom_decay if key == "features.decay_half_life_days" else fallback
     )
     mock_hub.get_cache_fresh = AsyncMock(return_value={"data": {"power_monitoring": {"available": True}}})
 
