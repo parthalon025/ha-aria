@@ -452,9 +452,13 @@ class MLEngine(Module):
 
             if snapshot_file.exists():
                 try:
-                    with open(snapshot_file) as f:
-                        snapshot = json.load(f)
-                        raw_snapshots.append(snapshot)
+
+                    def _read_snapshot(path=snapshot_file):
+                        with open(path) as f:
+                            return json.load(f)
+
+                    snapshot = await asyncio.to_thread(_read_snapshot)
+                    raw_snapshots.append(snapshot)
                 except (OSError, json.JSONDecodeError) as e:
                     self.logger.warning(f"Failed to load snapshot {snapshot_file}: {e}")
 
@@ -1517,8 +1521,13 @@ class MLEngine(Module):
         if len(snapshot_files) >= 2:
             # Return second-to-last (most recent historical)
             try:
-                with open(snapshot_files[-2]) as f:
-                    return json.load(f)
+                target = snapshot_files[-2]
+
+                def _read(path=target):
+                    with open(path) as f:
+                        return json.load(f)
+
+                return await asyncio.to_thread(_read)
             except Exception as e:
                 self.logger.warning(f"Failed to load previous snapshot: {e}")
 
@@ -1540,8 +1549,12 @@ class MLEngine(Module):
         recent_snapshots = []
         for snapshot_file in snapshot_files[-7:]:
             try:
-                with open(snapshot_file) as f:
-                    recent_snapshots.append(json.load(f))
+
+                def _read_snap(path=snapshot_file):
+                    with open(path) as f:
+                        return json.load(f)
+
+                recent_snapshots.append(await asyncio.to_thread(_read_snap))
             except Exception as e:
                 self.logger.warning(f"Failed to load snapshot {snapshot_file}: {e}")
                 continue
