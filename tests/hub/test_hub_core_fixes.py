@@ -9,7 +9,7 @@ Covers:
   #316 — phantom cache keys in /api/ml/* — anomaly_alerts never populated
   #317 — Config PUT missing event bus publish
   #239 — audit_export uses deprecated asyncio.get_event_loop()
-  #294 — Missing auth on /api/health endpoint
+  #294 — Missing auth on /health endpoint
 """
 
 import asyncio
@@ -347,15 +347,15 @@ class TestAuditEventLoopApi239:
 
 
 # ---------------------------------------------------------------------------
-# #294 — /api/health must require auth when ARIA_API_KEY is set
+# #294 — /health must require auth when ARIA_API_KEY is set
 # ---------------------------------------------------------------------------
 
 
 class TestHealthEndpointAuth294:
-    """GET /api/health must require auth when ARIA_API_KEY is set."""
+    """GET /health must require auth when ARIA_API_KEY is set."""
 
     def test_health_endpoint_requires_auth_closes_294(self, hub):
-        """GET /api/health without valid API key must return 403."""
+        """GET /health without valid API key must return 403."""
         original = _api_module._ARIA_API_KEY
         try:
             _api_module._ARIA_API_KEY = "some-prod-key"
@@ -372,16 +372,16 @@ class TestHealthEndpointAuth294:
                 }
             )
 
-            response = no_auth_client.get("/api/health")
+            response = no_auth_client.get("/health")
             assert response.status_code == 403, (
-                f"/api/health returned {response.status_code} without auth — "
+                f"/health returned {response.status_code} without auth — "
                 "exposes module/cache state to unauthenticated callers (#294)"
             )
         finally:
             _api_module._ARIA_API_KEY = original
 
     def test_health_endpoint_accessible_with_valid_key_closes_294(self, hub, client):
-        """GET /api/health with valid API key must return 200."""
+        """GET /health with valid API key must return 200."""
         hub.health_check = AsyncMock(
             return_value={
                 "status": "ok",
@@ -392,7 +392,7 @@ class TestHealthEndpointAuth294:
             }
         )
 
-        response = client.get("/api/health")
+        response = client.get("/health")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"

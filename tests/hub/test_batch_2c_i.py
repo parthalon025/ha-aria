@@ -176,11 +176,21 @@ class TestAddEmbeddingFailure:
         mock_hub.publish = AsyncMock()
         return mock_hub
 
-    def test_500_on_add_embedding_generic_failure(self):
-        """When add_embedding raises a non-duplicate error, the endpoint returns 500."""
+    def _make_authed_client(self, mock_hub):
+        """Create a TestClient with API key set for auth-enabled tests."""
         from fastapi.testclient import TestClient
 
+        import aria.hub.api as _api_mod
         from aria.hub.api import create_api
+
+        _test_key = "test-embedding-key"
+        _api_mod._ARIA_API_KEY = _test_key
+        app = create_api(mock_hub)
+        return TestClient(app, headers={"X-API-Key": _test_key})
+
+    def test_500_on_add_embedding_generic_failure(self):
+        """When add_embedding raises a non-duplicate error, the endpoint returns 500."""
+        import aria.hub.api as _api_mod
 
         mock_hub = self._make_api_hub()
 
@@ -197,17 +207,18 @@ class TestAddEmbeddingFailure:
         mock_store.add_embedding.side_effect = RuntimeError("disk full — write failed")
         mock_hub.faces_store = mock_store
 
-        app = create_api(mock_hub)
-        client = TestClient(app)
-        resp = client.post("/api/faces/label", json={"queue_id": 1, "person_name": "Alice"})
-        assert resp.status_code == 500
-        assert "embedding" in resp.json()["detail"].lower()
+        original = _api_mod._ARIA_API_KEY
+        try:
+            client = self._make_authed_client(mock_hub)
+            resp = client.post("/api/faces/label", json={"queue_id": 1, "person_name": "Alice"})
+            assert resp.status_code == 500
+            assert "embedding" in resp.json()["detail"].lower()
+        finally:
+            _api_mod._ARIA_API_KEY = original
 
     def test_200_on_duplicate_embedding(self):
         """When add_embedding raises a UNIQUE constraint error, label still succeeds (200)."""
-        from fastapi.testclient import TestClient
-
-        from aria.hub.api import create_api
+        import aria.hub.api as _api_mod
 
         mock_hub = self._make_api_hub()
 
@@ -223,10 +234,13 @@ class TestAddEmbeddingFailure:
         mock_store.add_embedding.side_effect = Exception("UNIQUE constraint failed: embeddings.event_id")
         mock_hub.faces_store = mock_store
 
-        app = create_api(mock_hub)
-        client = TestClient(app)
-        resp = client.post("/api/faces/label", json={"queue_id": 2, "person_name": "Bob"})
-        assert resp.status_code == 200
+        original = _api_mod._ARIA_API_KEY
+        try:
+            client = self._make_authed_client(mock_hub)
+            resp = client.post("/api/faces/label", json={"queue_id": 2, "person_name": "Bob"})
+            assert resp.status_code == 200
+        finally:
+            _api_mod._ARIA_API_KEY = original
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +257,7 @@ class TestAuthEnabledInHealth:
 
         from fastapi.testclient import TestClient
 
+        import aria.hub.api as _api_mod
         from aria.hub.api import create_api
 
         mock_hub = MagicMock(spec=IntelligenceHub)
@@ -266,21 +281,28 @@ class TestAuthEnabledInHealth:
             }
         )
 
-        app = create_api(mock_hub)
-        client = TestClient(app)
-        resp = client.get("/health")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "auth_enabled" in data, f"auth_enabled not in health response: {data.keys()}"
-        assert isinstance(data["auth_enabled"], bool)
+        _test_key = "test-health-key"
+        original = _api_mod._ARIA_API_KEY
+        _api_mod._ARIA_API_KEY = _test_key
+        try:
+            app = create_api(mock_hub)
+            client = TestClient(app, headers={"X-API-Key": _test_key})
+            resp = client.get("/health")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "auth_enabled" in data, f"auth_enabled not in health response: {data.keys()}"
+            assert isinstance(data["auth_enabled"], bool)
+        finally:
+            _api_mod._ARIA_API_KEY = original
 
     def test_auth_disabled_when_key_not_set(self):
-        """When ARIA_API_KEY is not set, auth_enabled should be False in health response."""
+        """When ARIA_API_KEY is set, auth_enabled is True in health response."""
 
         from unittest.mock import AsyncMock, MagicMock
 
         from fastapi.testclient import TestClient
 
+        import aria.hub.api as api_mod
         from aria.hub.api import create_api
 
         mock_hub = MagicMock(spec=IntelligenceHub)
@@ -304,17 +326,21 @@ class TestAuthEnabledInHealth:
             }
         )
 
-        import aria.hub.api as api_mod
-
-        # The module-level _ARIA_API_KEY is set at import time.
-        # Verify auth_enabled reflects the actual configured state.
-        app = create_api(mock_hub)
-        client = TestClient(app)
-        resp = client.get("/health")
-        data = resp.json()
-        # auth_enabled must match whether the API key was configured
-        expected_auth = bool(api_mod._ARIA_API_KEY)
-        assert data["auth_enabled"] == expected_auth
+        _test_key = "test-health-key-2"
+        original = api_mod._ARIA_API_KEY
+        api_mod._ARIA_API_KEY = _test_key
+        try:
+            app = create_api(mock_hub)
+            client = TestClient(app, headers={"X-API-Key": _test_key})
+            resp = client.get("/health")
+            assert resp.status_code == 200
+            data = resp.json()
+            # auth_enabled must match whether the API key was configured
+            expected_auth = bool(api_mod._ARIA_API_KEY)
+            assert data["auth_enabled"] == expected_auth
+            assert data["auth_enabled"] is True  # key is set
+        finally:
+            api_mod._ARIA_API_KEY = original
 
     def test_startup_warning_exists_when_key_missing(self):
         """The module should issue a warning when ARIA_API_KEY is absent at import time."""

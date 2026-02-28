@@ -155,25 +155,37 @@ class TestGetMLModels:
         assert data["ml_models"] is None
 
     def test_returns_model_data(self, api_hub, api_client):
-        """Extracts model health from intelligence cache."""
-        api_hub.get_cache = AsyncMock(
-            return_value={
-                "data": {
-                    "reference_model": {"r2": 0.85, "mae": 3.2},
-                    "incremental_training": {"last_batch": "2026-02-13", "samples": 500},
-                    "forecaster_backend": "prophet",
-                    "ml_models": {"gradient_boosting": {"r2": 0.82}, "random_forest": {"r2": 0.78}},
-                }
+        """Extracts model health from intelligence and ml_training_metadata caches (#316)."""
+        intel_payload = {
+            "data": {
+                "reference_model": {"r2": 0.85, "mae": 3.2},
+                "ml_models": {"gradient_boosting": {"r2": 0.82}, "random_forest": {"r2": 0.78}},
             }
-        )
+        }
+        training_payload = {
+            "data": {
+                "last_trained": "2026-02-13T00:00:00",
+                "num_snapshots": 500,
+                "targets_trained": ["power_watts"],
+                "has_anomaly_detector": True,
+            }
+        }
+
+        async def _get_cache(key):
+            if key == "ml_training_metadata":
+                return training_payload
+            return intel_payload
+
+        api_hub.get_cache = _get_cache
 
         response = api_client.get("/api/ml/models")
         assert response.status_code == 200
 
         data = response.json()
         assert data["reference"]["r2"] == 0.85
-        assert data["incremental"]["samples"] == 500
-        assert data["forecaster"] == "prophet"
+        assert data["incremental"]["num_snapshots"] == 500
+        assert data["incremental"]["last_trained"] == "2026-02-13T00:00:00"
+        assert data["forecaster"] is None  # forecaster_backend key never populated (#316)
         assert "gradient_boosting" in data["ml_models"]
 
     def test_error_returns_500(self, api_hub, api_client):
@@ -203,13 +215,15 @@ class TestGetMLAnomalies:
         assert data["isolation_forest"] == {}
 
     def test_returns_anomaly_data(self, api_hub, api_client):
-        """Extracts anomaly data from intelligence cache."""
+        """Extracts anomaly data from intelligence cache (uses sequence_anomalies key, #316)."""
         api_hub.get_cache = AsyncMock(
             return_value={
                 "data": {
-                    "anomaly_alerts": [
-                        {"metric": "power_watts", "severity": "high", "timestamp": "2026-02-13T10:00:00"},
-                    ],
+                    "sequence_anomalies": {
+                        "anomalies": [
+                            {"metric": "power_watts", "severity": "high", "timestamp": "2026-02-13T10:00:00"},
+                        ]
+                    },
                     "autoencoder_status": {"enabled": True, "reconstruction_error": 0.05},
                     "isolation_forest_status": {"contamination": 0.01, "n_estimators": 100},
                 }

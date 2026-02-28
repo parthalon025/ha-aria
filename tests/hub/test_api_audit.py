@@ -5,8 +5,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+import aria.hub.api as _api_module
 from aria.hub.api import create_api
 from aria.hub.audit import AuditLogger
+
+_TEST_API_KEY = "test-aria-key"
 
 
 @pytest.fixture
@@ -34,8 +37,13 @@ def mock_hub(audit_logger):
 
 @pytest.fixture
 def client(mock_hub):
-    app = create_api(mock_hub)
-    return TestClient(app)
+    original_key = _api_module._ARIA_API_KEY
+    _api_module._ARIA_API_KEY = _TEST_API_KEY
+    try:
+        app = create_api(mock_hub)
+        yield TestClient(app, headers={"X-API-Key": _TEST_API_KEY})
+    finally:
+        _api_module._ARIA_API_KEY = original_key
 
 
 class TestRequestMiddleware:
@@ -101,15 +109,21 @@ class TestAuditWithoutLogger:
         hub.get_uptime_seconds = MagicMock(return_value=0)
         hub.get_module = MagicMock(return_value=None)
         hub.get_cache = AsyncMock(return_value=None)
-        app = create_api(hub)
-        client = TestClient(app)
-        resp = client.get("/api/audit/events")
-        assert resp.status_code == 200
-        assert resp.json()["events"] == []
+        original = _api_module._ARIA_API_KEY
+        _api_module._ARIA_API_KEY = _TEST_API_KEY
+        try:
+            app = create_api(hub)
+            c = TestClient(app, headers={"X-API-Key": _TEST_API_KEY})
+            resp = c.get("/api/audit/events")
+            assert resp.status_code == 200
+            assert resp.json()["events"] == []
+        finally:
+            _api_module._ARIA_API_KEY = original
 
 
 class TestAuditWebSocket:
     def test_ws_audit_connects(self, client):
-        with client.websocket_connect("/ws/audit") as ws:
+        # Token required in WS URL when _ARIA_API_KEY is set (client fixture sets it)
+        with client.websocket_connect(f"/ws/audit?token={_TEST_API_KEY}") as ws:
             msg = ws.receive_json()
             assert msg["type"] == "connected"

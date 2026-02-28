@@ -5,8 +5,11 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+import aria.hub.api as _api_module
 from aria.capabilities import CapabilityRegistry
 from aria.hub.api import create_api
+
+_TEST_API_KEY = "test-aria-key"
 
 
 @pytest.fixture
@@ -26,8 +29,13 @@ def client():
     registry.collect_from_modules()
     mock_hub.get_capability_registry = MagicMock(return_value=registry)
 
-    app = create_api(mock_hub)
-    return TestClient(app)
+    original = _api_module._ARIA_API_KEY
+    _api_module._ARIA_API_KEY = _TEST_API_KEY
+    try:
+        app = create_api(mock_hub)
+        yield TestClient(app, headers={"X-API-Key": _TEST_API_KEY})
+    finally:
+        _api_module._ARIA_API_KEY = original
 
 
 class TestCapabilityRegistryAPI:
