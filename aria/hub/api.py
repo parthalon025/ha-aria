@@ -64,8 +64,16 @@ def _is_sensitive_key(key: str) -> bool:
 
 
 async def verify_api_key(key: str = Security(_api_key_header)):
-    """Verify API key if ARIA_API_KEY is configured, otherwise allow all."""
-    if _ARIA_API_KEY and key != _ARIA_API_KEY:
+    """Verify API key.  Requires a key to be provided when ARIA_API_KEY is set.
+    When ARIA_API_KEY is unset (empty string or None) at startup, all requests
+    are rejected to prevent silent open-auth deployments.  Set ARIA_API_KEY to a
+    non-empty value to enable authenticated access.
+    """
+    if not _ARIA_API_KEY:
+        # Key was not configured — fail loudly rather than silently opening all endpoints.
+        logger.warning("verify_api_key: ARIA_API_KEY is not set — rejecting request (#314)")
+        raise HTTPException(status_code=403, detail="API authentication not configured — set ARIA_API_KEY env var")
+    if key != _ARIA_API_KEY:
         raise HTTPException(status_code=403, detail="Invalid API key")
 
 
@@ -1843,7 +1851,12 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
                 return
 
         await websocket.accept()
-        await websocket.send_json({"type": "connected", "message": "Connected to ARIA Audit stream"})
+        try:
+            await websocket.send_json({"type": "connected", "message": "Connected to ARIA Audit stream"})
+        except RuntimeError:
+            # dirty disconnect immediately after accept — nothing to clean up yet (#325)
+            logger.warning("audit_websocket: dirty disconnect on initial send_json")
+            return
 
         queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
 

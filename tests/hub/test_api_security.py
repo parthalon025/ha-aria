@@ -11,8 +11,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+import aria.hub.api as _api_module
 from aria.hub.api import create_api
 from aria.hub.core import IntelligenceHub
+
+_TEST_API_KEY = "test-aria-key"
 
 
 @pytest.fixture
@@ -33,8 +36,13 @@ def api_hub():
 
 @pytest.fixture
 def api_client(api_hub):
-    app = create_api(api_hub)
-    return TestClient(app)
+    original_key = _api_module._ARIA_API_KEY
+    _api_module._ARIA_API_KEY = _TEST_API_KEY
+    try:
+        app = create_api(api_hub)
+        yield TestClient(app, headers={"X-API-Key": _TEST_API_KEY})
+    finally:
+        _api_module._ARIA_API_KEY = original_key
 
 
 class TestPathTraversalGuard:
