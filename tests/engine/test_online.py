@@ -1,5 +1,9 @@
 """Tests for River-based online learning model wrapper."""
 
+import pytest
+
+pytest.importorskip("river")
+
 from aria.engine.online import OnlineModelWrapper
 
 

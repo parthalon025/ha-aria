@@ -2,6 +2,10 @@
 
 import unittest
 
+import pytest
+
+pytest.importorskip("river")
+
 from aria.engine.analysis.drift import ADWINDetector, DriftDetector
 
 

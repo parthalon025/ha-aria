@@ -1,43 +1,43 @@
 {
-  "date": "2026-02-21",
-  "overall": 78,
+  "date": "2026-03-01",
+  "overall": 70,
   "prediction_method": "blended",
-  "days_of_data": 5,
+  "days_of_data": 6,
   "metrics": {
     "power_watts": {
-      "accuracy": 79,
-      "predicted": 149.4,
-      "actual": 144.037,
-      "error": 5.4,
-      "sigma_error": 0.83
+      "accuracy": 65,
+      "predicted": 147.7,
+      "actual": 158.552,
+      "error": 10.9,
+      "sigma_error": 1.41
     },
     "lights_on": {
-      "accuracy": 97,
-      "predicted": 20.4,
-      "actual": 23,
-      "error": 2.6,
-      "sigma_error": 0.14
+      "accuracy": 89,
+      "predicted": 11.8,
+      "actual": 3,
+      "error": 8.8,
+      "sigma_error": 0.43
     },
     "devices_home": {
-      "accuracy": 47,
-      "predicted": 62.0,
-      "actual": 57,
-      "error": 5.0,
-      "sigma_error": 2.11
+      "accuracy": 91,
+      "predicted": 60.4,
+      "actual": 59,
+      "error": 1.4,
+      "sigma_error": 0.35
     },
     "unavailable": {
-      "accuracy": 93,
-      "predicted": 911.7,
-      "actual": 917,
-      "error": 5.3,
-      "sigma_error": 0.3
+      "accuracy": 11,
+      "predicted": 925.0,
+      "actual": 954,
+      "error": 29.0,
+      "sigma_error": 3.55
     },
     "useful_events": {
-      "accuracy": 75,
-      "predicted": 3370.8,
-      "actual": 4346,
-      "error": 975.2,
-      "sigma_error": 1.01
+      "accuracy": 92,
+      "predicted": 3049.6,
+      "actual": 2245,
+      "error": 804.6,
+      "sigma_error": 0.32
     }
   }
 }

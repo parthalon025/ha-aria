@@ -1,5 +1,9 @@
 """Integration tests for the full online learning pipeline."""
 
+import pytest
+
+pytest.importorskip("river")
+
 from aria.engine.hardware import HardwareProfile, recommend_tier
 from aria.engine.online import OnlineModelWrapper
 from aria.engine.weight_tuner import EnsembleWeightTuner

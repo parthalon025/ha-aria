@@ -9,6 +9,14 @@ logger = logging.getLogger(__name__)
 
 MIN_SAMPLES_DEFAULT = 5
 
+try:
+    from river.forest import ARFRegressor as _ARFRegressor
+
+    _RIVER_AVAILABLE = True
+except ImportError:
+    _ARFRegressor = None  # type: ignore[assignment,misc]
+    _RIVER_AVAILABLE = False
+
 
 class OnlineModelWrapper:
     """Thin wrapper around River's ARFRegressor for ARIA integration.
@@ -24,21 +32,23 @@ class OnlineModelWrapper:
         self._model = self._create_model()
 
     def _create_model(self):
-        from river.forest import ARFRegressor
-
-        return ARFRegressor(
+        if not _RIVER_AVAILABLE:
+            return None
+        return _ARFRegressor(
             n_models=10,
             seed=42,
         )
 
     def learn_one(self, features: dict[str, float], y: float) -> None:
         """Update model with one observation."""
+        if self._model is None:
+            return
         self._model.learn_one(features, y)
         self.samples_seen += 1
 
     def predict_one(self, features: dict[str, float]) -> float | None:
         """Predict for one observation. Returns None if insufficient data."""
-        if self.samples_seen < self.min_samples:
+        if self._model is None or self.samples_seen < self.min_samples:
             return None
         try:
             return float(self._model.predict_one(features))
