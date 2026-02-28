@@ -313,15 +313,18 @@ class PresenceModule(Module):
 
         # Cache FacePipeline once (avoids reconstructing TF model per event)
         if hasattr(self.hub, "faces_store"):
-            from aria.faces.pipeline import FacePipeline
+            try:
+                from aria.faces.pipeline import FacePipeline
 
-            self._face_pipeline = FacePipeline(
-                store=self.hub.faces_store,
-                frigate_url=self._frigate_url,
-            )
-            # Expose health metrics on hub for /api/faces/stats
-            self.hub._face_last_processed = None
-            self.hub._face_pipeline_errors = 0
+                self._face_pipeline = FacePipeline(
+                    store=self.hub.faces_store,
+                    frigate_url=self._frigate_url,
+                )
+                # Expose health metrics on hub for /api/faces/stats
+                self.hub._face_last_processed = None
+                self.hub._face_pipeline_errors = 0
+            except ImportError:
+                self.logger.info("Presence: faces optional deps not installed — face recognition disabled")
 
         await self._seed_presence_from_ha()
 
@@ -613,7 +616,7 @@ class PresenceModule(Module):
                 task = asyncio.create_task(self._process_face_async(event_id, snapshot_url, camera, room))
                 task.add_done_callback(log_task_exception)
 
-    async def _process_face_async(  # noqa: PLR0915
+    async def _process_face_async(  # noqa: PLR0915, C901
         self, event_id: str, snapshot_url: str, camera: str, room: str
     ) -> None:
         """Extract face from Frigate snapshot and run ARIA live pipeline.
@@ -627,12 +630,22 @@ class PresenceModule(Module):
         """
         import tempfile
 
+        # Guard session first — no point loading the face pipeline if we can't fetch
+        session = self._http_session
+        if session is None or session.closed:
+            self.logger.warning("Presence._http_session unavailable — skipping face snapshot fetch")
+            return
+
         pipeline = self._face_pipeline
         if pipeline is None:
             # Lazy fallback: faces_store may have been attached after initialize()
             if not hasattr(self.hub, "faces_store"):
                 return
-            from aria.faces.pipeline import FacePipeline
+            try:
+                from aria.faces.pipeline import FacePipeline
+            except ImportError:
+                self.logger.info("Presence: faces optional deps not installed — face recognition disabled")
+                return
 
             pipeline = FacePipeline(
                 store=self.hub.faces_store,
@@ -643,10 +656,6 @@ class PresenceModule(Module):
         tmp_path = None
         persistent_path = None
         try:
-            session = self._http_session
-            if session is None or session.closed:
-                self.logger.warning("Presence._http_session unavailable — skipping face snapshot fetch")
-                return
             async with (
                 session.get(snapshot_url, timeout=aiohttp.ClientTimeout(total=10)) as resp,
             ):

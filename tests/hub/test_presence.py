@@ -367,7 +367,7 @@ class TestFrigateEvents:
 
     async def test_process_face_async_auto_label_updates_identified_persons(self, module):
         """Auto-label result populates _identified_persons with correct structure."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, MagicMock
 
         import numpy as np
 
@@ -402,10 +402,11 @@ class TestFrigateEvents:
         # Wire the module-level session (replaces per-call aiohttp.ClientSession() — #252)
         module._http_session = mock_session
 
-        # Patch FacePipeline at the source module (local import inside _process_face_async
-        # resolves through aria.faces.pipeline, so patch there)
-        with patch("aria.faces.pipeline.FacePipeline", return_value=pipeline_instance):
-            await module._process_face_async("evt-alice", "http://localhost/snap.jpg", "front_cam", "entryway")
+        # Set pipeline directly to bypass lazy import (avoids pulling in cv2/insightface,
+        # which are optional [faces] deps not installed in CI)
+        module._face_pipeline = pipeline_instance
+
+        await module._process_face_async("evt-alice", "http://localhost/snap.jpg", "front_cam", "entryway")
 
         assert "alice" in module._identified_persons
         info = module._identified_persons["alice"]
