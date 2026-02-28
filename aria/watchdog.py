@@ -354,6 +354,14 @@ def _check_timer_last_run(unit: str, results: list):
             text=True,
             timeout=5,
         )
+        if proc.returncode != 0:
+            logging.getLogger("aria.watchdog").warning(
+                "systemctl show %s failed (returncode=%d): %s",
+                unit,
+                proc.returncode,
+                proc.stderr.strip(),
+            )
+            return
         line = proc.stdout.strip()
         if "=" not in line:
             return
