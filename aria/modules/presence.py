@@ -378,6 +378,7 @@ class PresenceModule(Module):
         """Clean up MQTT connection and HTTP session."""
         if self._sub_unifi_protect:
             self.hub.unsubscribe("unifi_protect_person", self._sub_unifi_protect)
+            self._sub_unifi_protect = None
         if self._http_session:
             with contextlib.suppress(Exception):
                 await self._http_session.close()

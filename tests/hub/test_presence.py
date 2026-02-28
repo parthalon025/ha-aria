@@ -1294,3 +1294,33 @@ class TestFlushWithUnifiCrossValidation:
         cached = hub.cache._cache.get(CACHE_PRESENCE)
         assert cached is not None
         assert cached["rooms"]["living_room"]["probability"] < 0.5
+
+
+# ============================================================================
+# Subscriber lifecycle — issue #251
+# ============================================================================
+
+
+class TestSubscriberLifecycleClosed251:
+    """Verify Lesson #37: store ref on self, unsubscribe in shutdown."""
+
+    def test_sub_ref_initialized_none(self, module):
+        """_sub_unifi_protect must be None before initialize() is called."""
+        assert module._sub_unifi_protect is None
+
+    @pytest.mark.asyncio
+    async def test_shutdown_calls_unsubscribe(self, module):
+        """shutdown() must call hub.unsubscribe() with the stored callback ref."""
+        from unittest.mock import MagicMock
+
+        # Replace plain-method unsubscribe with a MagicMock so we can assert on it
+        module.hub.unsubscribe = MagicMock()
+
+        # Simulate what initialize() does: register the subscription
+        module._sub_unifi_protect = module._handle_unifi_protect_person
+        module.hub.subscribe("unifi_protect_person", module._sub_unifi_protect)
+
+        await module.shutdown()
+
+        module.hub.unsubscribe.assert_called_once_with("unifi_protect_person", module._handle_unifi_protect_person)
+        assert module._sub_unifi_protect is None
