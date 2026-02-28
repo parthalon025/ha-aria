@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Literal
 
 # ---------------------------------------------------------------------------
 # Data types
@@ -21,7 +22,7 @@ class WatchdogResult:
     """Result of a single watchdog check."""
 
     check_name: str
-    level: str  # "OK", "WARNING", "CRITICAL"
+    level: Literal["OK", "WARNING", "CRITICAL"]
     message: str
     details: dict = field(default_factory=dict)
 
