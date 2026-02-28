@@ -107,23 +107,31 @@ export default function Faces() {
 
   // Fetch presence data on mount (best-effort — ignore failures)
   useEffect(() => {
+    const controller = new AbortController();
     fetchJson('/api/cache/presence')
       .then(d => {
+        if (controller.signal.aborted) return;
         const presence = d?.data?.data || d?.data || {};
         setPresencePersons(presence.identified_persons || {});
       })
-      .catch(() => {});
+      .catch(e => { if (e.name !== 'AbortError') {} }); // best-effort, suppress all
+    return () => controller.abort();
   }, []);
 
   // Fetch initial data and bootstrap status on mount
   useEffect(() => {
+    const controller = new AbortController();
     fetchData();
     fetchJson('/api/faces/bootstrap/status')
-      .then(s => setBootstrapStatus({
-        running: s.running, processed: s.processed, total: s.total,
-        startedAt: s.started_at, lastRan: s.last_ran,
-      }))
-      .catch(e => console.warn('Bootstrap status fetch failed:', e));
+      .then(s => {
+        if (controller.signal.aborted) return;
+        setBootstrapStatus({
+          running: s.running, processed: s.processed, total: s.total,
+          startedAt: s.started_at, lastRan: s.last_ran,
+        });
+      })
+      .catch(e => { if (e.name !== 'AbortError') console.warn('Bootstrap status fetch failed:', e); });
+    return () => controller.abort();
   }, []);
 
   // Auto-focus first queue item when queue first loads
