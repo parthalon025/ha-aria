@@ -1652,6 +1652,18 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         version=__version__,
     )
 
+    # --- No-cache middleware for SPA assets ---
+    from starlette.middleware.base import BaseHTTPMiddleware
+
+    class _NoCacheSPA(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            response = await call_next(request)
+            if request.url.path.startswith("/ui"):
+                response.headers["cache-control"] = "no-store"
+            return response
+
+    app.add_middleware(_NoCacheSPA)
+
     # --- CORS middleware (#44) ---
     from fastapi.middleware.cors import CORSMiddleware
 
@@ -1726,10 +1738,7 @@ def create_api(hub: IntelligenceHub) -> FastAPI:
         # Serve real files directly (JS, CSS, etc.) with path traversal guard
         real_file = spa_dist / path
         if real_file.is_file() and real_file.resolve().is_relative_to(spa_dist.resolve()):
-            # Prevent proxies (Tailscale Serve, nginx) from caching JS/CSS bundles
-            no_cache = real_file.suffix in {".js", ".css"}
-            headers = {"Cache-Control": "no-store"} if no_cache else {}
-            return FileResponse(real_file, headers=headers)
+            return FileResponse(real_file, headers={"Cache-Control": "no-store"})
 
         # Inject window.__ARIA_CONFIG__ into index.html (#267).
         # authRequired=true signals the frontend to attach X-API-Key headers.
