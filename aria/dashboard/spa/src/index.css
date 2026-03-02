@@ -1,125 +1,12 @@
 @import "tailwindcss";
+@import "expedition33-ui";
 @import "uplot/dist/uPlot.min.css";
 @import "../node_modules/superhot-ui/css/superhot.css";
 
-/* ── Theme tokens ── */
+/* ── App-specific layout tokens (not provided by expedition33-ui) ── */
 :root {
-  /* Surfaces — HA-aligned neutral grays */
-  --bg-base: #FAFAFA;
-  --bg-surface: #FFFFFF;
-  --bg-surface-raised: #F5F5F5;
-  --bg-inset: #F0F0F0;
-  --bg-terminal: #F5F5F0;
-
-  /* Borders */
-  --border-primary: #9E9E9E;
-  --border-subtle: #E0E0E0;
-  --border-accent: #0891B2;
-
-  /* Text — HA-aligned */
-  --text-primary: #212121;
-  --text-secondary: #727272;
-  --text-tertiary: #9E9E9E;
-  --text-inverse: #FAFAFA;
-  --text-accent: #0891B2;
-
-  /* Accent — ARIA cyan (brand identity) */
-  --accent: #0891B2;
-  --accent-dim: #0E7490;
-  --accent-glow: rgba(8, 145, 178, 0.10);
-  --accent-text: #FFFFFF;
-
-  /* Accent warm — HA orange (human action / attention) */
-  --accent-warm: #FF9800;
-  --accent-warm-dim: #F57C00;
-  --accent-warm-glow: rgba(255, 152, 0, 0.10);
-  --accent-warm-text: #FFFFFF;
-
-  /* Status — HA exact values */
-  --status-healthy: #0F9D58;
-  --status-warning: #FF9800;
-  --status-error: #DB4437;
-  --status-active: #FDD835;
-  --status-waiting: #9E9E9E;
-
-  /* Status glow tokens (for background tints) */
-  --status-healthy-glow: rgba(15, 157, 88, 0.15);
-  --status-warning-glow: rgba(255, 152, 0, 0.15);
-  --status-error-glow: rgba(219, 68, 55, 0.15);
-
-  /* Accent purple — correlation / room / occupancy */
-  --accent-purple: #9333EA;
-  --accent-purple-glow: rgba(147, 51, 234, 0.15);
-
-  /* Ambient */
-  --grid-line: rgba(33, 33, 33, 0.04);
-  --scan-line: rgba(8, 145, 178, 0.08);
-  --glow-spread: rgba(8, 145, 178, 0.06);
-
-  /* Depth */
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.10), 0 2px 4px rgba(0, 0, 0, 0.06);
-
-  /* Typography */
+  /* Monospace font override — ARIA terminal preference */
   --font-mono: ui-monospace, 'Cascadia Code', 'Fira Code', 'Menlo', monospace;
-  --type-hero: 2.5rem;
-  --type-headline: 1.25rem;
-  --type-body: 0.9375rem;
-  --type-data: 1rem;
-  --type-label: 0.6875rem;
-  --type-micro: 0.625rem;
-
-  /* Shape */
-  --radius: 4px;
-  --radius-lg: 6px;
-}
-
-[data-theme="dark"] {
-  --bg-base: #111318;
-  --bg-surface: #1C1C1E;
-  --bg-surface-raised: #2C2C2E;
-  --bg-inset: #0D0D0F;
-  --bg-terminal: #0A0E14;
-
-  --border-primary: #48484A;
-  --border-subtle: #2C2C2E;
-  --border-accent: #22D3EE;
-
-  --text-primary: #E8EAED;
-  --text-secondary: #9AA0A6;
-  --text-tertiary: #5F6368;
-  --text-inverse: #111318;
-  --text-accent: #22D3EE;
-
-  --accent: #22D3EE;
-  --accent-dim: #0891B2;
-  --accent-glow: rgba(34, 211, 238, 0.12);
-  --accent-text: #111318;
-
-  --accent-warm: #FFB74D;
-  --accent-warm-dim: #FF9800;
-  --accent-warm-glow: rgba(255, 183, 77, 0.10);
-  --accent-warm-text: #111318;
-
-  --status-healthy: #4ADE80;
-  --status-warning: #FFC107;
-  --status-error: #F87171;
-  --status-active: #FDE68A;
-  --status-waiting: #5F6368;
-
-  --status-healthy-glow: rgba(74, 222, 128, 0.15);
-  --status-warning-glow: rgba(255, 193, 7, 0.15);
-  --status-error-glow: rgba(248, 113, 113, 0.15);
-
-  --accent-purple: #C084FC;
-  --accent-purple-glow: rgba(192, 132, 252, 0.15);
-
-  --grid-line: rgba(34, 211, 238, 0.03);
-  --scan-line: rgba(34, 211, 238, 0.05);
-  --glow-spread: rgba(34, 211, 238, 0.06);
-
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --card-shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 /* ── Global theme-aware base styles ── */
@@ -514,23 +401,6 @@ body {
   letter-spacing: 0.02em;
 }
 
-/* Dark mode enhancements — stronger glow on dark backgrounds */
-[data-theme="dark"] .page-banner-sh {
-  background: var(--bg-terminal);
-  border-color: var(--border-subtle);
-  border-left-color: var(--accent);
-}
-
-[data-theme="dark"] .page-banner-sh::before {
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(255, 255, 255, 0.02) 2px,
-    rgba(255, 255, 255, 0.02) 4px
-  );
-}
-
 @media (prefers-reduced-motion: reduce) {
   .page-banner-sh { animation: none; }
   .page-banner-sh svg { animation: none; filter: drop-shadow(0 0 4px var(--accent)); }
@@ -549,16 +419,6 @@ body {
     transparent 2px,
     rgba(0, 0, 0, 0.015) 2px,
     rgba(0, 0, 0, 0.015) 4px
-  );
-}
-
-[data-theme="dark"] .crt-overlay {
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(255, 255, 255, 0.008) 2px,
-    rgba(255, 255, 255, 0.008) 4px
   );
 }
 
