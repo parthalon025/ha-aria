@@ -137,7 +137,27 @@ Each ARIA page maps to an Expedition 33 location, mood, and atmosphere configura
 | Settings | `/settings` | lumiere | nostalgic | `exp-vignette` only (minimal atmosphere) | sciel | Settings are the guide's domain -- Sciel's silver transcendence. Calm, minimal atmosphere. The guide adjusts dials and knobs without drama. |
 | Guide | `/guide` | lumiere | nostalgic | `exp-vignette`, `exp-canvas-texture` (warm parchment feel) | sciel | The Guide page is a journal -- expedition notes explaining how ARIA works. Warm parchment with Sciel's guiding hand. |
 | Faces | `/faces` | lumiere | nostalgic | `exp-vignette`, `exp-portrait` frames for each person | Per-person chroma | The Faces page is a portrait gallery. Each person gets a tarot-frame portrait with their assigned chroma. Nostalgic warmth -- these are the people you know. |
-| DetailPage | `/detail/:type/:id` | Inherited from parent page context | Inherited | Inherited + `exp-frame` tarot card for focused entity | Inherited from entity/module type | Detail pages inherit the atmosphere of their parent concept. An anomaly detail inherits dread; a capability detail inherits nostalgic. |
+| DetailPage | `/detail/:type/:id/:rest*` | Inherited from parent page context | Inherited | Inherited + `exp-frame` tarot card for focused entity | Inherited from entity/module type | Detail pages inherit the atmosphere of their parent concept. An anomaly detail inherits dread; a capability detail inherits nostalgic. |
+
+### Detail Page Types
+
+The ARIA dashboard supports 13 detail page types at `/detail/:type/:id/:rest*`:
+
+| Type | Component | Content |
+|------|-----------|---------|
+| `anomaly` | AnomalyDetail | Anomaly deep-dive with SHAP attributions |
+| `baseline` | BaselineDetail | Entity baseline patterns and deviations |
+| `capability` | CapabilityDetail | System capability analysis |
+| `config` | ConfigDetail | Configuration item details |
+| `correlation` | CorrelationDetail | Cross-entity correlation analysis |
+| `curation` | CurationDetail | Data curation workflow status |
+| `drift` | DriftDetail | Model drift analysis |
+| `entity` | EntityDetail | Individual HA entity detail |
+| `model` | ModelDetail | ML model performance metrics |
+| `module` | ModuleDetail | Pipeline module status |
+| `prediction` | PredictionDetail | Prediction accuracy drill-down |
+| `room` | RoomDetail | Room-level aggregation |
+| `suggestion` | SuggestionDetail | Automation suggestion details |
 
 ### Dynamic Mood Rules
 
@@ -924,3 +944,43 @@ Is it a form input?
 | `node_modules/expedition33-ui/CLAUDE.md` | expedition33-ui file structure, class inventory, token list | Before using any `exp-*` class |
 | `node_modules/expedition33-ui/src/tokens.css` | All 195 CSS custom properties + chroma + mood + location tokens | Before referencing a token by name |
 | `node_modules/expedition33-ui/tests/preview.html` | Visual preview of all expedition33-ui components | To see what a component looks like |
+
+---
+
+## Appendix: File Inventory
+
+### Pages (`aria/dashboard/spa/src/pages/`)
+
+| File | Route | Description |
+|------|-------|-------------|
+| `Home.jsx` | `/` | Landing page with hero cards and OODA summary |
+| `Observe.jsx` | `/observe` | Live entity monitoring |
+| `Understand.jsx` | `/understand` | Intelligence analysis (anomalies, patterns) |
+| `Decide.jsx` | `/decide` | Recommendations and actions |
+| `Discovery.jsx` | `/discovery` | Entity discovery and search |
+| `Capabilities.jsx` | `/capabilities` | System capability overview |
+| `MLEngine.jsx` | `/ml-engine` | ML pipeline status and training |
+| `DataCuration.jsx` | `/data-curation` | Data quality and curation |
+| `Validation.jsx` | `/validation` | Model validation results |
+| `Settings.jsx` | `/settings` | Configuration |
+| `Guide.jsx` | `/guide` | User guide |
+| `Faces.jsx` | `/faces` | Face recognition gallery |
+| `Intelligence.jsx` | `/intelligence` | Legacy intelligence page (redirects to Understand) |
+| `Predictions.jsx` | `/predictions` | Legacy predictions page (redirects to Understand) |
+| `Patterns.jsx` | `/patterns` | Legacy patterns page (redirects to Understand) |
+| `Shadow.jsx` | `/shadow` | Legacy shadow page (redirects to Understand) |
+| `Presence.jsx` | `/presence` | Legacy presence page (redirects to Observe) |
+| `Automations.jsx` | `/automations` | Legacy automations page (redirects to Decide) |
+| `DetailPage.jsx` | `/detail/:type/:id/:rest*` | Generic detail route dispatcher |
+
+### Detail Pages (`aria/dashboard/spa/src/pages/details/`)
+
+AnomalyDetail, BaselineDetail, CapabilityDetail, ConfigDetail, CorrelationDetail, CurationDetail, DriftDetail, EntityDetail, ModelDetail, ModuleDetail, PredictionDetail, RoomDetail, SuggestionDetail
+
+### Intelligence Sections (`aria/dashboard/spa/src/pages/intelligence/`)
+
+ActivitySection, AnomalyAlerts, Baselines, Configuration, Correlations, DailyInsight, DriftStatus, HomeRightNow, LearningProgress, PredictionsVsActuals, ShapAttributions, SystemStatus, TrendsOverTime, utils
+
+### Shared Components (`aria/dashboard/spa/src/components/`)
+
+AriaLogo, Breadcrumb, CapabilityDetail, CollapsibleSection, DataSourceConfig, DataTable, DiscoverySettings, DomainChart, ErrorState, HeroCard, InlineSettings, LoadingState, OodaSummaryCard, PageBanner, PipelineSankey, PipelineStatusBar, PipelineStepper, PresenceCard, Sidebar, StatsGrid, StatusBadge, TerminalToggle, TimeChart, UsefulnessBar
