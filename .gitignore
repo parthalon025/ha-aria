@@ -83,3 +83,5 @@ client_secret*.json
 
 # Embeddings cache
 .embeddings/
+coverage/
+megalinter-reports/
