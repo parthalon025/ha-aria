@@ -20,6 +20,12 @@ from aria.shared.utils import log_task_exception as _log_task_exception
 _EVENT_BUFFER_FLUSH_INTERVAL = 5.0  # seconds
 _EVENT_BUFFER_MAX_SIZE = 50
 
+# High-frequency HA telemetry events that must NOT be stored in hub.db.
+# These are already captured in EventStore (events.db) and writing them
+# here caused the hub.db events table to grow to 3.6 M rows/week, driving
+# the 1.8 GB memory leak reported in issue #140.
+_HIGH_FREQ_SKIP_EVENTS: frozenset[str] = frozenset({"state_changed"})
+
 
 class CacheManager:
     """Manages SQLite cache for hub data storage."""
@@ -373,6 +379,11 @@ class CacheManager:
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
+        # Skip high-frequency HA telemetry — already stored in EventStore (events.db).
+        # Logging these here caused 3.6 M rows/week and the 1.8 GB leak (#140).
+        if event_type in _HIGH_FREQ_SKIP_EVENTS:
+            return
+
         self._event_buffer.append(
             (
                 datetime.now(tz=UTC).isoformat(),
@@ -446,14 +457,34 @@ class CacheManager:
     # ========================================================================
 
     async def prune_events(self, retention_days: int = 7) -> int:
-        """Delete events older than retention_days. Returns count deleted."""
+        """Delete events older than retention_days. Returns count deleted.
+
+        After deleting, checkpoints the WAL and runs VACUUM so that freed
+        SQLite pages are returned to the OS rather than staying in the
+        in-process page cache (#140).
+        """
         if not self._conn:
             raise RuntimeError("Cache not initialized. Call initialize() first.")
 
         cutoff = (datetime.now(tz=UTC) - timedelta(days=retention_days)).isoformat()
         cursor = await self._conn.execute("DELETE FROM events WHERE timestamp < ?", (cutoff,))
+        deleted = cursor.rowcount
+        await cursor.close()  # Must close before VACUUM (open cursor blocks it)
         await self._conn.commit()
-        return cursor.rowcount
+
+        # Checkpoint WAL: moves WAL pages back into the main DB file so the
+        # WAL stays small and reduces SQLite's in-process memory use.
+        chk = await self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        await chk.close()  # Must close each cursor before VACUUM
+
+        # VACUUM reclaims pages freed by the DELETE, shrinking the DB file
+        # and the process RSS over the next GC cycle.  Requires no open
+        # cursors or active transactions on this connection.
+        vac = await self._conn.execute("VACUUM")
+        await vac.close()
+        await self._conn.commit()
+
+        return deleted
 
     async def prune_predictions(self, retention_days: int = 30) -> int:
         """Delete resolved predictions older than retention_days."""

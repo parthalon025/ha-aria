@@ -25,7 +25,7 @@
 | Layer | Package | What It Provides | ARIA's Relationship |
 |-------|---------|-----------------|---------------------|
 | Base | `ui-template` | Token names, React component API, layout primitives, shadcn/ui wrappers | ARIA does NOT consume ui-template directly (Preact, not React). Token names flow through expedition33-ui. |
-| Theme | `expedition33-ui` | 195 CSS custom properties, 26 CSS files, character Chroma, mood/location/time overlays, atmosphere layers, battle UI, monolith, journal, paint states, animations | ARIA imports this via `@import "expedition33-ui"` in `index.css`. All token values come from here. |
+| Theme | `expedition33-ui` | 688 CSS custom properties, 27 CSS files + themes/, character Chroma, mood/location/time overlays, atmosphere layers, battle UI, monolith, journal, paint states, animations | ARIA imports this via `@import "expedition33-ui"` in `index.css`. All token values come from here. |
 | Effects | `superhot-ui` | Data freshness states, shatter/glitch/mantra effects, threat palette | ARIA imports and force-enables on mobile via `!important` overrides in `index.css`. |
 | App | `ha-aria/index.css` | App-specific layout tokens, `t-*` component classes, cursor system, 3-tier animation system, pipeline-specific styles | The file you are editing. |
 
@@ -50,6 +50,36 @@
 ### Gap Summary
 
 The deepest gaps are in **narrative-driven components** (journal, monolith, portraits, battle HUD), **atmosphere layers** (petals, dust, vignette, light beams, star field), and **contextual theming** (chroma, mood, location, time-of-day). These are exactly what give the Expedition 33 aesthetic its emotional depth. The migration path is incremental: adopt expedition33-ui classes page-by-page, replacing `t-*` classes where the `exp-*` equivalent provides richer treatment.
+
+---
+
+## 1.5 Strategy Stack
+
+ARIA is an AI-powered home intelligence system. The user's core question: **"Is my home OK?"** Every design decision serves that question.
+
+### UX Strategies (Mission Plan)
+
+| Strategy | Priority | Application |
+|----------|----------|-------------|
+| **Outcome-Driven** | Primary | The outcome is "home status confidence." Design backward from that. Every page answers a sub-question: Observe="what's happening now?", Understand="what's unusual?", Decide="what should I do?" |
+| **Trust & Predictability** | Primary | AI predictions must show confidence levels, not just results. ML training status visible. Anomaly explanations transparent. Users forgive slow AI — not wrong AI that hides its reasoning. |
+| **Context-Aware** | High | Mobile quick-check (glance at home status) vs desktop deep-analysis (anomaly drill-down). High-stress (alert received) vs casual (morning check). `data-density="compact"` on mobile, full atmosphere on desktop. |
+| **Emotional Journey** | Medium | Normal ops=nostalgic (warm, safe). Anomaly detected=dread (tension, attention). Recovery=dawn (relief, resolution). The mood system maps directly to the user's emotional state. |
+| **Systems Thinking** | Medium | ARIA extends beyond the dashboard: Telegram alerts (telegram-brief), watchdog notifications, automation suggestions. The dashboard is one surface of a multi-channel experience. |
+
+### UI Strategies (Weapon System)
+
+| Strategy | Priority | Application |
+|----------|----------|-------------|
+| **Clarity-First** | Primary | One hero metric per page (MonolithDisplay). Status at a glance (GlyphBadge). No decorative elements in data-dense views. |
+| **Trust-Centered** | Primary | ML confidence visible. Prediction accuracy history. Transparent anomaly scoring. StatusDot → Banner → Modal escalation for alerts. |
+| **Feedback-Rich** | High | Real-time WebSocket updates. CanvasSaved on automation approval. CrossingOut on anomaly resolution. SUPERHOT freshness states on all data cards. |
+| **Progressive Disclosure** | Medium | Overview (Home) → Category (Observe/Understand/Decide) → Detail pages. AdvancedToggle for ML parameters. |
+| **Gamified** | Low | TattooStrip for device achievement marks (first-deploy, veteran, longest-uptime). ExpeditionCounter for entity counts. Battle metaphor only where it genuinely clarifies (not decorative). |
+
+### Behavioral Target
+
+**What behavior are we engineering?** Confident monitoring with low anxiety. The user checks ARIA, confirms home status, and moves on with their day. When something is wrong, ARIA escalates clearly and guides action. The worst outcome is false confidence or alarm fatigue.
 
 ---
 
