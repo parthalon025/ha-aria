@@ -128,6 +128,8 @@ HA uses a three-tier hierarchy: **entity → device → area**. Only ~0.2% of en
 - **Media player signals feed presence detection** — playing/paused/idle/buffering states contribute 0.85 media_active signal; off/standby contribute 0.15 media_inactive. Enables living room presence detection via Sonos/Apple TV state without requiring a room camera.
 - **SUPERHOT mobile overrides use `!important`** — `index.css` forces all `superhot-ui` effects on phone/tablet. If `superhot-ui` renames classes, overrides silently break.
 - **SPA catch-all route** — `/ui/{path}` returns `index.html` for non-file paths, enabling deep-linking and browser refresh. Real static files served directly.
+- **hub.db events table is for hub management events only** — `hub.publish()` routes through `cache.log_event()`, but high-frequency HA telemetry (`state_changed`, ~6/sec × 3050 entities) must NOT be logged here — it already lives in events.db (EventStore). Writing it to hub.db accumulates 3.6M rows/week and causes a 540 MB/day RSS leak. See `_HIGH_FREQ_SKIP_EVENTS` in `aria/hub/cache.py`. (#140)
+- **SQLite DELETE does not free memory — VACUUM does** — `prune_events()` must call `PRAGMA wal_checkpoint(TRUNCATE)` then `VACUUM` after deleting rows, with all cursors explicitly closed first. Without this, freed pages stay in the SQLite page cache and process RSS keeps growing even after retention pruning. (#140)
 
 Full gotchas catalog: `docs/gotchas.md`
 
