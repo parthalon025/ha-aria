@@ -14,7 +14,7 @@
 </pre>
 
 [![CI](https://github.com/parthalon025/ha-aria/actions/workflows/ci.yml/badge.svg)](https://github.com/parthalon025/ha-aria/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-2451_passing-brightgreen)](https://github.com/parthalon025/ha-aria/actions)
+[![Tests](https://img.shields.io/badge/tests-2458_passing-brightgreen)](https://github.com/parthalon025/ha-aria/actions)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -178,7 +178,7 @@ ARIA uses **Thompson Sampling** (a multi-armed bandit algorithm) to route predic
 | **LLM backend** | Ollama (local, queue-backed) |
 | **Network presence** | UniFi REST + WebSocket APIs |
 | **Camera presence** | Frigate NVR + MQTT |
-| **Testing** | pytest, pytest-xdist (2451 tests, parallel across 6 workers) |
+| **Testing** | pytest, pytest-xdist (2458 tests, parallel across 6 workers) |
 | **CI** | GitHub Actions — lint → test (Python 3.12 + 3.13) → dashboard build |
 
 ---
@@ -392,8 +392,8 @@ ARIA doesn't replace your existing automations — it **learns from them** and s
 
 | | |
 |:---|:---|
-| **Tests** | 2,451 passing (CI-enforced, parallel execution via pytest-xdist) |
-| **Test suites** | Hub (~1,533), Engine (~485), Integration (~237 including 37 golden-snapshot regression tests) |
+| **Tests** | 2,458 passing (CI-enforced, parallel execution via pytest-xdist) |
+| **Test suites** | Hub (~1,540), Engine (~485), Integration (~237 including 37 golden-snapshot regression tests) |
 | **Hub modules** | 14 registered (discovery, ML engine, patterns, shadow engine, orchestrator, trajectory classifier, intelligence, activity monitor, presence, UniFi, automation generator, anomaly explainer, attention explainer, audit logger) |
 | **Dashboard** | Preact SPA — multiple pages across OODA structure |
 | **CI** | Lint → Test (Python 3.12 + 3.13) → Dashboard build |
