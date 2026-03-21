@@ -1,78 +1,44 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
+permissions:
+  contents: read
+  security-events: write
+  actions: read
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - run: pip install ruff
-      - run: ruff check aria/ tests/
-      - run: ruff format --check aria/ tests/
-
-  shellcheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install ShellCheck
-        run: sudo apt-get install -y shellcheck
-      - name: Run ShellCheck on shell scripts
-        run: |
-          shellcheck bin/*.sh
-          shellcheck bin/ha-log-sync
-
+    uses: parthalon025/ci-workflows/.github/workflows/reusable-lint-python.yml@v1
+    secrets: inherit
   test:
+    needs: lint
+    uses: parthalon025/ci-workflows/.github/workflows/reusable-test-python.yml@v1
+    with:
+      coverage: true
+      codecov-upload: true
+    secrets: inherit
+  security:
+    uses: parthalon025/ci-workflows/.github/workflows/reusable-security.yml@v1
+    secrets: inherit
+  codeql:
+    uses: parthalon025/ci-workflows/.github/workflows/reusable-codeql.yml@v1
+    with:
+      language: python
+    secrets: inherit
+  ci-pass:
+    needs: [lint, test, security, codeql]
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12", "3.13"]
+    if: always()
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-      - name: Install dependencies
-        run: pip install -e ".[dev,ml-extra,llm]" pytest-cov pytest-timeout httpx
-      - name: Run tests with coverage
-        run: pytest tests/ --cov=aria --cov-report=xml -v --tb=short --timeout=120
-      - name: Upload coverage
-        if: matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v5
-        with:
-          file: coverage.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
-        continue-on-error: true  # Works without token but uploads fail
-
-  dashboard:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci
-        working-directory: aria/dashboard/spa
-      - name: Verify dashboard builds
+      - name: Check results
         run: |
-          npx esbuild aria/dashboard/spa/src/index.jsx \
-            --bundle \
-            --outfile=/tmp/bundle.js \
-            --jsx-factory=h \
-            --jsx-fragment=Fragment \
-            --inject:aria/dashboard/spa/src/preact-shim.js \
-            --loader:.jsx=jsx \
-            --minify
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]] || \
+             [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            exit 1
+          fi

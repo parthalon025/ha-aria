@@ -1,0 +1,12 @@
+name: Claude Review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    uses: parthalon025/ci-workflows/.github/workflows/reusable-claude-review.yml@v1
+    secrets: inherit
+    permissions:
+      contents: read
+      pull-requests: write

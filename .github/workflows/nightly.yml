@@ -1,0 +1,12 @@
+name: Nightly
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    uses: parthalon025/ci-workflows/.github/workflows/reusable-nightly.yml@v1
+    with:
+      language: 'python'
+    secrets: inherit
