@@ -108,6 +108,10 @@ HA uses a three-tier hierarchy: **entity → device → area**. Only ~0.2% of en
 
 **Lessons learned:** `lessons-db search "area entity resolution"` | `lessons-db search "organic discovery"`
 
+## Entity Resolution Chain
+
+Entities → Devices → Areas. Only ~0.2% of entities have a direct `area_id`; the rest inherit through their parent device. Always resolve: `entity_registry.async_get(entity_id)` → check `entity.area_id` first → fall back to `device_registry.async_get(entity.device_id).area_id`. Direct entity→area mapping does not exist in HA. Frontend code must use `getEffectiveArea()` as defense-in-depth. The discovery pipeline (`bin/discover.py`) backfills this automatically.
+
 ## Gotchas
 
 - **Entity area_id is device-inherited** — only 6/3,050 entities have direct area_id. Always resolve entity→device→area. See "HA Data Model" above.
