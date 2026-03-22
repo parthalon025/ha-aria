@@ -20,6 +20,7 @@ jobs:
     needs: lint
     uses: parthalon025/ci-workflows/.github/workflows/reusable-test-python.yml@v1
     with:
+      install-command: 'pip install -e ".[dev,ml-extra]"'
       coverage: true
       codecov-upload: true
     secrets: inherit
