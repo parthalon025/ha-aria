@@ -1,0 +1,139 @@
+project: ha-aria
+last_scanned: 2026-03-25
+
+docs:
+  - type: plan
+    path: docs/plans/2026-02-20-aria-roadmap-2-design.md
+    status: Approved
+    created: 2026-02-20
+    title: "ARIA Roadmap 2.0 — Design Document"
+  - type: plan
+    path: docs/plans/2026-02-20-phase1-event-store-entity-graph.md
+    status: unknown
+    created: 2026-02-20
+    title: "Phase 1: Event Store + Entity Graph — Implementation Plan"
+  - type: plan
+    path: docs/plans/2026-02-20-phase3-automation-generator-design.md
+    status: Approved
+    created: 2026-02-20
+    title: "Phase 3: Automation Generator Rewrite — Design Document"
+  - type: plan
+    path: docs/plans/2026-02-20-phase3-implementation-plan.md
+    status: unknown
+    created: 2026-02-20
+    title: "Phase 3: Automation Generator — Implementation Plan"
+  - type: plan
+    path: docs/plans/2026-02-21-phase4-implementation-plan.md
+    status: unknown
+    created: 2026-02-21
+    title: "Phase 4: I&W Framework Implementation Plan"
+  - type: plan
+    path: docs/plans/2026-02-21-phase4-iw-framework-design.md
+    status: Approved
+    created: 2026-02-21
+    title: "Phase 4: I&W Framework + Organic Capabilities + Synthetic Testing — Design Document"
+  - type: plan
+    path: docs/plans/2026-02-24-stabilization-design.md
+    status: Approved
+    created: 2026-02-24
+    title: "ARIA Stabilization — Design Document"
+  - type: plan
+    path: docs/plans/2026-02-24-stabilization-plan.md
+    status: unknown
+    created: 2026-02-24
+    title: "ARIA Stabilization Implementation Plan"
+  - type: plan
+    path: docs/plans/2026-02-25-face-recognition-pipeline.md
+    status: unknown
+    created: 2026-02-25
+    title: "Face Recognition Presence Pipeline — Implementation Plan"
+  - type: plan
+    path: docs/plans/2026-02-25-face-recognition-presence-design.md
+    status: Approved for implementation
+    created: 2026-02-25
+    title: "Face Recognition Presence Pipeline — Design Doc"
+  - type: plan
+    path: docs/plans/2026-02-25-fix-all-issues-plan.md
+    status: unknown
+    created: 2026-02-25
+    title: "Fix All 100 ARIA Issues — Implementation Plan"
+  - type: plan
+    path: docs/plans/2026-02-25-unifi-integration-design.md
+    status: Approved — pending implementation plan
+    created: 2026-02-25
+    title: "UniFi Integration Design"
+  - type: plan
+    path: docs/plans/2026-02-25-unifi-integration-plan.md
+    status: unknown
+    created: 2026-02-25
+    title: "UniFi Integration Implementation Plan"
+  - type: plan
+    path: docs/plans/2026-02-26-fix-all-issues-aar.md
+    status: unknown
+    created: 2026-02-26
+    title: "After-Action Review: Fix All 100 Issues"
+  - type: plan
+    path: docs/plans/2026-02-27-insightface-migration-design.md
+    status: Approved
+    created: 2026-02-27
+    title: "InsightFace Migration Design"
+  - type: plan
+    path: docs/plans/2026-02-27-insightface-migration.md
+    status: unknown
+    created: 2026-02-27
+    title: "InsightFace Migration Implementation Plan"
+  - type: plan
+    path: docs/plans/2026-02-27-lint-type-test-hardening.md
+    status: unknown
+    created: 2026-02-27
+    title: "Lint, Type, and Test Hardening — 2026-02-27"
+  - type: plan
+    path: docs/plans/2026-02-28-agent-teams-github-issues-design.md
+    status: unknown
+    created: 2026-02-28
+    title: "Agent Teams: Fix All GitHub Issues — Design"
+  - type: plan
+    path: docs/plans/2026-02-28-agent-teams-github-issues-plan.md
+    status: unknown
+    created: 2026-02-28
+    title: "Agent Teams: Fix All GitHub Issues — Implementation Plan"
+  - type: unknown
+    path: tasks/audit-final.md
+    status: unknown
+    created: 2026-02-28
+    title: "FINAL AUDIT: PASS -- ARIA intelligence pipeline verified end-to-end"
+  - type: unknown
+    path: tasks/audit-horizontal.md
+    status: unknown
+    created: 2026-02-28
+    title: "Horizontal Sweep — ARIA API Route Audit"
+  - type: unknown
+    path: tasks/audit-vertical.md
+    status: unknown
+    created: 2026-02-28
+    title: "Vertical Trace — ARIA Intelligence Pipeline End-to-End"
+  - type: unknown
+    path: tasks/interface-changes.md
+    status: unknown
+    created: 2026-02-28
+    title: "Interface Changes Log"
+  - type: prd
+    path: tasks/prd-phase1-event-store.md
+    status: unknown
+    created: 2026-02-20
+    title: "PRD: Phase 1 — Event Store + Entity Graph"
+  - type: prd
+    path: tasks/prd-phase4-iw-framework.md
+    status: unknown
+    created: 2026-02-21
+    title: "PRD: Phase 4 — I&W Framework + Organic Capabilities + Synthetic Testing"
+  - type: unknown
+    path: tasks/research-face-recognition.md
+    status: unknown
+    created: 2026-02-25
+    title: "Face Recognition — Peer-Reviewed Research"
+  - type: unknown
+    path: tasks/research-faces-ux.md
+    status: unknown
+    created: 2026-02-25
+    title: "Faces Page — UX Research Report"
